@@ -1,0 +1,126 @@
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { CustomFieldDefinition, CustomFieldEntity } from '@prisma/client';
+import { PrismaService } from '../../database/prisma.service';
+
+interface Option {
+  value: string;
+  label: string;
+}
+
+/**
+ * Validates & normalizes an entity's `custom_fields` JSONB payload against the
+ * admin-defined `custom_field_definitions`. This is the server-side counterpart
+ * to the frontend DynamicCustomField — the API is the source of truth.
+ * Unknown keys are dropped (mass-assignment safety); required/type/range/regex/
+ * option-membership/uniqueness are enforced.
+ */
+@Injectable()
+export class CustomFieldValidatorService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async validate(
+    orgId: string,
+    entity: CustomFieldEntity,
+    values: Record<string, unknown> | undefined,
+    opts: { entityId?: string; skipRequired?: boolean } = {},
+  ): Promise<Record<string, unknown>> {
+    const defs = await this.prisma.customFieldDefinition.findMany({
+      where: { organizationId: orgId, entity, deletedAt: null },
+    });
+    const input = values ?? {};
+    const out: Record<string, unknown> = {};
+    const errors: Record<string, string> = {};
+
+    for (const def of defs) {
+      const raw = input[def.fieldKey];
+      const empty = raw === undefined || raw === null || raw === '' || (Array.isArray(raw) && raw.length === 0);
+
+      if (empty) {
+        if (def.isRequired && !opts.skipRequired) errors[def.fieldKey] = `${def.label} is required`;
+        continue;
+      }
+
+      const [value, error] = this.coerce(def, raw);
+      if (error) {
+        errors[def.fieldKey] = error;
+        continue;
+      }
+      out[def.fieldKey] = value;
+    }
+
+    if (Object.keys(errors).length) {
+      throw new BadRequestException({ message: 'Custom field validation failed', fields: errors });
+    }
+
+    // uniqueness (per-key) — checked after shape validation
+    for (const def of defs) {
+      if (!def.isUnique || out[def.fieldKey] == null) continue;
+      if (await this.isDuplicate(orgId, entity, def.fieldKey, out[def.fieldKey], opts.entityId)) {
+        throw new BadRequestException({ message: 'Custom field validation failed', fields: { [def.fieldKey]: `${def.label} must be unique` } });
+      }
+    }
+
+    return out;
+  }
+
+  private coerce(def: CustomFieldDefinition, raw: unknown): [unknown, string | null] {
+    const label = def.label;
+    switch (def.dataType) {
+      case 'number':
+      case 'decimal': {
+        const n = typeof raw === 'number' ? raw : Number(raw);
+        if (Number.isNaN(n)) return [null, `${label} must be a number`];
+        if (def.minValue != null && n < Number(def.minValue)) return [null, `${label} must be ≥ ${def.minValue}`];
+        if (def.maxValue != null && n > Number(def.maxValue)) return [null, `${label} must be ≤ ${def.maxValue}`];
+        return [n, null];
+      }
+      case 'boolean':
+        return [Boolean(raw), null];
+      case 'email':
+        return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(raw)) ? [String(raw), null] : [null, `${label} must be a valid email`];
+      case 'url':
+        return /^https?:\/\/.+|^[\w-]+(\.[\w-]+)+.*$/.test(String(raw)) ? [String(raw), null] : [null, `${label} must be a valid URL`];
+      case 'date':
+      case 'datetime':
+        return Number.isNaN(Date.parse(String(raw))) ? [null, `${label} must be a valid date`] : [String(raw), null];
+      case 'select': {
+        const opts = (def.options as unknown as Option[]) ?? [];
+        return opts.some((o) => o.value === String(raw)) ? [String(raw), null] : [null, `${label} has an invalid option`];
+      }
+      case 'multiselect': {
+        const opts = (def.options as unknown as Option[]) ?? [];
+        const arr = Array.isArray(raw) ? raw.map(String) : [String(raw)];
+        const allowed = new Set(opts.map((o) => o.value));
+        return arr.every((v) => allowed.has(v)) ? [arr, null] : [null, `${label} has an invalid option`];
+      }
+      case 'json':
+        return [raw, null];
+      default: {
+        // text / textarea / phone / file (store filename/key)
+        const s = String(raw);
+        if (def.minLength != null && s.length < def.minLength) return [null, `${label} must be ≥ ${def.minLength} chars`];
+        if (def.maxLength != null && s.length > def.maxLength) return [null, `${label} must be ≤ ${def.maxLength} chars`];
+        if (def.regexPattern) {
+          try {
+            if (!new RegExp(def.regexPattern).test(s)) return [null, `${label} format is invalid`];
+          } catch {
+            /* ignore bad regex in definition */
+          }
+        }
+        return [s, null];
+      }
+    }
+  }
+
+  private async isDuplicate(orgId: string, entity: CustomFieldEntity, key: string, value: unknown, excludeId?: string): Promise<boolean> {
+    const where: any = {
+      organizationId: orgId,
+      deletedAt: null,
+      customFields: { path: [key], equals: value as any },
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    };
+    if (entity === 'employee') return !!(await this.prisma.employee.findFirst({ where, select: { id: true } }));
+    if (entity === 'department') return !!(await this.prisma.department.findFirst({ where, select: { id: true } }));
+    return false;
+  }
+}

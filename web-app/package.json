@@ -1,0 +1,22 @@
+{
+  "name": "wms-web-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Workforce Management System — Web Admin Application (React + NestJS + PostgreSQL)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:api dev:web",
+    "dev:api": "npm --workspace apps/api run dev",
+    "dev:web": "npm --workspace apps/web run dev",
+    "db:up": "docker compose up -d",
+    "db:schema": "psql \"$DATABASE_URL\" -f db/schema.sql",
+    "build": "npm-run-all build:*",
+    "lint": "npm-run-all --parallel lint:*"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

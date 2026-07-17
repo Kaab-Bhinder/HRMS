@@ -1,0 +1,542 @@
++92 3xx-xxxxxxx
+A login account is created automatically. The employee signs in with their work email.
+AB1234567
+AED — UAE Dirham
+Absent
+Account
+Account-wise salary transfer schedule for treasury upload.
+Accountant
+Accrued, availed and carried-forward balances by leave type.
+Acknowledge
+Acknowledged
+Acme Bank Ltd
+Across all boards
+Across all teams
+Across the organization
+Across the platform
+Action
+Actions
+Active
+Active department
+Actor
+Add
+Add Department
+Add Designation
+Add Field
+Add User
+Add an extra layer of security using an authenticator app.
+Add context, acceptance criteria or links…
+Add location
+Add option
+Add your first field
+Address
+Adjust filters or add your first user.
+Adjust your filters or create a new task to get started.
+Adjust your filters or create your first department.
+Adjust your filters or widen the time range to see activity.
+Adjust your filters to see the org structure.
+Admin Console
+Alerts across leave, attendance, tasks, payroll and system events.
+All
+Allow check-ins at this location.
+Analytics
+Annual
+Appearance
+Application display name
+Applied
+Appraisal Cycle Status
+Approvals, reminders and weekly digests.
+Approve
+Approved
+Approved (This Month)
+April
+Arabic
+Asset
+Assign to
+Assign work to your team, set a due date, and attach files.
+Assigned vs completed
+Assignees
+At least 8 characters
+Attachments
+Attendance
+Attendance is geofenced within the configured radius.
+Audit event detail
+Authentication and access policies enforced for all users.
+Automatically sign out idle sessions after this duration.
+Avg. Tenure
+Awaiting action
+Awaiting your review
+Back
+Back to Dashboard
+Backlog
+Bank Disbursement File
+Basic workspace identity and regional defaults.
+Basics
+Behaviour
+Bio
+Blocked
+Blood Group
+Board
+Board headcount report
+Boolean (toggle)
+Branding
+Break
+Break allowance (min)
+Brief description shown on your directory profile.
+Can sign in to:
+Cancel
+Cancelled
+Casual
+Catalog
+Changes
+Changes apply across the workspace.
+Check-in/out times, late marks and flagged records for a given day.
+Choose a strong password you don't use elsewhere.
+Choose how employees are alerted for each type of event.
+Choose how you'd like to be reached.
+City
+Close
+Closed
+Code
+Columns
+Comfortable
+Compact
+Completed
+Configure a custom report and optionally schedule it.
+Confirm new password
+Confirm password
+Consultant
+Contract
+Coordinate with the relevant department and complete all sub-items before the due date.
+Copied
+Copy
+Core identity and localization defaults applied across the platform.
+Cost center
+Could not load goals
+Couldn’t load sessions.
+Create
+Create Task
+Create as invited (no password now — set one later to activate)
+Create department
+Create role
+Create your first job title so it appears when adding employees.
+Create your first role to start assigning permissions.
+Create · update · delete
+Created
+Current
+Current distribution
+Current password
+Current time there:
+Cycle
+Daily Attendance Register
+Daily breakdown
+Dark
+Dashboard
+Data extractions
+Date
+Date format
+Dates
+Days
+Decimal
+Default language
+Delete
+Delete field
+Density
+Department
+Department Analytics
+Department Head
+Department name
+Departments
+Description
+Designation
+Designations
+Devices currently signed in to your account.
+Disabled
+Display &amp; language
+Displayed in the sidebar, emails and PDF reports.
+Diversity & Inclusion
+Document
+Done
+Download
+Draft
+Due date
+Duration
+Earned
+Edit
+Employee
+Employees
+Employees, attendance, leave, tasks, performance and analytics — unified, secure, and AI-ready.
+Employment
+Encashment exposure of outstanding leave across departments.
+Encrypt at rest and mask in exports.
+Encrypted
+Enforce multi-factor authentication
+English
+English (UK)
+Entity
+Esc
+Estimated hours
+Event
+Every department has a head who leads the team. They get the
+Everyone
+Export
+Exports
+Expose as a filter on list screens.
+FBR-aligned income tax deductions and YTD contributions.
+Failed sign-in attempt blocked
+Feedback for the submitter…
+Female
+Fields render on forms and detail views in the order shown below.
+File
+Fills from work email above
+Filterable
+Finance
+First day of week
+Flag
+Flag check-ins outside the office radius
+Flagged
+Format
+From
+Full HR operations
+Full platform control
+Full-time
+GBP — Pound Sterling
+Gender
+Gender split, tenure bands and location distribution.
+General
+General settings
+Generate
+Geofence radius (meters)
+Goals
+Grace period (min)
+Gross, deductions and net pay by employee for the pay cycle.
+Guidance shown beneath the field on forms.
+HR
+HR Executive
+Half-day under (min)
+Head
+Head login email
+Head of department
+Headcount
+Headcount Movement
+Headcount share, attendance and average tenure by department
+Hidden
+Hierarchy
+High
+Holiday
+Holidays
+How custom fields are stored
+Human Resources
+If on, out-of-range check-ins are NOT flagged
+Import
+In-browser and mobile push notifications.
+Inactive
+Inactive departments are hidden from assignment lists.
+Include in global search indexing.
+Information Technology
+Insights
+Integrations
+Intern
+Invite
+Invited
+JSON
+January (Calendar year)
+Job title
+Joined
+Joiners, leavers and net change by department and grade.
+July (FY Jul–Jun)
+Keep me signed in
+Label (e.g. Head Office)
+Language
+Last Run
+Late
+Latitude
+Leave
+Leave Balance Sheet
+Leave Liability Report
+Leave Request
+Level
+Light
+LinkedIn
+List
+Live
+Live attendance
+Live-location interval (sec)
+Locale
+Location
+Locations
+Login
+Login rate-limit
+Logins
+Logout
+Longer breaks flag the day.
+Longitude
+Low
+Low face-match scores and manual overrides requiring review.
+Male
+Mark all as read
+Mark late after (min)
+Mark reviewed
+Marking
+Master roster with department, designation and contact details.
+Medium
+Members
+Method
+Mobile
+Mobile access
+Mobile app
+Mock data — API connects next.
+Module
+Monday
+Monthly
+Monthly Attendance Summary
+Monthly payroll run
+Multi-select
+Must be filled before saving.
+Name the role and choose the permissions it grants.
+Needs attention
+Needs review
+New password
+Next
+Next month
+No active sessions.
+No app access
+No app access — pick another role
+No attachments.
+No attendance recorded this month.
+No custom fields defined. Add them under Custom Fields.
+No due date
+No employees yet — create one as the head instead.
+No locations yet.
+No options yet. Add the choices employees can pick from.
+No performance reviews match your current filters.
+No reports match your search. Try a different keyword or create a new report.
+No roles
+No team members available to assign.
+No two records may share the same value.
+None (top level)
+Not set
+Nothing matches the current tab and filters.
+Notifications
+Number
+Objectives created for this cycle will appear here.
+Office locations
+Office name
+On-track vs at-risk objectives across the organization.
+One-time password
+Operations
+Operations Manager
+Options
+Organization
+Organization timezone
+Other
+Out
+Overview
+PKR — Pakistani Rupee
+Page not found
+Parent
+Parent department
+Part-time
+Passport Number
+Password
+Password changed
+Pay
+Payable
+Payroll
+Payroll & financial reports
+Payroll Register (PKR)
+Payroll and leave updates over WhatsApp.
+Payslip
+Pending
+People
+Per-employee present, absent and overtime totals across the month.
+Performance
+Period
+Period label
+Periodic password rotation
+Permissions
+Personal
+Personalize how the console looks on this device.
+Personalize your workspace experience.
+Phone
+Phone number
+Photo
+Platform access
+Post approvals and attendance alerts to workspace channels.
+Preferences
+Present
+Preview
+Previous month
+Primary button
+Priority
+Probation
+Progress
+Promise
+Prompt users to reset their password every 90 days.
+Pull punch-in/out events from biometric attendance devices.
+Q3 performance cycle opens
+Quarterly
+Raw record
+Re-enter new password
+Reactivate
+Reason
+Reassigning grants the Department Head role and moves them into this department.
+Recent security activity
+Recipients
+Registration no.
+Reject
+Rejected
+Remove
+Report
+Report name
+Reporting period
+Reports
+Reports go to your reviewers (HR & Super Admin).
+Require a TOTP or SMS second factor at sign-in for every employee.
+Required
+Reset
+Resigned
+Resource
+Retail Banking
+Retry
+Review completion and average scores by reviewer.
+Review note
+Reviewed
+Reviewer
+Reviews
+Revoke
+Revoke all others
+Role
+Role name
+Roles
+Run
+Run now
+Run your entire workforce from one intelligent console.
+Sales Associate
+Saturday
+Save branding
+Save report
+Schedule
+Scheduled
+Score
+Searchable
+Security
+Select (single)
+Select a role to manage access.
+Select department
+Self-service access
+Send payroll slips and leave updates over WhatsApp.
+Senior Engineer
+Sessions
+Settings
+Share
+Short summary of this role
+Short summary of this role’s scope
+Show on forms and detail views.
+Shown in the sidebar, browser tab and outbound emails.
+Shown inside the empty input
+Sick
+Sign in
+Sign in to your admin account to continue.
+Sign out all sessions
+Signed in from Karachi, PK
+Single sign-on and directory sync with Azure AD.
+Sites used for geofenced check-in and attendance.
+Software Engineer
+Stable identifier used in the JSONB store and API.
+Start Review Cycle
+Start date
+Submitted
+Submitted reviews
+Summary
+Sunday
+Super admin
+Support Agent
+Suspend
+Suspended
+Sync leave, interviews and shift schedules to team calendars.
+System
+Task
+Task Status
+Tasks
+Tax Withholding Statement
+Team Lead
+Team-level visibility & approvals
+Terminated
+Text
+Text area
+The Super Admin role’s access is locked and cannot be changed.
+The account was created as
+The page you’re looking for doesn’t exist or has been moved.
+Theme
+This device
+This information is visible to your HR team and managers.
+This page
+Throttle repeated failed attempts and temporarily lock the account.
+Time-sensitive alerts to your mobile.
+Timestamp
+Timezone
+Title
+Today
+Top level
+Two-factor authentication
+Two-factor authentication enabled
+Type
+URL
+USD — US Dollar
+Unassigned
+Uniform Size
+Unique
+Unpaid
+Unread
+Update
+Update password
+Updated
+Upload logo
+Urdu
+Urgent
+Used for primary buttons, links and highlights (cosmetic preview).
+User
+Users
+View
+View all
+View details
+View profile
+View review
+View task
+Visa Expiry
+Visa renewals — 3 employees
+Visible
+WFH
+Web
+Web access
+Web admin app
+Weekly
+Weekly off
+Welcome back
+What happened this period — highlights, blockers, numbers…
+Which apps a user with this role may sign in to.
+Work
+Worked
+Workforce
+Workforce Admin
+e.g. 3
+e.g. 500 — for payroll
+e.g. 8
+e.g. Branch Supervisor
+e.g. CC-700
+e.g. CNIC Number
+e.g. Enter the 13-digit CNIC without dashes.
+e.g. Faisalabad Branch
+e.g. Finalize Q3 onboarding checklist
+e.g. Independence Day
+e.g. July 2026 / Week of Jul 7
+e.g. July operations summary
+e.g. Meezan HR Console
+e.g. Q3 Attendance Summary
+e.g. RB
+e.g. Retail Banking
+e.g. Senior Software Engineer
+linkedin.com/in/…
+name@company.com
+value (e.g. head_office)

@@ -1,0 +1,251 @@
+/**
+ * Service layer — wired to the live NestJS API. Each function calls the backend
+ * and returns the exact shape the pages expect, so the UI is unchanged.
+ * `rolesService` stays on mock data (no roles-management backend yet).
+ */
+import { api, qs, downloadFile } from './client';
+import type {
+  ListParams, Paginated, Employee, Department, Designation, Role, Permission, UserAccount, SessionInfo,
+  CustomFieldDefinition, AttendanceRecord, LeaveRequest, Task, PerformanceReview, Goal,
+  AppNotification, AuditLog, ActivityItem, CurrentUser, DashboardStats, WorkReport, FileAttachment,
+} from '../lib/types';
+
+// pick only defined keys (so we never send disallowed/undefined fields to DTOs)
+function pick<T extends Record<string, any>>(obj: T, keys: string[]): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const k of keys) if (obj?.[k] !== undefined) out[k] = obj[k];
+  return out;
+}
+
+const EMP_FIELDS = ['firstName', 'lastName', 'employeeCode', 'workEmail', 'personalEmail', 'phone', 'gender', 'departmentId', 'designationId', 'locationId', 'managerId', 'employmentType', 'status', 'dateOfJoining', 'payPerHour', 'customFields'];
+// account fields are only meaningful on create (a linked login is provisioned then)
+const EMP_CREATE_FIELDS = [...EMP_FIELDS, 'createAccount', 'accountRoleId', 'accountPasswordStrategy'];
+const DEPT_FIELDS = ['name', 'code', 'description', 'parentId', 'headEmployeeId', 'costCenter', 'isActive'];
+const CF_FIELDS = ['entity', 'fieldKey', 'label', 'dataType', 'helpText', 'placeholder', 'isRequired', 'isUnique', 'isVisible', 'isSearchable', 'isFilterable', 'isEncrypted', 'minValue', 'maxValue', 'minLength', 'maxLength', 'regexPattern', 'displayOrder', 'options'];
+
+export const authService = {
+  me: () => api.get<CurrentUser>('/auth/me'),
+};
+
+export interface MeScope {
+  view: 'admin' | 'hr' | 'dept_head' | 'employee';
+  employeeId: string | null;
+  headsDepartments: { id: string; name: string }[];
+}
+export const accessService = {
+  scope: () => api.get<MeScope>('/me/scope'),
+};
+
+// --- Attendance settings / slips / live / payroll ---
+type DeepPartial<T> = { [K in keyof T]?: DeepPartial<T[K]> };
+
+export interface AttendanceSettings {
+  timezone: string;
+  officeHours: { startTime: string; endTime: string; graceMinutes: number; breakMinutes: number };
+  policy: { lateAfterMinutes: number; halfDayMinutes: number; enforceGeofence: boolean; allowRemote: boolean; weeklyOffDays: number[]; trackingIntervalSec: number };
+  office: { id: string; name: string; address: string | null; latitude: number | null; longitude: number | null; radiusMeters: number };
+  leave: { annualLeaveDays: number };
+}
+export type AttendanceSettingsInput = AttendanceSettings;
+
+export interface AttendanceSlipDay {
+  workDate: string; status: string; firstInAt: string | null; lastOutAt: string | null;
+  workedMinutes: number; lateMinutes: number; breakMinutes: number; overtimeMinutes: number;
+  isFlagged: boolean; flagReason: string | null; selfieCaptureId: string | null;
+}
+export interface AttendanceSlip {
+  employee: { id: string; name: string; employeeCode: string; departmentName: string | null; designationName: string | null; payPerHour: number | null };
+  from: string; to: string;
+  totals: { workedMinutes: number; lateMinutes: number; breakMinutes: number; overtimeMinutes: number; present: number; late: number; absent: number; onLeave: number; flagged: number; workedHours: number };
+  days: AttendanceSlipDay[];
+}
+
+export interface LiveSession {
+  sessionId: string; employeeId: string; employeeName: string; employeeCode: string;
+  startedAt: string; lastPingAt: string | null;
+  last: { lat: number; lng: number; at: string; battery: number | null } | null;
+}
+
+export interface PayrollRow {
+  employeeId: string; employeeName: string; employeeCode: string; departmentName: string | null;
+  payPerHour: number | null; payableHours: number; workedHours: number; lateMinutes: number;
+  daysPresent: number; daysAbsent: number; daysFlagged: number; earnedPay: number; potentialPay: number; progressPct: number;
+}
+export interface PayrollRegister {
+  year: number; month: number; officeHoursPerDay: number; workingDaysTotal: number; rows: PayrollRow[];
+}
+export interface PayslipDay {
+  workDate: string; status: string; workedMinutes: number; payableMinutes: number; lateMinutes: number; isFlagged: boolean; pay: number;
+}
+export interface Payslip extends PayrollRow {
+  year: number; month: number; officeHoursPerDay: number; workingDaysTotal: number; designationName: string | null; days: PayslipDay[];
+}
+
+export const sessionsService = {
+  // self-service (current user)
+  list: () => api.get<SessionInfo[]>('/auth/sessions'),
+  revoke: (id: string) => api.del<{ success: boolean }>(`/auth/sessions/${id}`),
+  revokeOthers: () => api.del<{ success: boolean; revoked: number }>('/auth/sessions/others'),
+  // admin (any user in the org)
+  listForUser: (userId: string) => api.get<SessionInfo[]>(`/users/${userId}/sessions`),
+  revokeAllForUser: (userId: string) => api.del<{ success: boolean; revoked: number }>(`/users/${userId}/sessions`),
+};
+
+export type CreatedEmployee = Employee & { generatedPassword?: string | null };
+export const employeesService = {
+  list: (p?: ListParams) => api.get<Paginated<Employee>>(`/employees${qs(p)}`),
+  get: (id: string) => api.get<Employee>(`/employees/${id}`),
+  create: (payload: Record<string, unknown>) => api.post<CreatedEmployee>('/employees', pick(payload, EMP_CREATE_FIELDS)),
+  update: (id: string, payload: Partial<Employee>) => api.patch<Employee>(`/employees/${id}`, pick(payload, EMP_FIELDS)),
+  remove: (id: string) => api.del<{ success: boolean }>(`/employees/${id}`),
+};
+
+// creation carries a compulsory `head` (existing employee id or an inline new employee)
+const DEPT_CREATE_FIELDS = ['name', 'code', 'description', 'parentId', 'costCenter', 'isActive', 'head'];
+export type CreatedDepartment = Department & { generatedPassword?: string | null };
+export const departmentsService = {
+  // backend returns the flat, fully-serialized list; the page builds the tree client-side
+  tree: () => api.get<Department[]>('/departments'),
+  list: (p?: ListParams) => api.get<Department[]>('/departments').then((rows) => ({ data: rows, meta: { page: 1, limit: rows.length, total: rows.length, totalPages: 1 } })),
+  create: (payload: Record<string, unknown>) => api.post<CreatedDepartment>('/departments', pick(payload, DEPT_CREATE_FIELDS)),
+  update: (id: string, payload: Partial<Department>) => api.patch<Department>(`/departments/${id}`, pick(payload, DEPT_FIELDS)),
+  remove: (id: string) => api.del<{ success: boolean }>(`/departments/${id}`),
+};
+
+const DESIG_FIELDS = ['title', 'level', 'description'];
+export const designationsService = {
+  list: () => api.get<Designation[]>('/designations'),
+  create: (payload: Partial<Designation>) => api.post<Designation>('/designations', pick(payload, DESIG_FIELDS)),
+  update: (id: string, payload: Partial<Designation>) => api.patch<Designation>(`/designations/${id}`, pick(payload, DESIG_FIELDS)),
+  remove: (id: string) => api.del<{ success: boolean }>(`/designations/${id}`),
+};
+
+export const customFieldsService = {
+  list: (entity = 'employee') => api.get<CustomFieldDefinition[]>(`/custom-fields?entity=${entity}`),
+  create: (payload: Partial<CustomFieldDefinition>) => api.post<CustomFieldDefinition>('/custom-fields', pick(payload, CF_FIELDS)),
+  update: (id: string, payload: Partial<CustomFieldDefinition>) => api.patch<CustomFieldDefinition>(`/custom-fields/${id}`, pick(payload, CF_FIELDS)),
+  remove: (id: string) => api.del<{ success: boolean }>(`/custom-fields/${id}`),
+};
+
+export const attendanceService = {
+  list: (p?: ListParams) =>
+    api.get<Paginated<any>>(`/attendance${qs(p)}`).then((res) => ({
+      ...res,
+      data: res.data.map((r): AttendanceRecord => ({
+        id: r.id, employeeId: r.employeeId, employeeName: r.employeeName, employeeCode: r.employeeCode,
+        departmentName: r.departmentName, workDate: r.workDate,
+        checkInAt: r.firstInAt, checkOutAt: r.lastOutAt, checkInMethod: r.primaryMethod,
+        status: r.status, workedMinutes: r.workedMinutes, overtimeMinutes: r.overtimeMinutes,
+        isFlagged: r.isFlagged, faceMatchScore: undefined,
+      })),
+    })),
+  summary: () =>
+    api.get<Record<string, number>>('/attendance/summary').then((s) => ({
+      present: s.present ?? 0, late: s.late ?? 0, absent: s.absent ?? 0,
+      wfh: s.wfh ?? 0, onLeave: s.on_leave ?? 0, flagged: s.flagged ?? 0,
+    })),
+  settings: () => api.get<AttendanceSettings>('/attendance/settings'),
+  updateSettings: (dto: DeepPartial<AttendanceSettingsInput>) => api.put<AttendanceSettings>('/attendance/settings', dto),
+  slip: (employeeId: string, from: string, to: string) =>
+    api.get<AttendanceSlip>(`/attendance/slip?employeeId=${employeeId}&from=${from}&to=${to}`),
+  live: () => api.get<LiveSession[]>('/attendance/live'),
+};
+
+export const payrollService = {
+  register: (year: number, month: number) => api.get<PayrollRegister>(`/payroll/register?year=${year}&month=${month}`),
+  payslip: (employeeId: string, year: number, month: number) =>
+    api.get<Payslip>(`/payroll/payslip?employeeId=${employeeId}&year=${year}&month=${month}`),
+};
+
+export interface Holiday { id: string; name: string; date: string; isOptional: boolean }
+export const holidaysService = {
+  list: () => api.get<Holiday[]>('/holidays'),
+  create: (payload: { name: string; date: string; isOptional?: boolean }) => api.post<Holiday>('/holidays', payload),
+  remove: (id: string) => api.del<unknown>(`/holidays/${id}`),
+};
+
+export const leaveService = {
+  list: (p?: ListParams) =>
+    api.get<Paginated<any>>(`/leave/requests${qs(p)}`).then((res) => ({
+      ...res,
+      data: res.data.map((r): LeaveRequest => ({ ...r, days: Number(r.days) })),
+    })),
+  act: (id: string, action: 'approve' | 'reject') => api.post<unknown>(`/leave/requests/${id}/${action}`, {}),
+};
+
+const TASK_FIELDS = ['title', 'description', 'departmentId', 'priority', 'status', 'dueDate', 'startDate', 'estimatedHours'];
+export const tasksService = {
+  list: (p?: ListParams) => api.get<Paginated<Task>>(`/tasks${qs(p)}`),
+  board: () => api.get<Task[]>('/tasks/board'),
+  create: (payload: Record<string, unknown>) => api.post<Task>('/tasks', pick(payload, TASK_FIELDS)),
+  assign: (id: string, employeeId: string) => api.post<unknown>(`/tasks/${id}/assign`, { employeeId }),
+};
+
+export const performanceService = {
+  reviews: (p?: ListParams) => api.get<Paginated<PerformanceReview>>(`/performance/reviews${qs(p)}`),
+  goals: () => api.get<Goal[]>('/performance/goals'),
+};
+
+export const notificationsService = {
+  list: () => api.get<{ data: AppNotification[] }>('/notifications?limit=30').then((r) => (r as any).data as AppNotification[]),
+  markRead: (id: string) => api.patch<{ success: boolean }>(`/notifications/${id}/read`),
+  markAllRead: () => api.patch<{ success: boolean }>('/notifications/read-all'),
+};
+
+export const auditService = {
+  list: (p?: ListParams) => api.get<Paginated<AuditLog>>(`/audit/logs${qs(p)}`),
+};
+
+const REPORT_FIELDS = ['title', 'periodType', 'periodStart', 'periodEnd', 'periodLabel', 'summary'];
+export const reportingService = {
+  list: (p?: ListParams) => api.get<Paginated<WorkReport>>(`/reporting${qs(p)}`),
+  get: (id: string) => api.get<WorkReport>(`/reporting/${id}`),
+  create: (payload: Record<string, unknown>) => api.post<WorkReport>('/reporting', pick(payload, REPORT_FIELDS)),
+  review: (id: string, status: 'reviewed' | 'acknowledged', note?: string) => api.post<WorkReport>(`/reporting/${id}/review`, { status, note }),
+};
+
+export const filesService = {
+  listByOwner: (ownerType: string, ownerId: string) => api.get<FileAttachment[]>(`/files?ownerType=${ownerType}&ownerId=${ownerId}`),
+  upload: (ownerType: string, ownerId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('ownerType', ownerType);
+    form.append('ownerId', ownerId);
+    return api.upload<FileAttachment>('/files/upload', form);
+  },
+  download: (att: FileAttachment) => downloadFile(`/files/${att.id}/download`, att.fileName),
+};
+
+const ACTIVITY_CATEGORY: Record<string, ActivityItem['category']> = {
+  employees: 'employee', leave: 'leave', tasks: 'task', attendance: 'attendance',
+};
+export const analyticsService = {
+  overview: () => api.get<DashboardStats>('/analytics/overview'),
+  activity: () =>
+    api.get<Paginated<any>>('/audit/logs?limit=8').then((res) =>
+      res.data.map((r): ActivityItem => ({
+        id: r.id, actorName: r.actorName, verb: `${r.action}d`, target: r.entityType,
+        createdAt: r.createdAt, category: ACTIVITY_CATEGORY[r.entityType] ?? 'system',
+      })),
+    ),
+};
+
+const USER_CREATE_FIELDS = ['email', 'fullName', 'roleIds', 'password', 'status'];
+const USER_UPDATE_FIELDS = ['fullName', 'roleIds', 'status'];
+export const usersService = {
+  list: (p?: ListParams) => api.get<Paginated<UserAccount>>(`/users${qs(p)}`),
+  get: (id: string) => api.get<UserAccount>(`/users/${id}`),
+  create: (payload: Record<string, unknown>) => api.post<UserAccount>('/users', pick(payload, USER_CREATE_FIELDS)),
+  update: (id: string, payload: Record<string, unknown>) => api.patch<UserAccount>(`/users/${id}`, pick(payload, USER_UPDATE_FIELDS)),
+  resetPassword: (id: string, password: string) => api.post<{ success: boolean }>(`/users/${id}/reset-password`, { password }),
+  remove: (id: string) => api.del<{ success: boolean }>(`/users/${id}`),
+};
+
+const ROLE_FIELDS = ['name', 'description', 'permissions', 'canAccessWeb', 'canAccessMobile'];
+export const rolesService = {
+  list: () => api.get<Role[]>('/roles'),
+  permissions: () => api.get<Permission[]>('/permissions'),
+  create: (payload: Partial<Role>) => api.post<Role>('/roles', pick(payload, ROLE_FIELDS)),
+  update: (id: string, payload: Partial<Role>) => api.patch<Role>(`/roles/${id}`, pick(payload, ROLE_FIELDS)),
+  remove: (id: string) => api.del<{ success: boolean }>(`/roles/${id}`),
+};

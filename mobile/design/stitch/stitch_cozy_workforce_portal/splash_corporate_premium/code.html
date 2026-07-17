@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>Workforce - Premium Intro</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Inter+Tight:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary": "#ffffff",
+                    "surface": "#f8f9ff",
+                    "surface-container-lowest": "#ffffff",
+                    "on-primary-fixed-variant": "#104783",
+                    "inverse-on-surface": "#ebf1ff",
+                    "primary-container": "#1b4e8a",
+                    "on-secondary-fixed-variant": "#604100",
+                    "error": "#ba1a1a",
+                    "primary": "#00376b",
+                    "tertiary-fixed": "#d4e3ff",
+                    "primary-fixed-dim": "#a7c8ff",
+                    "surface-variant": "#dae3f5",
+                    "error-container": "#ffdad6",
+                    "on-primary-container": "#9ac1ff",
+                    "on-error-container": "#93000a",
+                    "inverse-surface": "#28313e",
+                    "on-tertiary-fixed": "#001c39",
+                    "on-secondary-fixed": "#281900",
+                    "tertiary": "#003768",
+                    "on-tertiary": "#ffffff",
+                    "on-tertiary-fixed-variant": "#004884",
+                    "on-primary-fixed": "#001c3b",
+                    "surface-container-highest": "#dae3f5",
+                    "secondary-fixed": "#ffdeac",
+                    "tertiary-container": "#004e8f",
+                    "on-error": "#ffffff",
+                    "surface-container-high": "#e0e9fb",
+                    "outline": "#737781",
+                    "on-surface": "#131c29",
+                    "surface-container-low": "#eff3ff",
+                    "on-primary": "#ffffff",
+                    "on-tertiary-container": "#96c1ff",
+                    "secondary-fixed-dim": "#fabc4e",
+                    "on-surface-variant": "#424750",
+                    "surface-bright": "#f8f9ff",
+                    "secondary-container": "#fdbe50",
+                    "inverse-primary": "#a7c8ff",
+                    "primary-fixed": "#d5e3ff",
+                    "background": "#f8f9ff",
+                    "outline-variant": "#c3c6d1",
+                    "surface-container": "#e6eeff",
+                    "tertiary-fixed-dim": "#a4c9ff",
+                    "surface-tint": "#315f9c",
+                    "on-background": "#131c29",
+                    "on-secondary-container": "#714d00",
+                    "secondary": "#7e5700",
+                    "surface-dim": "#d1daec",
+                    "brand-gold": "#C0891C",
+                    "brand-deep-blue": "#1B4E8A"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-screen": "20px",
+                    "stack-md": "16px",
+                    "stack-sm": "8px",
+                    "gutter": "16px",
+                    "stack-lg": "24px",
+                    "section-gap": "32px"
+            },
+            "fontFamily": {
+                    "body-md": ["Inter"],
+                    "data-mono": ["Inter"],
+                    "headline-md": ["Inter Tight"],
+                    "body-sm": ["Inter"],
+                    "headline-xl": ["Inter Tight"],
+                    "headline-lg": ["Inter Tight"],
+                    "headline-sm": ["Inter Tight"],
+                    "body-lg": ["Inter"],
+                    "label-md": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        :root {
+            --tilt-x: 0deg;
+            --tilt-y: 0deg;
+        }
+
+        body {
+            background-color: #050c16;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+            color: white;
+        }
+
+        .background-image {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 0;
+            opacity: 0.6; /* Slight overlay effect for readability */
+        }
+
+        /* Artistic Medallion Reveal */
+        .medallion-reveal {
+            animation: artisticReveal 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+            opacity: 0;
+            filter: blur(20px);
+            transform: scale(0.8) translate(var(--tilt-x), var(--tilt-y));
+            transition: transform 0.2s ease-out;
+        }
+
+        @keyframes artisticReveal {
+            to {
+                opacity: 1;
+                filter: blur(0px);
+                transform: scale(1) translate(var(--tilt-x), var(--tilt-y));
+            }
+        }
+
+        /* Subtle Shimmer for Wordmark */
+        .text-shimmer {
+            background: linear-gradient(90deg, #ffffff 0%, #d5e3ff 45%, #ffffff 50%, #d5e3ff 55%, #ffffff 100%);
+            background-size: 250% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: elegantShimmer 6s ease-in-out infinite;
+        }
+
+        @keyframes elegantShimmer {
+            0% { background-position: 0% center; }
+            100% { background-position: 250% center; }
+        }
+
+        /* Tagline Letter Spacing Reveal */
+        .tagline-reveal {
+            opacity: 0;
+            letter-spacing: 0em;
+            transform: translateY(8px);
+            animation: taglineReveal 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            animation-delay: 0.5s;
+        }
+
+        @keyframes taglineReveal {
+            to {
+                opacity: 0.9;
+                letter-spacing: 0.05em;
+                transform: translateY(0);
+            }
+        }
+
+        /* Slide Transitions */
+        .slide-content {
+            position: absolute;
+            width: 100%;
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1), transform 1s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+
+        .slide-content.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        /* Shimmer Loading Bar */
+        .progress-container {
+            width: 140px;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 99px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #1B4E8A, #C0891C, #1B4E8A);
+            background-size: 200% 100%;
+            border-radius: 99px;
+            animation: barShimmer 3s linear infinite, fillProgress 6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes barShimmer {
+            0% { background-position: 100% 0; }
+            100% { background-position: -100% 0; }
+        }
+
+        @keyframes fillProgress {
+            to { width: 100%; }
+        }
+
+        .medallion {
+            background: linear-gradient(135deg, #1b4e8a 0%, #00376b 100%);
+            box-shadow: 0 32px 64px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+        }
+
+        .gold-dot {
+            fill: #C0891C;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center font-body-md overflow-hidden bg-[#050c16]">
+<!-- Fixed Artistic Mountain Background -->
+<img alt="Premium corporate banking architectural background" class="background-image" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAuApR3bDygthzurtFz17ac5USaVpROVWPxsOUCJDumqvkgLxmteOn8cp09B91MA_odHDxWsyzzymYIgY8-rAZkecBBFoSYPmzmp78iPzXKp0m9vJRslzYQh7tKP4E2CYihDfJchJ2p76pshUWm20LS7FPPZ4TGOUF-_ZwNvHHpH72nXv8WYO2xyMDdTLd4usi8i_3QG6tu6lWmFPgQtaZ1Nn9DFeNSRe59kMZOlLM7TeCQW1YluuI"/>
+<!-- Main Branding Section -->
+<main class="flex flex-col items-center justify-center max-w-sm w-full px-margin-screen relative h-80 z-10">
+<!-- Floating Brand Medallion -->
+<div class="medallion w-24 h-24 rounded-[2rem] flex items-center justify-center mb-section-gap medallion-reveal" id="medallion">
+<svg class="drop-shadow-lg" fill="none" height="48" viewbox="0 0 48 48" width="48" xmlns="http://www.w3.org/2000/svg">
+<path d="M12 16L20 32H28L36 16H31L24 29L17 16H12Z" fill="white"></path>
+<circle class="gold-dot" cx="24" cy="30" r="2.5"></circle>
+</svg>
+</div>
+<!-- Intro Slides Sequence -->
+<div class="relative w-full h-24 text-center">
+<!-- Slide 1 -->
+<div class="slide-content active" id="slide-1">
+<p class="text-headline-sm font-headline-sm text-white/95 drop-shadow-md">Precision meets Productivity.</p>
+</div>
+<!-- Slide 2 -->
+<div class="slide-content" id="slide-2">
+<p class="text-headline-sm font-headline-sm text-white/95 drop-shadow-md">Banking-grade Security.</p>
+</div>
+<!-- Slide 3 -->
+<div class="slide-content" id="slide-3">
+<p class="text-headline-sm font-headline-sm text-white/95 drop-shadow-md tagline-reveal">Empowering your workday.</p>
+</div>
+<!-- Final State -->
+<div class="slide-content flex flex-col items-center" id="final-branding">
+<h1 class="font-headline-xl text-[44px] text-shimmer tracking-tight font-bold drop-shadow-xl">Workforce</h1>
+<p class="font-label-md text-[11px] text-white/60 tracking-[0.4em] mt-3 uppercase drop-shadow-sm">
+                    Attendance • Leave • Tasks
+                </p>
+</div>
+</div>
+</main>
+<!-- Bottom Loading Indicator -->
+<footer class="fixed bottom-16 flex flex-col items-center z-10">
+<div class="progress-container">
+<div class="progress-bar"></div>
+</div>
+<p class="font-label-md text-[10px] text-white/50 mt-6 tracking-[0.25em] uppercase" id="loading-text">Authenticating...</p>
+</footer>
+<script>
+        // Floating Medallion Logic
+        const medallion = document.getElementById('medallion');
+        document.addEventListener('mousemove', (e) => {
+            const x = (e.clientX - window.innerWidth / 2) / 50;
+            const y = (e.clientY - window.innerHeight / 2) / 50;
+            document.documentElement.style.setProperty('--tilt-x', `${x}px`);
+            document.documentElement.style.setProperty('--tilt-y', `${y}px`);
+        });
+
+        // Device Tilt Support
+        if (window.DeviceOrientationEvent) {
+            window.addEventListener('deviceorientation', (e) => {
+                const x = e.gamma / 5; // tilt left/right
+                const y = e.beta / 5;  // tilt front/back
+                document.documentElement.style.setProperty('--tilt-x', `${x}px`);
+                document.documentElement.style.setProperty('--tilt-y', `${y}px`);
+            });
+        }
+
+        // Intro Sequence Logic
+        const slides = [
+            document.getElementById('slide-1'),
+            document.getElementById('slide-2'),
+            document.getElementById('slide-3'),
+            document.getElementById('final-branding')
+        ];
+        const loadingText = document.getElementById('loading-text');
+        const loadingLabels = [
+            "AUTHENTICATING...", 
+            "ESTABLISHING SECURE TUNNEL...", 
+            "VERIFYING CREDENTIALS...", 
+            "READY"
+        ];
+
+        let currentSlide = 0;
+
+        function nextSlide() {
+            if (currentSlide < slides.length - 1) {
+                slides[currentSlide].classList.remove('active');
+                currentSlide++;
+                setTimeout(() => {
+                    slides[currentSlide].classList.add('active');
+                    if (currentSlide < loadingLabels.length) {
+                        loadingText.innerText = loadingLabels[currentSlide];
+                    }
+                }, 300);
+            }
+        }
+
+        // Timeline - More spaced out and "premium"
+        setTimeout(() => nextSlide(), 1400); // To Slide 2
+        setTimeout(() => nextSlide(), 2800); // To Slide 3 (Tagline reveal)
+        setTimeout(() => {
+            nextSlide(); // To Final Branding
+            loadingText.style.opacity = "0.7";
+        }, 4400);
+    </script>
+</body></html>

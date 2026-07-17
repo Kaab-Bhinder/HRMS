@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --surface: 0 0% 100%;
+    --surface-2: 210 20% 96%;
+    --foreground: 217 33% 14%;
+    --muted: 214 20% 93%;
+    --muted-foreground: 215 16% 42%;
+    --border: 214 20% 89%;
+    --input: 214 20% 88%;
+    --ring: 212 68% 40%;
+    --primary: 212 68% 33%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 42 74% 43%;
+    --accent-foreground: 40 60% 12%;
+    --success: 160 62% 33%;
+    --warning: 32 90% 42%;
+    --danger: 0 72% 48%;
+    --info: 212 68% 45%;
+    --radius: 0.65rem;
+    color-scheme: light;
+  }
+
+  .dark {
+    --background: 215 34% 8%;
+    --surface: 216 30% 11%;
+    --surface-2: 216 26% 14%;
+    --foreground: 210 30% 92%;
+    --muted: 216 22% 18%;
+    --muted-foreground: 215 18% 60%;
+    --border: 216 20% 20%;
+    --input: 216 20% 22%;
+    --ring: 212 70% 60%;
+    --primary: 212 72% 62%;
+    --primary-foreground: 216 40% 10%;
+    --accent: 42 74% 55%;
+    --accent-foreground: 40 60% 10%;
+    --success: 160 55% 45%;
+    --warning: 34 85% 55%;
+    --danger: 0 70% 60%;
+    --info: 212 70% 62%;
+    color-scheme: dark;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.2);
+  }
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+    background-clip: content-box;
+  }
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .card-surface {
+    @apply bg-surface border border-border rounded-lg shadow-card;
+  }
+  .skeleton {
+    @apply relative overflow-hidden bg-muted rounded-md;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full;
+    background: linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.06), transparent);
+    animation: shimmer 1.5s infinite;
+  }
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+}

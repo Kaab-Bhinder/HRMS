@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.log
+coverage/
+.turbo/
+.vite/
+.DS_Store
+prisma/*.db
