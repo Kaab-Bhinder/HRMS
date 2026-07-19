@@ -9,7 +9,9 @@ import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
 import { StatusBadge } from '../../components/StatusBadge';
 import { StatCard } from '../../components/charts/StatCard';
-import { AttendanceAreaChart, SimpleBarChart, DonutChart, GroupedBarChart } from '../../components/charts/Charts';
+import { AttendanceAreaChart, SimpleBarChart, DonutChart, GroupedBarChart, RadialGauge } from '../../components/charts/Charts';
+import { Progress } from '../../components/ui/Misc';
+import { LiveOfficeMap } from '../attendance/LiveOfficeMap';
 import { EmptyState, Skeleton } from '../../components/feedback/States';
 import { useQuery } from '../../hooks/useQuery';
 import { analyticsService, leaveService } from '../../services';
@@ -18,10 +20,14 @@ import { formatNumber, relativeTime, formatDate } from '../../lib/format';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
+  const canTrack = can('attendance:track');
   const { data: stats, loading } = useQuery(() => analyticsService.overview(), []);
+  const { data: deptAtt } = useQuery(() => analyticsService.departments(), []);
   const { data: activity } = useQuery(() => analyticsService.activity(), []);
   const { data: pending } = useQuery(() => leaveService.list({ filters: { status: 'pending' }, limit: 5 }), []);
+
+  const presentRate = stats && stats.presentToday.total > 0 ? (stats.presentToday.value / stats.presentToday.total) * 100 : 0;
 
   const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening';
 
@@ -40,11 +46,56 @@ export default function DashboardPage() {
 
       {/* KPI row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard loading={loading} label="Total Headcount" value={formatNumber(stats?.headcount.value ?? 0)} delta={stats?.headcount.delta} icon={<Users />} accent="primary" />
+        <StatCard loading={loading} label="Total Headcount" value={formatNumber(stats?.headcount.value ?? 0)} delta={stats?.headcount.delta} icon={<Users />} accent="accent" />
         <StatCard loading={loading} label="Present Today" value={`${stats?.presentToday.value ?? 0}/${stats?.presentToday.total ?? 0}`} icon={<UserCheck />} accent="success" hint="Live attendance" />
         <StatCard loading={loading} label="On Leave" value={formatNumber(stats?.onLeave.value ?? 0)} delta={stats?.onLeave.delta} icon={<CalendarOff />} accent="warning" />
         <StatCard loading={loading} label="Open Tasks" value={formatNumber(stats?.openTasks.value ?? 0)} delta={stats?.openTasks.delta} icon={<ListChecks />} accent="info" />
-        <StatCard loading={loading} label="Attrition Rate" value={`${stats?.attritionRate.value ?? 0}%`} delta={stats?.attritionRate.delta} icon={<TrendingDown />} accent="accent" />
+        <StatCard loading={loading} label="Attrition Rate" value={`${stats?.attritionRate.value ?? 0}%`} delta={stats?.attritionRate.delta} icon={<TrendingDown />} accent="danger" />
+      </div>
+
+      {/* Live office map + workforce mix */}
+      {canTrack && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
+            <CardHeader title="Live Office — On Site Now" description="Checked-in employees around the office, updating live" action={<StatusBadge value="present" dot />} />
+            <CardBody className="p-3"><LiveOfficeMap height={400} /></CardBody>
+          </Card>
+          <Card>
+            <CardHeader title="Workforce Mix" description="Active headcount by gender" />
+            <CardBody>{loading ? <Skeleton className="h-[360px] w-full" /> : <DonutChart height={360} centerSub="employees" data={(stats?.genderSplit ?? []).map((g) => ({ label: g.label, value: g.value }))} />}</CardBody>
+          </Card>
+        </div>
+      )}
+
+      {/* Present rate + department attendance */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader title="Present Rate" description="On site vs headcount" />
+          <CardBody className="flex flex-col items-center justify-center">
+            {loading ? <Skeleton className="h-[220px] w-full" /> : (
+              <>
+                <RadialGauge value={presentRate} label="present today" color="#86c25a" />
+                <p className="text-sm text-muted-foreground">{stats?.presentToday.value ?? 0} of {stats?.presentToday.total ?? 0} on site</p>
+              </>
+            )}
+          </CardBody>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardHeader title="Department Attendance" description="Who’s in today, by team" />
+          <CardBody className="space-y-3.5">
+            {!deptAtt && <Skeleton className="h-[200px] w-full" />}
+            {deptAtt?.filter((d) => d.headcount > 0).slice(0, 7).map((d) => (
+              <div key={d.departmentId}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="font-medium text-foreground">{d.department}</span>
+                  <span className="tabular-nums text-muted-foreground">{d.presentToday}/{d.headcount} · <span className="font-semibold text-foreground">{d.presentPercent}%</span></span>
+                </div>
+                <Progress value={d.presentPercent} tone={d.presentPercent >= 80 ? 'success' : d.presentPercent >= 50 ? 'warning' : 'danger'} />
+              </div>
+            ))}
+            {deptAtt && deptAtt.filter((d) => d.headcount > 0).length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No department data yet.</p>}
+          </CardBody>
+        </Card>
       </div>
 
       {/* Charts */}
@@ -55,7 +106,7 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardHeader title="Task Status" description="Current distribution" />
-          <CardBody>{loading ? <Skeleton className="h-[260px] w-full" /> : <DonutChart data={stats!.taskStatus.map((t) => ({ label: t.status.replace('_', ' '), value: t.count }))} />}</CardBody>
+          <CardBody>{loading ? <Skeleton className="h-[260px] w-full" /> : <DonutChart centerSub="tasks" data={stats!.taskStatus.map((t) => ({ label: t.status.replace('_', ' '), value: t.count }))} />}</CardBody>
         </Card>
       </div>
 

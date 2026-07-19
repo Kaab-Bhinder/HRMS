@@ -24,15 +24,24 @@ export function StatCard({
 }) {
   const { t } = useI18n();
   const accents = {
-    primary: 'bg-primary/10 text-primary',
-    success: 'bg-success/12 text-success',
-    warning: 'bg-warning/15 text-warning',
-    danger: 'bg-danger/12 text-danger',
-    accent: 'bg-accent/15 text-accent',
-    info: 'bg-info/12 text-info',
+    primary: 'bg-primary/15 text-primary',
+    success: 'bg-success/15 text-success',
+    warning: 'bg-warning/20 text-warning',
+    danger: 'bg-danger/15 text-danger',
+    accent: 'bg-accent/20 text-accent',
+    info: 'bg-info/15 text-info',
+  };
+  // Bold pastel card blocks (the "intelly" look).
+  const tints = {
+    primary: 'bg-foreground/[0.05] border-foreground/10',
+    success: 'bg-success/[0.16] border-success/25',
+    warning: 'bg-warning/[0.20] border-warning/30',
+    danger: 'bg-danger/[0.14] border-danger/25',
+    accent: 'bg-accent/[0.16] border-accent/25',
+    info: 'bg-info/[0.15] border-info/25',
   };
   return (
-    <Card className="p-5">
+    <Card className={cn('p-5 transition-shadow hover:shadow-card-hover', tints[accent])}>
       <div className="flex items-start justify-between">
         <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg [&>svg]:h-5 [&>svg]:w-5', accents[accent])}>{icon}</div>
         {delta !== undefined && !loading && (

@@ -31,26 +31,20 @@ class TodayController extends AsyncNotifier<TodayStatus> {
   }
 
   /// Captures GPS and punches in or out based on the current state. Check-IN
-  /// additionally captures a front-camera selfie (biometric): the user must take
-  /// it (cancelling aborts the check-in), but if the camera is unavailable we
-  /// fall back to a GPS-only check-in so nobody is locked out.
-  /// Throws (SelfieCancelled / LocationException / ApiException) so the screen
-  /// can show the reason; on success the state is updated.
+  /// REQUIRES a live front-camera selfie (biometric) — there is no GPS-only
+  /// fallback: if the user cancels or the camera is unavailable, the check-in is
+  /// aborted. Throws (SelfieCancelled / LocationException / ApiException) so the
+  /// screen can show the reason; on success the state is updated.
   Future<bool> togglePunch() async {
     final current = state.valueOrNull;
     final checkIn = !(current?.isCheckedIn ?? false);
 
     String? faceImageKey;
     if (checkIn) {
-      Uint8List? selfie;
-      try {
-        selfie = await _selfie.capture();
-      } on SelfieCancelled {
-        rethrow; // user backed out — don't check them in
-      } catch (_) {
-        selfie = null; // no camera / permission issue → degrade to GPS-only
-      }
-      if (selfie != null) faceImageKey = await _repo.uploadSelfie(selfie);
+      // Mandatory: capture() throws SelfieCancelled (user backed out) or a
+      // camera/permission error — either way we do NOT check them in.
+      final Uint8List selfie = await _selfie.capture();
+      faceImageKey = await _repo.uploadSelfie(selfie);
     }
 
     final fix = await _location.currentPosition();

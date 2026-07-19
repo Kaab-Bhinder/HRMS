@@ -109,12 +109,16 @@ export class AttendanceRecomputeService {
     // break longer than the shift allowance.
     const allowedBreak = shift?.breakMinutes ?? 0;
     const outOfGeofence = punches.some((p) => (p.rawPayload as any)?.geofence?.outOfRange === true);
+    const mockLocation = punches.some((p) => (p.rawPayload as any)?.mockLocation === true);
+    const timeSkew = punches.map((p) => (p.rawPayload as any)?.timeSkew).find((x) => x);
     const breakOver = allowedBreak > 0 && breakMinutes > allowedBreak;
     const reasons: string[] = [];
     if (outOfGeofence) {
       const g = punches.map((p) => (p.rawPayload as any)?.geofence).find((x) => x?.outOfRange);
       reasons.push(`Checked in ${g?.distanceMeters ?? '?'}m from ${g?.locationName ?? 'office'} (limit ${g?.radiusMeters ?? '?'}m)`);
     }
+    if (mockLocation) reasons.push('Mock/fake GPS location detected on device');
+    if (timeSkew) reasons.push(`Device clock off by ${Math.round((timeSkew.skewSeconds ?? 0) / 60)}m vs server`);
     if (breakOver) reasons.push(`Break ${breakMinutes}m exceeds allowed ${allowedBreak}m`);
 
     return this.upsert(orgId, employeeId, dateKey, {

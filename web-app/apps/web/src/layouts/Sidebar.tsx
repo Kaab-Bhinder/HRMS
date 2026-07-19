@@ -10,14 +10,14 @@ import { notificationsService } from '../services';
 function Brand() {
   return (
     <div className="flex items-center gap-2.5 px-2">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white">
         <svg viewBox="0 0 32 32" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <path d="M9 22V10l7 5 7-5v12" />
         </svg>
       </div>
       <div className="leading-tight">
-        <p className="text-sm font-semibold text-foreground">Workforce</p>
-        <p className="text-[11px] text-muted-foreground">Admin Console</p>
+        <p className="text-sm font-semibold text-sidebar-foreground">Workforce</p>
+        <p className="text-[11px] text-sidebar-muted">Admin Console</p>
       </div>
     </div>
   );
@@ -30,8 +30,8 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const unread = notifs?.filter((n) => !n.read).length ?? 0;
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex h-16 items-center border-b border-border px-4">
+    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+      <div className="flex h-16 items-center border-b border-sidebar-border px-4">
         <Brand />
       </div>
       <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
@@ -40,7 +40,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           if (!items.length) return null;
           return (
             <div key={section.title}>
-              <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{t(section.title)}</p>
+              <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted">{t(section.title)}</p>
               <div className="space-y-0.5">
                 {items.map((item) => (
                   <NavLink
@@ -50,17 +50,17 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     onClick={onNavigate}
                     className={({ isActive }) =>
                       cn(
-                        'group flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-ring',
-                        isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
+                        'group flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors focus-ring',
+                        isActive ? 'bg-accent text-white shadow-sm' : 'text-sidebar-muted hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground',
                       )
                     }
                   >
                     {({ isActive }) => (
                       <>
-                        <item.icon className={cn('h-[18px] w-[18px] shrink-0', isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
+                        <item.icon className={cn('h-[18px] w-[18px] shrink-0', isActive ? 'text-white' : 'text-sidebar-muted group-hover:text-sidebar-foreground')} />
                         <span className="flex-1 truncate">{t(item.label)}</span>
                         {item.badge === 'notifications' && unread > 0 && (
-                          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">{unread}</span>
+                          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white">{unread}</span>
                         )}
                       </>
                     )}
@@ -71,10 +71,10 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           );
         })}
       </nav>
-      <div className="border-t border-border p-3">
-        <div className="rounded-lg bg-surface-2 p-3">
-          <p className="text-xs font-medium text-foreground">Phase 1 · MVP</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">Mock data — API connects next.</p>
+      <div className="border-t border-sidebar-border p-3">
+        <div className="rounded-lg bg-sidebar-foreground/10 p-3">
+          <p className="text-xs font-medium text-sidebar-foreground">Acme Bank · Workforce</p>
+          <p className="mt-0.5 text-[11px] text-sidebar-muted">v1.0 · Live</p>
         </div>
       </div>
     </div>
@@ -83,7 +83,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 export function Sidebar() {
   return (
-    <aside className="hidden w-64 shrink-0 border-r border-border bg-surface lg:block">
+    <aside className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar lg:block">
       <div className="sticky top-0 h-screen">
         <SidebarContent />
       </div>
@@ -96,8 +96,8 @@ export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () =>
   return (
     <div className="fixed inset-0 z-50 lg:hidden">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-      <div className="absolute inset-y-0 left-0 w-72 bg-surface shadow-pop animate-slide-up">
-        <button onClick={onClose} className="absolute right-3 top-4 z-10 rounded-md p-1.5 text-muted-foreground hover:bg-surface-2 focus-ring">
+      <div className="absolute inset-y-0 left-0 w-72 bg-sidebar shadow-pop animate-slide-up">
+        <button onClick={onClose} className="absolute right-3 top-4 z-10 rounded-md p-1.5 text-sidebar-muted hover:bg-sidebar-foreground/10 focus-ring">
           <X className="h-5 w-5" />
         </button>
         <SidebarContent onNavigate={onClose} />

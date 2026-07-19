@@ -35,6 +35,7 @@ class LocationService {
     final pos = await Geolocator.getCurrentPosition(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 15)),
     );
-    return GeoPoint(latitude: pos.latitude, longitude: pos.longitude, accuracyMeters: pos.accuracy);
+    // `isMocked` flags fake-GPS apps — sent to the server so HR can review it.
+    return GeoPoint(latitude: pos.latitude, longitude: pos.longitude, accuracyMeters: pos.accuracy, isMocked: pos.isMocked);
   }
 }

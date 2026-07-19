@@ -207,7 +207,10 @@ export class EmployeesService {
     let customFields: Prisma.InputJsonValue | undefined;
     if (dto.customFields !== undefined) {
       const merged = { ...(existing.customFields as Record<string, unknown>), ...dto.customFields };
-      customFields = (await this.customFields.validate(orgId, 'employee', merged, { entityId: id })) as Prisma.InputJsonValue;
+      // Editing an existing employee must not be blocked by a required custom
+      // field that was never filled (e.g. adding blood_group later). Type/format
+      // rules still apply — only the "required" gate is relaxed on update.
+      customFields = (await this.customFields.validate(orgId, 'employee', merged, { entityId: id, skipRequired: true })) as Prisma.InputJsonValue;
     }
 
     const emp = await this.prisma.employee.update({

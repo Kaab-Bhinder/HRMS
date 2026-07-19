@@ -23,6 +23,10 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       'latitude': location.latitude,
       'longitude': location.longitude,
       if (location.accuracyMeters != null) 'accuracyMeters': location.accuracyMeters!.round(),
+      // Anti-spoof signals for the server: fake-GPS flag + device clock (the
+      // server compares this to its own trusted time).
+      'isMocked': location.isMocked,
+      'clientCreatedAt': DateTime.now().toUtc().toIso8601String(),
       'faceImageKey': ?faceImageKey,
     });
     // Re-read the derived day so the UI reflects recomputed worked time.

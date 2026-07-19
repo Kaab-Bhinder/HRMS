@@ -63,7 +63,7 @@ export class FilesService {
     if (file.size > MAX_BYTES) throw new BadRequestException('File exceeds the 15 MB limit');
 
     const storageKey = this.storage.buildKey(orgId, ownerType, ownerId, file.originalname);
-    await this.storage.save(storageKey, file.buffer);
+    await this.storage.save(storageKey, file.buffer, file.mimetype);
     const checksum = createHash('sha256').update(file.buffer).digest('hex');
 
     const created = await this.prisma.fileObject.create({

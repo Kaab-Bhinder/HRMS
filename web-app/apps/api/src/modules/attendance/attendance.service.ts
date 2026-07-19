@@ -36,7 +36,7 @@ export class AttendanceService {
     if (!file.mimetype?.startsWith('image/')) throw new BadRequestException('Selfie must be an image');
     const employeeId = await this.resolveEmployeeId(user.id);
     const key = this.storage.buildKey(user.organizationId, 'selfie', employeeId, file.originalname || 'selfie.jpg');
-    await this.storage.save(key, file.buffer);
+    await this.storage.save(key, file.buffer, file.mimetype);
     return { storageKey: key };
   }
 
@@ -61,9 +61,30 @@ export class AttendanceService {
     const provider = this.providers.get(dto.method);
     if (!provider) throw new BadRequestException(`No attendance provider registered for "${dto.method}"`);
 
-    const occurredAt = dto.occurredAt ? new Date(dto.occurredAt) : new Date();
+    // Trusted time: for mobile punches the SERVER clock is authoritative (a phone
+    // clock can be changed to fake attendance). We keep the device's claimed time
+    // only as evidence and flag a large skew for HR review.
+    const isMobile = MOBILE_METHODS.includes(dto.method);
+    const serverNow = new Date();
+    const clientClaim = dto.occurredAt ? new Date(dto.occurredAt) : dto.clientCreatedAt ? new Date(dto.clientCreatedAt) : null;
+    const occurredAt = isMobile ? serverNow : dto.occurredAt ? new Date(dto.occurredAt) : serverNow;
+    const skewSeconds = clientClaim ? Math.round(Math.abs(serverNow.getTime() - clientClaim.getTime()) / 1000) : 0;
+
     const ctx: CaptureContext = { orgId, employeeId, type: dto.type, occurredAt, payload: dto, policy };
     const normalized = await provider.capture(ctx);
+
+    // Attach anti-tamper markers (read by the day recompute to flag issues):
+    // clock skew > 5 min, or a mocked/fake GPS location reported by the device.
+    const markers: Record<string, unknown> = {};
+    if (isMobile && skewSeconds > 300) {
+      markers.timeSkew = { skewSeconds, clientTime: clientClaim?.toISOString(), serverTime: serverNow.toISOString() };
+    }
+    if (dto.isMocked === true || dto.metadata?.isMocked === true) {
+      markers.mockLocation = true;
+    }
+    if (Object.keys(markers).length) {
+      normalized.raw = { ...((normalized.raw as Record<string, unknown>) ?? {}), ...markers };
+    }
 
     // Live tracking: open on mobile check-in, close on check-out.
     let sessionId: string | undefined;
@@ -170,6 +191,53 @@ export class AttendanceService {
     return this.tracking.liveSessions(user.organizationId, this.scope.byEmployee(dataScope) as Prisma.AttendanceSessionWhereInput);
   }
 
+  /** Office coordinates + every currently checked-in employee's position, for
+   *  the dashboard map. Scoped. Only active sessions (checked-in) are returned,
+   *  so it scales — the frontend clusters the markers. Position is the latest
+   *  live ping, falling back to the check-in location. */
+  async mapData(user: AuthUser) {
+    const orgId = user.organizationId;
+    const dataScope = await this.scope.resolve(user);
+    const [office, sessions] = await Promise.all([
+      this.prisma.location.findFirst({
+        where: { organizationId: orgId, deletedAt: null, latitude: { not: null }, longitude: { not: null } },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+        select: { name: true, latitude: true, longitude: true, radiusMeters: true },
+      }),
+      this.prisma.attendanceSession.findMany({
+        where: { organizationId: orgId, status: 'active', ...(this.scope.byEmployee(dataScope) as Prisma.AttendanceSessionWhereInput) },
+        select: {
+          employeeId: true, startedAt: true, startLat: true, startLng: true, lastPingAt: true,
+          employee: { select: { firstName: true, lastName: true, employeeCode: true, department: { select: { name: true } } } },
+          pings: { orderBy: { recordedAt: 'desc' }, take: 1, select: { latitude: true, longitude: true } },
+        },
+      }),
+    ]);
+
+    const employees = sessions
+      .map((s) => {
+        const p = s.pings[0];
+        const lat = p ? Number(p.latitude) : s.startLat != null ? Number(s.startLat) : null;
+        const lng = p ? Number(p.longitude) : s.startLng != null ? Number(s.startLng) : null;
+        if (lat == null || lng == null) return null;
+        return {
+          id: s.employeeId,
+          name: `${s.employee.firstName} ${s.employee.lastName}`,
+          employeeCode: s.employee.employeeCode,
+          departmentName: s.employee.department?.name ?? null,
+          lat, lng,
+          since: s.startedAt,
+        };
+      })
+      .filter(Boolean);
+
+    return {
+      office: office?.latitude != null ? { name: office.name, lat: Number(office.latitude), lng: Number(office.longitude), radiusMeters: office.radiusMeters ?? 200 } : null,
+      count: employees.length,
+      employees,
+    };
+  }
+
   /** Detailed per-employee attendance slip for a date range: every work day with
    *  in/out, worked/late/break minutes and flags, plus period totals. Scoped —
    *  the caller must be allowed to see the target employee. */
@@ -248,6 +316,25 @@ export class AttendanceService {
         selfieCaptureId: selfieForDay(d.firstInAt),
       })),
     };
+  }
+
+  /** HR/admin review of a flagged attendance day: clears the flag and records
+   *  who reviewed it + an optional note (human-in-the-loop resolution). */
+  async resolveFlag(user: AuthUser, dayId: string, note?: string) {
+    const day = await this.prisma.attendanceDay.findFirst({ where: { id: dayId, organizationId: user.organizationId } });
+    if (!day) throw new NotFoundException('Attendance day not found');
+    await this.assertCanSeeEmployee(user, day.employeeId);
+    const reviewer = `${user.email ?? user.id}`;
+    const stamped = `Reviewed by ${reviewer} on ${new Date().toISOString().slice(0, 10)}${note ? `: ${note}` : ''}`;
+    await this.prisma.attendanceDay.update({
+      where: { id: dayId },
+      data: {
+        isFlagged: false,
+        isRegularized: true,
+        note: day.note ? `${day.note}\n${stamped}` : stamped,
+      },
+    });
+    return { success: true };
   }
 
   /** Throws unless the caller's data scope includes the target employee. */

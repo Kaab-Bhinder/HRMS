@@ -22,6 +22,8 @@ export class PunchDto {
   @ApiPropertyOptional() @IsOptional() @IsString() faceImageKey?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() deviceId?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isOffline?: boolean;
+  @ApiPropertyOptional({ description: 'Device reported the GPS fix as mocked/faked' })
+  @IsOptional() @IsBoolean() isMocked?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsDateString() clientCreatedAt?: string;
   @ApiPropertyOptional() @IsOptional() metadata?: Record<string, unknown>;
 }

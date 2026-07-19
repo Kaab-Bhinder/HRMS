@@ -91,6 +91,13 @@ export class AttendanceController {
     return this.attendance.live(user);
   }
 
+  @Get('map')
+  @RequirePermissions('attendance:track')
+  @ApiOperation({ summary: 'Office coordinates + checked-in employees for the dashboard map (scoped)' })
+  map(@CurrentUser() user: AuthUser) {
+    return this.attendance.mapData(user);
+  }
+
   @Get('sessions/:id/route')
   @RequirePermissions('attendance:track')
   @ApiOperation({ summary: 'Full ordered route for a session (playback, admin)' })
@@ -109,6 +116,13 @@ export class AttendanceController {
   @RequirePermissions('attendance:read')
   summary(@CurrentUser() user: AuthUser, @Query('date') date?: string) {
     return this.attendance.summary(user, date);
+  }
+
+  @Post('days/:id/resolve-flag')
+  @RequirePermissions('attendance:update')
+  @ApiOperation({ summary: 'HR review: clear a flagged attendance day with an optional note' })
+  resolveFlag(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body('note') note?: string) {
+    return this.attendance.resolveFlag(user, id, note);
   }
 
   @Get('slip')

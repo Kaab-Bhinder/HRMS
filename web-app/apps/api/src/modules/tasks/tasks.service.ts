@@ -90,6 +90,8 @@ export class TasksService {
         estimatedHours: dto.estimatedHours,
         actualHours: dto.actualHours,
         ...(dto.customFields !== undefined ? { customFields: dto.customFields as Prisma.InputJsonValue } : {}),
+        // Keep completedAt/progress in sync with status on any edit path.
+        ...this.completionFields(existing.status, dto.status, dto.progress),
       },
       include: this.include(),
     });
@@ -192,14 +194,13 @@ export class TasksService {
       if (!isAssignee) throw new ForbiddenException('Not allowed to update this task');
     }
 
-    const isDone = dto.status === 'done';
     const task = await this.prisma.task.update({
       where: { id },
       data: {
         status: dto.status,
         updatedById: user.id,
         ...(dto.progress !== undefined ? { progress: dto.progress } : {}),
-        ...(isDone ? { completedAt: new Date(), progress: 100 } : {}),
+        ...this.completionFields(existing.status, dto.status, dto.progress),
       },
       include: this.include(),
     });
@@ -219,6 +220,16 @@ export class TasksService {
     });
     if (!task) throw new NotFoundException('Task not found');
     return task;
+  }
+
+  /** Keeps completedAt/progress consistent with status on any update path:
+   *  entering "done" stamps completedAt + progress 100; leaving "done" clears
+   *  completedAt so the task no longer counts as completed. */
+  private completionFields(oldStatus: string, newStatus: string | undefined, progress?: number) {
+    if (newStatus === undefined || newStatus === oldStatus) return {};
+    if (newStatus === 'done') return { completedAt: new Date(), progress: progress ?? 100 };
+    if (oldStatus === 'done') return { completedAt: null };
+    return {};
   }
 
   private async logStatusChange(taskId: string, userId: string, oldValue: string, newValue: string) {
@@ -254,6 +265,7 @@ export class TasksService {
         name: `${a.employee.firstName} ${a.employee.lastName}`,
       })),
       dueDate: t.dueDate,
+      completedAt: t.completedAt ?? null,
       createdAt: t.createdAt,
     };
   }

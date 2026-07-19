@@ -136,7 +136,7 @@ export const attendanceService = {
         departmentName: r.departmentName, workDate: r.workDate,
         checkInAt: r.firstInAt, checkOutAt: r.lastOutAt, checkInMethod: r.primaryMethod,
         status: r.status, workedMinutes: r.workedMinutes, overtimeMinutes: r.overtimeMinutes,
-        isFlagged: r.isFlagged, faceMatchScore: undefined,
+        isFlagged: r.isFlagged, flagReason: r.flagReason ?? null, faceMatchScore: undefined,
       })),
     })),
   summary: () =>
@@ -149,12 +149,36 @@ export const attendanceService = {
   slip: (employeeId: string, from: string, to: string) =>
     api.get<AttendanceSlip>(`/attendance/slip?employeeId=${employeeId}&from=${from}&to=${to}`),
   live: () => api.get<LiveSession[]>('/attendance/live'),
+  map: () => api.get<OfficeMap>('/attendance/map'),
+  resolveFlag: (dayId: string, note?: string) => api.post<{ success: boolean }>(`/attendance/days/${dayId}/resolve-flag`, { note }),
 };
+
+export interface MapEmployee { id: string; name: string; employeeCode: string; departmentName: string | null; lat: number; lng: number; since: string }
+export interface OfficeMap {
+  office: { name: string; lat: number; lng: number; radiusMeters: number } | null;
+  count: number;
+  employees: MapEmployee[];
+}
 
 export const payrollService = {
   register: (year: number, month: number) => api.get<PayrollRegister>(`/payroll/register?year=${year}&month=${month}`),
   payslip: (employeeId: string, year: number, month: number) =>
     api.get<Payslip>(`/payroll/payslip?employeeId=${employeeId}&year=${year}&month=${month}`),
+};
+
+/** Report Builder export. Backend supports these dataset modules; the catalog's
+ *  Payroll/Performance cards don't have a data source yet. */
+export const REPORT_BACKEND_MODULES: Record<string, string> = {
+  Attendance: 'attendance',
+  Employees: 'employees',
+  Leave: 'leave',
+};
+export const reportsService = {
+  /** Runs a report on the server and downloads the file (authenticated blob). */
+  export: (backendModule: string, format = 'csv', filters: Record<string, string> = {}) => {
+    const qp = new URLSearchParams({ module: backendModule, format, ...filters }).toString();
+    return downloadFile(`/reports/export?${qp}`, `${backendModule}-report.${format}`);
+  },
 };
 
 export interface Holiday { id: string; name: string; date: string; isOptional: boolean }
@@ -219,8 +243,10 @@ export const filesService = {
 const ACTIVITY_CATEGORY: Record<string, ActivityItem['category']> = {
   employees: 'employee', leave: 'leave', tasks: 'task', attendance: 'attendance',
 };
+export interface DeptAttendance { departmentId: string; department: string; headcount: number; presentToday: number; presentPercent: number }
 export const analyticsService = {
   overview: () => api.get<DashboardStats>('/analytics/overview'),
+  departments: () => api.get<DeptAttendance[]>('/analytics/departments'),
   activity: () =>
     api.get<Paginated<any>>('/audit/logs?limit=8').then((res) =>
       res.data.map((r): ActivityItem => ({

@@ -14,6 +14,7 @@ import { Input, Select, Label } from '../../components/ui/Input';
 import { Checkbox } from '../../components/ui/Switch';
 import { Dropdown, DropdownItem, DropdownSeparator } from '../../components/ui/Dropdown';
 import { EmptyState } from '../../components/feedback/States';
+import { reportsService, REPORT_BACKEND_MODULES } from '../../services';
 import { useToast } from '../../store/toast';
 import { usePermission } from '../../store/auth';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
@@ -108,8 +109,22 @@ export default function ReportsPage() {
     [filtered],
   );
 
-  const runReport = (name: string) => toast.success('Report generating', `${name} is being generated. You’ll be notified when it’s ready.`);
-  const downloadReport = (name: string) => toast.success('Download started', `Preparing the latest export of ${name}.`);
+  // Real export for modules with a backend data source; the rest are honest about status.
+  const exportReport = async (title: string, module: string) => {
+    const backend = REPORT_BACKEND_MODULES[module];
+    if (!backend) {
+      toast.success(`${module} reports coming soon`, `The data source for “${title}” isn’t connected yet.`);
+      return;
+    }
+    try {
+      toast.success('Generating report', `Preparing ${title}…`);
+      await reportsService.export(backend);
+    } catch (e) {
+      toast.error('Export failed', (e as Error).message);
+    }
+  };
+  const runReport = (title: string, module: string) => exportReport(title, module);
+  const downloadReport = (title: string, module: string) => exportReport(title, module);
 
   return (
     <div className="space-y-5">
@@ -167,8 +182,8 @@ export default function ReportsPage() {
                         </div>
                         <p className="mt-3 flex-1 text-sm text-muted-foreground">{r.description}</p>
                         <div className="mt-4 flex items-center gap-2">
-                          <Button size="sm" className="flex-1" onClick={() => runReport(r.title)}><Play className="h-3.5 w-3.5" /> Run</Button>
-                          <Button variant="outline" size="sm" onClick={() => downloadReport(r.title)}><Download className="h-3.5 w-3.5" /> Download</Button>
+                          <Button size="sm" className="flex-1" onClick={() => runReport(r.title, r.module)}><Play className="h-3.5 w-3.5" /> Run</Button>
+                          <Button variant="outline" size="sm" onClick={() => downloadReport(r.title, r.module)}><Download className="h-3.5 w-3.5" /> Download</Button>
                         </div>
                       </Card>
                     ))}
@@ -210,7 +225,7 @@ export default function ReportsPage() {
                     <td className="px-5 py-3.5 text-muted-foreground">{relativeTime(s.lastRun)}</td>
                     <td className="px-5 py-3.5 text-right">
                       <Dropdown trigger={<Button variant="ghost" size="icon" aria-label="Actions"><MoreHorizontal className="h-4 w-4" /></Button>}>
-                        <DropdownItem icon={<Play />} onClick={() => runReport(s.name)}>Run now</DropdownItem>
+                        <DropdownItem icon={<Play />} onClick={() => runReport(s.name, s.module)}>Run now</DropdownItem>
                         <DropdownItem icon={<Pencil />} onClick={() => toast.success('Edit schedule', `Opening editor for ${s.name}.`)}>Edit</DropdownItem>
                         <DropdownSeparator />
                         <DropdownItem icon={<Trash2 />} danger onClick={() => toast.success('Schedule deleted', `${s.name} will no longer run automatically.`)}>Delete</DropdownItem>

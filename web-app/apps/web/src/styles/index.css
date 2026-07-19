@@ -4,45 +4,57 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --surface: 0 0% 100%;
-    --surface-2: 210 20% 96%;
-    --foreground: 217 33% 14%;
-    --muted: 214 20% 93%;
-    --muted-foreground: 215 16% 42%;
-    --border: 214 20% 89%;
-    --input: 214 20% 88%;
-    --ring: 212 68% 40%;
-    --primary: 212 68% 33%;
-    --primary-foreground: 0 0% 100%;
-    --accent: 42 74% 43%;
-    --accent-foreground: 40 60% 12%;
-    --success: 160 62% 33%;
-    --warning: 32 90% 42%;
-    --danger: 0 72% 48%;
-    --info: 212 68% 45%;
-    --radius: 0.65rem;
+    /* "Intelly" palette: warm cream base, charcoal actions, candy pastels */
+    --background: 43 32% 95%;
+    --surface: 42 44% 99%;
+    --surface-2: 42 28% 93%;
+    --foreground: 40 8% 14%;
+    --muted: 42 24% 91%;
+    --muted-foreground: 40 6% 42%;
+    --border: 40 18% 86%;
+    --input: 40 18% 84%;
+    --ring: 256 55% 60%;
+    --primary: 40 9% 15%;          /* charcoal buttons / active nav */
+    --primary-foreground: 43 34% 96%;
+    --accent: 256 50% 62%;         /* lavender pop */
+    --accent-foreground: 0 0% 100%;
+    --success: 96 38% 40%;         /* lime / mint */
+    --warning: 42 80% 45%;         /* butter yellow */
+    --danger: 348 64% 56%;         /* rose / pink */
+    --info: 250 54% 60%;           /* periwinkle */
+    /* Sidebar = inverse of the page: dark charcoal rail on the light theme */
+    --sidebar: 40 9% 12%;
+    --sidebar-foreground: 43 30% 92%;
+    --sidebar-muted: 40 8% 58%;
+    --sidebar-border: 40 8% 20%;
+    --radius: 0.9rem;
     color-scheme: light;
   }
 
   .dark {
-    --background: 215 34% 8%;
-    --surface: 216 30% 11%;
-    --surface-2: 216 26% 14%;
-    --foreground: 210 30% 92%;
-    --muted: 216 22% 18%;
-    --muted-foreground: 215 18% 60%;
-    --border: 216 20% 20%;
-    --input: 216 20% 22%;
-    --ring: 212 70% 60%;
-    --primary: 212 72% 62%;
-    --primary-foreground: 216 40% 10%;
-    --accent: 42 74% 55%;
-    --accent-foreground: 40 60% 10%;
-    --success: 160 55% 45%;
-    --warning: 34 85% 55%;
-    --danger: 0 70% 60%;
-    --info: 212 70% 62%;
+    /* Same palette inverted: warm near-black base, cream actions, bright pastels */
+    --background: 40 9% 9%;
+    --surface: 40 8% 12%;
+    --surface-2: 40 7% 15%;
+    --foreground: 43 18% 91%;
+    --muted: 40 7% 18%;
+    --muted-foreground: 40 9% 63%;
+    --border: 40 7% 21%;
+    --input: 40 7% 23%;
+    --ring: 256 62% 70%;
+    --primary: 43 26% 91%;         /* cream buttons on dark */
+    --primary-foreground: 40 9% 12%;
+    --accent: 256 58% 74%;         /* bright lavender */
+    --accent-foreground: 258 45% 16%;
+    --success: 96 44% 56%;
+    --warning: 44 78% 62%;
+    --danger: 348 68% 66%;
+    --info: 250 62% 72%;
+    /* Sidebar inverts too: cream rail on the dark theme */
+    --sidebar: 43 26% 92%;
+    --sidebar-foreground: 40 9% 14%;
+    --sidebar-muted: 40 6% 42%;
+    --sidebar-border: 40 12% 82%;
     color-scheme: dark;
   }
 

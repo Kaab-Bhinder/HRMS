@@ -62,7 +62,9 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
     if (!form.firstName.trim()) errs.firstName = 'First name is required';
     if (!form.lastName.trim()) errs.lastName = 'Last name is required';
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.workEmail)) errs.workEmail = 'Valid work email required';
-    const cfErrs = validateCustomFields(cfDefs ?? [], custom);
+    // On edit, don't force required custom fields that were never filled — you
+    // shouldn't have to complete an unrelated field just to save a change.
+    const cfErrs = isEdit ? {} : validateCustomFields(cfDefs ?? [], custom);
     const all = { ...errs, ...cfErrs };
     setErrors(all);
     if (Object.keys(all).length) return;

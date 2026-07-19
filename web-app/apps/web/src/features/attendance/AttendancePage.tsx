@@ -13,10 +13,14 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { StatCard } from '../../components/charts/StatCard';
 import { AttendanceAreaChart } from '../../components/charts/Charts';
 import { Skeleton } from '../../components/feedback/States';
+import { Modal } from '../../components/ui/Modal';
+import { Textarea } from '../../components/ui/Input';
 import { useQuery } from '../../hooks/useQuery';
 import { AttendanceSlipModal } from './AttendanceSlipModal';
 import { attendanceService, analyticsService, departmentsService } from '../../services';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { usePermission } from '../../store/auth';
+import { useToast } from '../../store/toast';
 import { cn } from '../../lib/utils';
 import { formatTime, formatDate } from '../../lib/format';
 import type { AttendanceRecord } from '../../lib/types';
@@ -48,7 +52,7 @@ function formatMethod(method?: string): string {
 export default function AttendancePage() {
   const [search, setSearch] = useState('');
   const debounced = useDebouncedValue(search, 300);
-  const [filters, setFilters] = useState<Record<string, string>>({ status: 'all', departmentId: 'all' });
+  const [filters, setFilters] = useState<Record<string, string>>({ status: 'all', departmentId: 'all', flagged: 'all' });
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: 'checkInAt', order: 'desc' });
 
@@ -62,10 +66,28 @@ export default function AttendancePage() {
   );
   const { data, loading, error, refetch } = useQuery(() => attendanceService.list(params), [params]);
   const [slipFor, setSlipFor] = useState<{ id: string; name: string } | null>(null);
+  const canResolve = usePermission('attendance:update');
+  const toast = useToast();
+  const [toReview, setToReview] = useState<AttendanceRecord | null>(null);
+  const [note, setNote] = useState('');
+  const [resolving, setResolving] = useState(false);
+
+  const resolveFlag = async () => {
+    if (!toReview) return;
+    setResolving(true);
+    try {
+      await attendanceService.resolveFlag(toReview.id, note.trim() || undefined);
+      toast.success('Flag resolved', `${toReview.employeeName}’s record was reviewed.`);
+      setToReview(null); setNote('');
+      refetch();
+    } catch (e) {
+      toast.error('Could not resolve', (e as Error).message);
+    } finally { setResolving(false); }
+  };
 
   const onSort = (key: string) => setSort((s) => ({ key, order: s.key === key && s.order === 'asc' ? 'desc' : 'asc' }));
   const setFilter = (key: string, value: string) => { setFilters((f) => ({ ...f, [key]: value })); setPage(1); };
-  const clear = () => { setSearch(''); setFilters({ status: 'all', departmentId: 'all' }); setPage(1); };
+  const clear = () => { setSearch(''); setFilters({ status: 'all', departmentId: 'all', flagged: 'all' }); setPage(1); };
 
   const today = formatDate(new Date(), { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
 
@@ -101,7 +123,12 @@ export default function AttendancePage() {
     {
       key: 'isFlagged', header: 'Flagged', align: 'right',
       render: (r) => r.isFlagged
-        ? <Badge tone="danger"><AlertTriangle className="h-3 w-3" /> Flagged</Badge>
+        ? (
+          <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+            <span title={r.flagReason ?? ''}><Badge tone="danger"><AlertTriangle className="h-3 w-3" /> Flagged</Badge></span>
+            {canResolve && <Button variant="outline" size="sm" onClick={() => { setToReview(r); setNote(''); }}>Review</Button>}
+          </div>
+        )
         : <span className="text-muted-foreground">—</span>,
     },
   ];
@@ -143,6 +170,7 @@ export default function AttendancePage() {
         filters={[
           { key: 'status', placeholder: 'All statuses', value: filters.status, options: STATUS_OPTIONS },
           { key: 'departmentId', placeholder: 'All departments', value: filters.departmentId, options: (depts ?? []).map((d) => ({ value: d.id, label: d.name })) },
+          { key: 'flagged', placeholder: 'All records', value: filters.flagged, options: [{ value: 'true', label: 'Flagged only' }] },
         ]}
         onFilterChange={setFilter}
         onClear={clear}
@@ -163,6 +191,35 @@ export default function AttendancePage() {
       />
 
       <AttendanceSlipModal open={!!slipFor} onClose={() => setSlipFor(null)} employeeId={slipFor?.id ?? null} employeeName={slipFor?.name} />
+
+      <Modal
+        open={!!toReview}
+        onClose={() => setToReview(null)}
+        title="Review flagged attendance"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setToReview(null)}>Cancel</Button>
+            <Button onClick={resolveFlag} loading={resolving}>Mark reviewed</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">{toReview?.employeeName}</p>
+            <p className="text-xs text-muted-foreground">{toReview && formatDate(toReview.workDate)}</p>
+          </div>
+          <div className="rounded-md bg-danger/5 p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-danger">Flag reason</p>
+            <p className="mt-1 text-sm text-foreground">{toReview?.flagReason ?? 'Flagged for review'}</p>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Review note (optional)</label>
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Verified with employee — was at client site." />
+          </div>
+          <p className="text-xs text-muted-foreground">Marking as reviewed clears the flag and records who resolved it.</p>
+        </div>
+      </Modal>
     </div>
   );
 }

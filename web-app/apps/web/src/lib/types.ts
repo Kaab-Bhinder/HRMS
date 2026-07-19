@@ -197,6 +197,7 @@ export interface AttendanceRecord {
   workedMinutes?: number;
   overtimeMinutes: number;
   isFlagged: boolean;
+  flagReason?: string | null;
   faceMatchScore?: number;
 }
 
