@@ -65,10 +65,12 @@ export default function LoginPage() {
               <Input id="email" type="email" leftIcon={<Mail className="h-4 w-4" />} value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" required>Password</Label>
-                <button type="button" className="mb-1.5 text-xs font-medium text-primary hover:underline">Forgot password?</button>
-              </div>
+              {/* No self-service reset: it needs an email provider (the email
+                  channel is still a stub) plus single-use expiring tokens.
+                  Until then an administrator resets the password from
+                  Users → Reset password, so an inert link would only send
+                  people down a dead end. */}
+              <Label htmlFor="password" required>Password</Label>
               <div className="relative">
                 <Input id="password" type={show ? 'text' : 'password'} leftIcon={<Lock className="h-4 w-4" />} value={password} onChange={(e) => setPassword(e.target.value)} required className="pr-10" />
                 <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus-ring rounded">

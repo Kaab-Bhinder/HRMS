@@ -96,6 +96,28 @@ export class TokenService {
     });
   }
 
+  /**
+   * Revokes every live refresh token for a user, optionally sparing the family
+   * the caller is currently using.
+   *
+   * Used after a password change: anyone holding a stolen session must be cut
+   * off, which is most of the reason someone changes a password in the first
+   * place. The caller's own session is spared so securing the account does not
+   * also sign them out of the tab they are working in.
+   */
+  async revokeAllForUser(userId: string, exceptRawToken?: string): Promise<number> {
+    const keepFamilyId = await this.familyFromToken(exceptRawToken);
+    const { count } = await this.prisma.refreshToken.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+        ...(keepFamilyId ? { familyId: { not: keepFamilyId } } : {}),
+      },
+      data: { revokedAt: new Date() },
+    });
+    return count;
+  }
+
   newFamilyId(): string {
     return uuid();
   }

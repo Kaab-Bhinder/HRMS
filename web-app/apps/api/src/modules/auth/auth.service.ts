@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../../database/prisma.service';
 import { TokenService } from './token.service';
@@ -20,6 +20,38 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
   ) {}
+
+  /**
+   * Changes the signed-in user's own password.
+   *
+   * The current password is required even though the caller already holds a
+   * valid access token: without it, a stolen or borrowed token would be enough
+   * to take the account over permanently. Verifying it proves the person at the
+   * keyboard is the account owner, not just someone holding a session.
+   */
+  async changePassword(userId: string, currentPassword: string, newPassword: string, currentRefreshToken?: string) {
+    const user = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
+    if (!user || !user.passwordHash) throw new UnauthorizedException('Account not found');
+
+    const ok = await argon2.verify(user.passwordHash, currentPassword).catch(() => false);
+    if (!ok) throw new UnauthorizedException('Your current password is incorrect');
+
+    // Rejecting a no-op keeps passwordChangedAt meaningful and stops a rotation
+    // policy being satisfied by "changing" to the same value.
+    const same = await argon2.verify(user.passwordHash, newPassword).catch(() => false);
+    if (same) throw new BadRequestException('The new password must be different from your current one');
+
+    const passwordHash = await argon2.hash(newPassword);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, passwordChangedAt: new Date(), failedAttempts: 0, lockedUntil: null },
+    });
+
+    // Everything except the caller's own session: a password change should end
+    // any session an attacker still holds.
+    const revoked = await this.tokens.revokeAllForUser(user.id, currentRefreshToken);
+    return { success: true, otherSessionsSignedOut: revoked };
+  }
 
   /** Validates credentials + platform access and returns access + refresh tokens. */
   async login(email: string, password: string, meta: RequestMeta, platform: Platform = 'web') {

@@ -12,6 +12,12 @@ export const SETTING_SECTIONS = [
   'branding',
   'business_hours',
   'integrations',
+  // Password/session/access policy. No UI yet — the Settings → Security tab was
+  // removed because nothing enforced it; the section stays so a future
+  // implementation has somewhere to store policy.
+  'security',
+  // Display density and similar workspace-wide presentation defaults.
+  'appearance',
 ] as const;
 
 export type SettingSection = (typeof SETTING_SECTIONS)[number];

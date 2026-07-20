@@ -1,0 +1,19 @@
+[33mcommit 8dca9b32f4a2c879c2b9e48a23f41a2cd1ab5d8a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author:     Kaab Bhinder <fa23-bcs-068@isbstudent.comsats.edu.pk>
+AuthorDate: Tue Jul 21 01:35:20 2026 +0500
+Commit:     Kaab Bhinder <fa23-bcs-068@isbstudent.comsats.edu.pk>
+CommitDate: Tue Jul 21 01:39:27 2026 +0500
+
+    Wire office locations to the API and capture coordinates
+    
+    Locations were hardcoded in the frontend: adding one only mutated React
+    state and vanished on refresh. Now backed by /organizations/locations
+    with create, update, activate/deactivate and delete.
+    
+    Adds latitude/longitude fields, which the API stores and the geofence
+    needs — the old form collected a "city" the API has no column for, and no
+    coordinates at all, so a location could never actually fence anything. An
+    active location without coordinates is now refused, and existing ones are
+    flagged "No geofence" in the list.
+    
+    Verified against production: create/update/persist/delete all confirmed.

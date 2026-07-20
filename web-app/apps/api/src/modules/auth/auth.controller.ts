@@ -6,7 +6,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
 import { SessionsService } from './sessions.service';
-import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto, LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
@@ -74,6 +74,22 @@ export class AuthController {
     const { accessToken, refreshToken, user, platform } = await this.auth.refresh(raw, this.meta(req));
     this.setRefreshCookie(res, refreshToken);
     return platform === 'mobile' ? { accessToken, refreshToken, user } : { accessToken, user };
+  }
+
+  @Post('change-password')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: "Change your own password (requires the current one)" })
+  async changePassword(
+    @CurrentUser('id') userId: string,
+    @Body() dto: ChangePasswordDto,
+    @Req() req: Request,
+  ) {
+    // Not @Public: the caller must already be signed in. The current refresh
+    // token identifies this session so it survives while every other one is
+    // revoked.
+    const currentRefresh = req.cookies?.[this.cookieName()];
+    return this.auth.changePassword(userId, dto.currentPassword, dto.newPassword, currentRefresh);
   }
 
   @Public()

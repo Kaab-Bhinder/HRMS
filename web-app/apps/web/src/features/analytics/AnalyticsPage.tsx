@@ -13,6 +13,7 @@ import { Skeleton, ErrorState } from '../../components/feedback/States';
 import { useQuery } from '../../hooks/useQuery';
 import { analyticsService } from '../../services';
 import { useToast } from '../../store/toast';
+import { exportCsv, datedFilename, type CsvColumn } from '../../lib/csv';
 import { formatNumber, formatPercent } from '../../lib/format';
 
 const PERIODS = [
@@ -29,13 +30,52 @@ function avgTenure(count: number): number {
   return 1.8 + ((count * 13) % 42) / 10; // 1.8 – 6.0 yrs
 }
 
+interface AnalyticsCsvRow {
+  section: string;
+  metric: string;
+  value: string | number;
+}
+
+const ANALYTICS_CSV_COLUMNS: CsvColumn<AnalyticsCsvRow>[] = [
+  { header: 'Section', value: (r) => r.section },
+  { header: 'Metric', value: (r) => r.metric },
+  { header: 'Value', value: (r) => r.value },
+];
+
 export default function AnalyticsPage() {
   const toast = useToast();
   const [period, setPeriod] = useState('30');
   const { data: stats, loading, error, refetch } = useQuery(() => analyticsService.overview(), []);
 
-  const onExport = () =>
-    toast.success('Export queued', `Analytics for the ${PERIODS.find((p) => p.value === period)?.label.toLowerCase()} is being prepared.`);
+  // Flattens the KPI cards and the department breakdown into one metric/value
+  // sheet. They have different shapes, so a single flat table is the honest
+  // representation — nesting them into columns would imply a relationship
+  // between a KPI row and a department row that does not exist.
+  const onExport = () => {
+    if (!stats) {
+      toast.error('Nothing to export', 'Analytics are still loading.');
+      return;
+    }
+    const periodLabel = PERIODS.find((p) => p.value === period)?.label ?? '';
+    const rows: AnalyticsCsvRow[] = [
+      { section: 'Summary', metric: 'Period', value: periodLabel },
+      { section: 'Summary', metric: 'Generated (UTC)', value: new Date().toISOString() },
+      { section: 'Headcount', metric: 'Total headcount', value: stats.headcount?.value ?? 0 },
+      { section: 'Attendance', metric: 'Present today', value: stats.presentToday?.value ?? 0 },
+      { section: 'Attendance', metric: 'Total expected today', value: stats.presentToday?.total ?? 0 },
+      { section: 'Leave', metric: 'On leave', value: stats.onLeave?.value ?? 0 },
+      { section: 'Tasks', metric: 'Open tasks', value: stats.openTasks?.value ?? 0 },
+      { section: 'Attrition', metric: 'Attrition rate (%)', value: stats.attritionRate?.value ?? 0 },
+      { section: 'Approvals', metric: 'Pending approvals', value: stats.pendingApprovals ?? 0 },
+      ...departments.map((d: { department: string; count: number }) => ({
+        section: 'Department headcount',
+        metric: d.department,
+        value: d.count,
+      })),
+    ];
+    exportCsv(datedFilename('analytics'), rows, ANALYTICS_CSV_COLUMNS);
+    toast.success('Analytics exported', `${rows.length} rows downloaded as CSV.`);
+  };
 
   if (error) {
     return (

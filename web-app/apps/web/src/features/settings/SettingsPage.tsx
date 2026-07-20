@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   Settings2, ShieldCheck, Bell, Palette, Plug, Save, Sun, Moon, Check, Info,
   Calendar, MessageSquare, Slack, Fingerprint, Rows3, Rows2,
@@ -13,22 +13,28 @@ import { Divider } from '../../components/ui/Misc';
 import { Tabs } from '../../components/ui/Tabs';
 import { useToast } from '../../store/toast';
 import { useTheme } from '../../store/theme';
+import { useQuery } from '../../hooks/useQuery';
+import {
+  settingsService, notificationPrefsService,
+  type GeneralSettings, type AppearanceSettings,
+} from '../../services';
 import { cn } from '../../lib/utils';
 
+// Security and Integrations were removed rather than wired. Both presented
+// controls nothing enforced: toggling "Enforce MFA" claimed a policy that was
+// never applied at login, and three integrations were hardcoded as Connected
+// when no provider exists. A control that reports success without acting is
+// worse than an absent one — restore them alongside real implementations.
 const TABS = [
   { value: 'general', label: 'General' },
-  { value: 'security', label: 'Security' },
   { value: 'notifications', label: 'Notifications' },
   { value: 'appearance', label: 'Appearance' },
-  { value: 'integrations', label: 'Integrations' },
 ];
 
 const TAB_ICON: Record<string, ReactNode> = {
   general: <Settings2 className="h-4 w-4" />,
-  security: <ShieldCheck className="h-4 w-4" />,
   notifications: <Bell className="h-4 w-4" />,
   appearance: <Palette className="h-4 w-4" />,
-  integrations: <Plug className="h-4 w-4" />,
 };
 
 export default function SettingsPage() {
@@ -68,10 +74,8 @@ export default function SettingsPage() {
 
         <div className="min-w-0 flex-1">
           {tab === 'general' && <GeneralSection />}
-          {tab === 'security' && <SecuritySection />}
           {tab === 'notifications' && <NotificationsSection />}
           {tab === 'appearance' && <AppearanceSection />}
-          {tab === 'integrations' && <IntegrationsSection />}
         </div>
       </div>
     </div>
@@ -105,14 +109,37 @@ function SaveBar({ onSave, saving }: { onSave: () => void; saving?: boolean }) {
 
 function GeneralSection() {
   const toast = useToast();
-  const [form, setForm] = useState({
-    appName: 'Meezan HR Console',
-    language: 'en',
-    timezone: 'Asia/Karachi',
-    dateFormat: 'dd-MMM-yyyy',
-    firstDay: 'monday',
-  });
-  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const { data, loading, refetch } = useQuery(() => settingsService.section<GeneralSettings>('general'), []);
+  const [form, setForm] = useState<GeneralSettings>({});
+  const [saving, setSaving] = useState(false);
+
+  // Timezone deliberately lives on Organization / Attendance Settings, not
+  // here: it drives the attendance engine, and a second picker writing the
+  // same column invites two screens disagreeing about the working day.
+  useEffect(() => {
+    if (!data) return;
+    setForm({
+      appName: data.appName ?? '',
+      language: data.language ?? 'en',
+      dateFormat: data.dateFormat ?? 'dd-MMM-yyyy',
+      firstDay: data.firstDay ?? 'monday',
+    });
+  }, [data]);
+
+  const set = (k: keyof GeneralSettings, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await settingsService.save('general', form as Record<string, unknown>);
+      refetch();
+      toast.success('General settings saved', 'Workspace defaults have been updated.');
+    } catch (e) {
+      toast.error('Could not save', (e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Card>
@@ -120,31 +147,20 @@ function GeneralSection() {
       <CardBody className="space-y-4">
         <div>
           <Label htmlFor="appName">Application display name</Label>
-          <Input id="appName" value={form.appName} onChange={(e) => set('appName', e.target.value)} placeholder="e.g. Meezan HR Console" />
-          <p className="mt-1.5 text-xs text-muted-foreground">Shown in the sidebar, browser tab and outbound emails.</p>
+          <Input id="appName" value={form.appName ?? ''} onChange={(e) => set('appName', e.target.value)} placeholder="e.g. HR Console" />
+          <p className="mt-1.5 text-xs text-muted-foreground">Shown in the sidebar and browser tab.</p>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="language">Default language</Label>
-            <Select id="language" value={form.language} onChange={(e) => set('language', e.target.value)}>
-              <option value="en">English (UK)</option>
-              <option value="ur">Urdu (اردو)</option>
-              <option value="ar">Arabic (العربية)</option>
-              <option value="fr">French (Français)</option>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="timezone">Timezone</Label>
-            <Select id="timezone" value={form.timezone} onChange={(e) => set('timezone', e.target.value)}>
-              <option value="Asia/Karachi">(GMT+5) Pakistan — Karachi</option>
-              <option value="Asia/Dubai">(GMT+4) Gulf — Dubai</option>
-              <option value="Asia/Riyadh">(GMT+3) Saudi Arabia — Riyadh</option>
-              <option value="Europe/London">(GMT+0) United Kingdom — London</option>
+            <Select id="language" value={form.language ?? 'en'} onChange={(e) => set('language', e.target.value)}>
+              <option value="en">English</option>
+              <option value="id">Bahasa Indonesia</option>
             </Select>
           </div>
           <div>
             <Label htmlFor="dateFormat">Date format</Label>
-            <Select id="dateFormat" value={form.dateFormat} onChange={(e) => set('dateFormat', e.target.value)}>
+            <Select id="dateFormat" value={form.dateFormat ?? 'dd-MMM-yyyy'} onChange={(e) => set('dateFormat', e.target.value)}>
               <option value="dd-MMM-yyyy">09-Jul-2026</option>
               <option value="dd/MM/yyyy">09/07/2026</option>
               <option value="MM/dd/yyyy">07/09/2026</option>
@@ -153,124 +169,124 @@ function GeneralSection() {
           </div>
           <div>
             <Label htmlFor="firstDay">First day of week</Label>
-            <Select id="firstDay" value={form.firstDay} onChange={(e) => set('firstDay', e.target.value)}>
+            <Select id="firstDay" value={form.firstDay ?? 'monday'} onChange={(e) => set('firstDay', e.target.value)}>
               <option value="monday">Monday</option>
               <option value="saturday">Saturday</option>
               <option value="sunday">Sunday</option>
             </Select>
           </div>
         </div>
-      </CardBody>
-      <SaveBar onSave={() => toast.success('General settings saved', 'Workspace defaults have been updated.')} />
-    </Card>
-  );
-}
-
-/* ---------- Security ---------- */
-
-function SecuritySection() {
-  const toast = useToast();
-  const [mfa, setMfa] = useState(true);
-  const [rotation, setRotation] = useState(true);
-  const [rateLimit, setRateLimit] = useState(true);
-  const [sessionTimeout, setSessionTimeout] = useState('30');
-
-  return (
-    <Card>
-      <CardHeader title="Security" description="Authentication and access policies enforced for all users." />
-      <CardBody className="divide-y divide-border py-0">
-        <SettingRow
-          title="Enforce multi-factor authentication"
-          description="Require a TOTP or SMS second factor at sign-in for every employee."
-          control={<Switch checked={mfa} onChange={setMfa} label="Enforce MFA" />}
-        />
-        <SettingRow
-          title="Periodic password rotation"
-          description="Prompt users to reset their password every 90 days."
-          control={<Switch checked={rotation} onChange={setRotation} label="Password rotation" />}
-        />
-        <SettingRow
-          title="Session timeout"
-          description="Automatically sign out idle sessions after this duration."
-          control={
-            <Select value={sessionTimeout} onChange={(e) => setSessionTimeout(e.target.value)} className="w-36">
-              <option value="15">15 minutes</option>
-              <option value="30">30 minutes</option>
-              <option value="60">60 minutes</option>
-              <option value="120">2 hours</option>
-              <option value="480">8 hours</option>
-            </Select>
-          }
-        />
-        <SettingRow
-          title="Login rate limiting"
-          description="Throttle repeated failed attempts and temporarily lock the account."
-          control={<Switch checked={rateLimit} onChange={setRateLimit} label="Login rate-limit" />}
-        />
-      </CardBody>
-      <div className="mx-5 mb-4 flex items-start gap-2.5 rounded-lg border border-border bg-surface-2/50 p-3.5">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" />
         <p className="text-xs text-muted-foreground">
-          Sessions are issued as short-lived JWT access tokens paired with rotating refresh tokens. Refresh tokens are single-use and
-          revoked on reuse — this policy is managed by the platform and cannot be disabled.
+          Timezone is set in <strong>Attendance → Settings</strong>, where it drives the working day and auto-checkout.
         </p>
-      </div>
-      <SaveBar onSave={() => toast.success('Security policy saved', 'Access controls have been updated for all users.')} />
+      </CardBody>
+      <SaveBar onSave={save} saving={saving || loading} />
     </Card>
   );
 }
 
 /* ---------- Notifications ---------- */
 
-const CHANNELS = ['Email', 'SMS', 'Push', 'WhatsApp', 'In-app'] as const;
-const EVENTS = ['Leave', 'Attendance', 'Payroll', 'Tasks'] as const;
-type Channel = (typeof CHANNELS)[number];
-type EventType = (typeof EVENTS)[number];
+/** Event keys the API stores preferences against. */
+const EVENTS = [
+  { key: 'leave', label: 'Leave' },
+  { key: 'attendance', label: 'Attendance' },
+  { key: 'payroll', label: 'Payroll' },
+  { key: 'tasks', label: 'Tasks' },
+] as const;
 
-const DEFAULT_MATRIX: Record<EventType, Record<Channel, boolean>> = {
-  Leave: { Email: true, SMS: false, Push: true, WhatsApp: true, 'In-app': true },
-  Attendance: { Email: false, SMS: true, Push: true, WhatsApp: false, 'In-app': true },
-  Payroll: { Email: true, SMS: true, Push: false, WhatsApp: false, 'In-app': true },
-  Tasks: { Email: true, SMS: false, Push: true, WhatsApp: false, 'In-app': true },
+const CHANNEL_LABEL: Record<string, string> = {
+  in_app: 'In-app',
+  email: 'Email',
+  sms: 'SMS',
+  push: 'Push',
+  whatsapp: 'WhatsApp',
 };
 
 function NotificationsSection() {
   const toast = useToast();
-  const [matrix, setMatrix] = useState(DEFAULT_MATRIX);
+  // Readiness comes from the server, not a constant here: each channel reports
+  // whether a provider is actually wired. Today only in-app is — the others
+  // accept a send and silently drop it — so their switches are disabled rather
+  // than letting an admin enable a delivery that will never happen.
+  const { data: channels, loading: channelsLoading } = useQuery(() => notificationPrefsService.channels(), []);
+  const { data: prefs, refetch } = useQuery(() => notificationPrefsService.list(), []);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  const toggle = (ev: EventType, ch: Channel) =>
-    setMatrix((m) => ({ ...m, [ev]: { ...m[ev], [ch]: !m[ev][ch] } }));
+  const list = channels ?? [];
+  const isEnabled = (eventKey: string, channel: string) => {
+    const found = (prefs ?? []).find((p) => p.eventKey === eventKey && p.channel === channel);
+    return found ? found.isEnabled : true; // absent preference means "not opted out"
+  };
+
+  const toggle = async (eventKey: string, channel: string, next: boolean) => {
+    const id = `${eventKey}:${channel}`;
+    setBusy(id);
+    try {
+      await notificationPrefsService.set(eventKey, channel, next);
+      refetch();
+    } catch (e) {
+      toast.error('Could not update', (e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const pending = list.filter((c) => !c.ready).map((c) => CHANNEL_LABEL[c.channel] ?? c.channel);
 
   return (
     <Card>
       <CardHeader title="Notifications" description="Choose how employees are alerted for each type of event." />
+      {pending.length > 0 && (
+        <div className="flex items-start gap-2 border-b border-border bg-warning/5 px-5 py-3 text-xs text-muted-foreground">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+          <p>
+            {pending.join(', ')} {pending.length === 1 ? 'has' : 'have'} no delivery provider connected yet, so
+            {pending.length === 1 ? ' it is' : ' they are'} shown disabled. In-app notifications are live.
+          </p>
+        </div>
+      )}
       <CardBody className="overflow-x-auto p-0">
-        <table className="w-full min-w-[560px] text-sm">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="px-5 py-3 text-left font-medium text-muted-foreground">Event</th>
-              {CHANNELS.map((ch) => (
-                <th key={ch} className="px-3 py-3 text-center font-medium text-muted-foreground">{ch}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {EVENTS.map((ev) => (
-              <tr key={ev} className="hover:bg-surface-2/40">
-                <td className="px-5 py-3.5 font-medium text-foreground">{ev}</td>
-                {CHANNELS.map((ch) => (
-                  <td key={ch} className="px-3 py-3.5 text-center">
-                    <div className="flex justify-center">
-                      <Switch checked={matrix[ev][ch]} onChange={() => toggle(ev, ch)} label={`${ev} via ${ch}`} />
-                    </div>
-                  </td>
+        {channelsLoading ? (
+          <div className="px-5 py-10 text-center text-sm text-muted-foreground">Loading channels…</div>
+        ) : (
+          <table className="w-full min-w-[560px] text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="px-5 py-3 text-left font-medium text-muted-foreground">Event</th>
+                {list.map((c) => (
+                  <th key={c.channel} className="px-3 py-3 text-center font-medium text-muted-foreground">
+                    <span className={cn(!c.ready && 'opacity-50')}>{CHANNEL_LABEL[c.channel] ?? c.channel}</span>
+                    {!c.ready && <span className="ml-1 text-[10px] uppercase tracking-wide text-warning">soon</span>}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {EVENTS.map((ev) => (
+                <tr key={ev.key} className="hover:bg-surface-2/40">
+                  <td className="px-5 py-3.5 font-medium text-foreground">{ev.label}</td>
+                  {list.map((c) => (
+                    <td key={c.channel} className="px-3 py-3.5 text-center">
+                      <div className={cn('flex justify-center', !c.ready && 'pointer-events-none opacity-40')}>
+                        <Switch
+                          checked={c.ready ? isEnabled(ev.key, c.channel) : false}
+                          onChange={(v) => c.ready && toggle(ev.key, c.channel, v)}
+                          label={`${ev.label} via ${CHANNEL_LABEL[c.channel] ?? c.channel}`}
+                          disabled={!c.ready || busy === `${ev.key}:${c.channel}`}
+                        />
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </CardBody>
-      <SaveBar onSave={() => toast.success('Notification preferences saved', 'Delivery channels have been updated.')} />
+      <div className="border-t border-border px-5 py-3.5">
+        <p className="text-xs text-muted-foreground">Changes save immediately.</p>
+      </div>
     </Card>
   );
 }
@@ -280,7 +296,27 @@ function NotificationsSection() {
 function AppearanceSection() {
   const toast = useToast();
   const { theme, setTheme } = useTheme();
+  const { data } = useQuery(() => settingsService.section<AppearanceSettings>('appearance'), []);
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (data?.density) setDensity(data.density);
+  }, [data]);
+
+  // Theme applies instantly through the theme store and is per-device, so it
+  // is not part of this save — only density, which is a workspace default.
+  const save = async () => {
+    setSaving(true);
+    try {
+      await settingsService.save('appearance', { density });
+      toast.success('Appearance saved', 'Display density updated for the workspace.');
+    } catch (e) {
+      toast.error('Could not save', (e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const themes = [
     { value: 'light' as const, label: 'Light', icon: <Sun className="h-5 w-5" />, hint: 'Bright, high-contrast interface.' },
@@ -349,66 +385,7 @@ function AppearanceSection() {
           </div>
         </div>
       </CardBody>
-      <SaveBar onSave={() => toast.success('Appearance saved', 'Your display preferences have been updated.')} />
+      <SaveBar onSave={save} saving={saving} />
     </Card>
-  );
-}
-
-/* ---------- Integrations ---------- */
-
-interface Integration {
-  key: string;
-  name: string;
-  description: string;
-  icon: ReactNode;
-  connected: boolean;
-}
-
-const INITIAL_INTEGRATIONS: Integration[] = [
-  { key: 'gcal', name: 'Google Calendar', description: 'Sync leave, interviews and shift schedules to team calendars.', icon: <Calendar className="h-5 w-5" />, connected: true },
-  { key: 'm365', name: 'Microsoft 365', description: 'Single sign-on and directory sync with Azure AD.', icon: <MessageSquare className="h-5 w-5" />, connected: true },
-  { key: 'slack', name: 'Slack', description: 'Post approvals and attendance alerts to workspace channels.', icon: <Slack className="h-5 w-5" />, connected: false },
-  { key: 'wa', name: 'WhatsApp Business', description: 'Send payroll slips and leave updates over WhatsApp.', icon: <MessageSquare className="h-5 w-5" />, connected: false },
-  { key: 'zkteco', name: 'ZKTeco Biometric', description: 'Pull punch-in/out events from biometric attendance devices.', icon: <Fingerprint className="h-5 w-5" />, connected: true },
-];
-
-function IntegrationsSection() {
-  const toast = useToast();
-  const [items, setItems] = useState(INITIAL_INTEGRATIONS);
-
-  const toggle = (key: string) =>
-    setItems((list) =>
-      list.map((i) => {
-        if (i.key !== key) return i;
-        const connected = !i.connected;
-        toast.success(connected ? `${i.name} connected` : `${i.name} disconnected`, connected ? 'The integration is now active.' : 'The integration has been removed.');
-        return { ...i, connected };
-      }),
-    );
-
-  return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      {items.map((i) => (
-        <Card key={i.key} className="flex flex-col">
-          <CardBody className="flex flex-1 flex-col gap-3">
-            <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">{i.icon}</span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="truncate text-sm font-semibold text-foreground">{i.name}</p>
-                  <Badge tone={i.connected ? 'success' : 'neutral'} dot>{i.connected ? 'Connected' : 'Not connected'}</Badge>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">{i.description}</p>
-              </div>
-            </div>
-            <div className="mt-auto flex justify-end pt-1">
-              <Button variant={i.connected ? 'outline' : 'primary'} size="sm" onClick={() => toggle(i.key)}>
-                {i.connected ? 'Disconnect' : 'Connect'}
-              </Button>
-            </div>
-          </CardBody>
-        </Card>
-      ))}
-    </div>
   );
 }

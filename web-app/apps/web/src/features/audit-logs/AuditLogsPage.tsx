@@ -12,6 +12,8 @@ import { useQuery } from '../../hooks/useQuery';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { auditService } from '../../services';
 import { useToast } from '../../store/toast';
+import { exportCsv, datedFilename, type CsvColumn } from '../../lib/csv';
+import { pluralize } from '../../lib/format';
 import { formatDateTime, relativeTime } from '../../lib/format';
 import type { AuditLog } from '../../lib/types';
 
@@ -51,6 +53,23 @@ const ENTITY_OPTIONS = [
 
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 
+/**
+ * Upper bound on a single export. Audit tables grow without limit, so an
+ * unbounded request would eventually time out or exhaust browser memory; the
+ * user is told when the cap is hit rather than silently receiving a truncated
+ * file.
+ */
+const EXPORT_LIMIT = 5000;
+
+const AUDIT_CSV_COLUMNS: CsvColumn<AuditLog>[] = [
+  { header: 'Timestamp (UTC)', value: (r) => new Date(r.createdAt).toISOString() },
+  { header: 'Actor', value: (r) => r.actorName },
+  { header: 'Action', value: (r) => r.action },
+  { header: 'Entity type', value: (r) => r.entityType },
+  { header: 'Entity', value: (r) => r.entityLabel },
+  { header: 'IP address', value: (r) => r.ipAddress },
+];
+
 export default function AuditLogsPage() {
   const toast = useToast();
 
@@ -79,7 +98,34 @@ export default function AuditLogsPage() {
   const setFilter = (key: string, value: string) => { setFilters((f) => ({ ...f, [key]: value })); setPage(1); };
   const clear = () => { setSearch(''); setFilters({ action: 'all', entityType: 'all' }); setPage(1); };
 
-  const exportLogs = () => toast.success('Export queued', 'Your audit log export will be emailed as a signed CSV shortly.');
+  // Exports every row matching the current search and filters, not just the
+  // visible page — "export" on a filtered table means the filtered set. The
+  // list endpoint is paginated, so this re-requests with a high limit rather
+  // than exporting the 12 rows on screen.
+  const [exporting, setExporting] = useState(false);
+  const exportLogs = async () => {
+    setExporting(true);
+    try {
+      const all = await auditService.list({ ...params, page: 1, limit: EXPORT_LIMIT });
+      const logs = all?.data ?? [];
+      if (!logs.length) {
+        toast.error('Nothing to export', 'No audit entries match the current filters.');
+        return;
+      }
+      exportCsv(datedFilename('audit-logs'), logs, AUDIT_CSV_COLUMNS);
+      const capped = (all?.meta?.total ?? logs.length) > logs.length;
+      toast.success(
+        `Exported ${logs.length} ${pluralize(logs.length, 'entry', 'entries')}`,
+        capped
+          ? `Capped at the most recent ${EXPORT_LIMIT}. Narrow the filters to export older entries.`
+          : 'Downloaded as CSV.',
+      );
+    } catch (e) {
+      toast.error('Export failed', (e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const columns: Column<AuditLog>[] = [
     {
@@ -133,7 +179,7 @@ export default function AuditLogsPage() {
         title="Audit Logs"
         description="A tamper-evident trail of every action across the platform."
         actions={
-          <Button variant="outline" size="sm" onClick={exportLogs}>
+          <Button variant="outline" size="sm" onClick={exportLogs} loading={exporting}>
             <Download className="h-4 w-4" /> Export
           </Button>
         }

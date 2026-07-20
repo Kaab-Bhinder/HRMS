@@ -25,6 +25,13 @@ const CF_FIELDS = ['entity', 'fieldKey', 'label', 'dataType', 'helpText', 'place
 
 export const authService = {
   me: () => api.get<CurrentUser>('/auth/me'),
+  /** Change your own password. The current one is required — holding a valid
+   *  access token alone must not be enough to take an account over. */
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.post<{ success: boolean; otherSessionsSignedOut: number }>(
+      '/auth/change-password',
+      { currentPassword, newPassword },
+    ),
 };
 
 export interface MeScope {
@@ -173,7 +180,28 @@ export const REPORT_BACKEND_MODULES: Record<string, string> = {
   Employees: 'employees',
   Leave: 'leave',
 };
+export interface SavedReport {
+  id: string;
+  name: string;
+  module: string;
+  definition: Record<string, unknown>;
+  scheduleCron?: string | null;
+  recipients?: string[] | null;
+  createdAt: string;
+}
+
+const SAVED_REPORT_FIELDS = ['name', 'module', 'definition', 'scheduleCron', 'recipients'];
+
 export const reportsService = {
+  /** Saved report definitions. Note: no scheduler runs these yet — a stored
+   *  scheduleCron is a preference, not an active job. */
+  listSaved: (p?: ListParams) => api.get<Paginated<SavedReport>>(`/reports${qs(p)}`),
+  createSaved: (payload: Partial<SavedReport>) =>
+    api.post<SavedReport>('/reports', pick(payload, SAVED_REPORT_FIELDS)),
+  updateSaved: (id: string, payload: Partial<SavedReport>) =>
+    api.patch<SavedReport>(`/reports/${id}`, pick(payload, SAVED_REPORT_FIELDS)),
+  removeSaved: (id: string) => api.del<{ success: boolean }>(`/reports/${id}`),
+
   /** Runs a report on the server and downloads the file (authenticated blob). */
   export: (backendModule: string, format = 'csv', filters: Record<string, string> = {}) => {
     const qp = new URLSearchParams({ module: backendModule, format, ...filters }).toString();
@@ -335,4 +363,57 @@ export const locationsService = {
   update: (id: string, payload: Partial<OfficeLocationDto>) =>
     api.patch<OfficeLocationDto>(`/organizations/locations/${id}`, pick(payload, LOCATION_FIELDS)),
   remove: (id: string) => api.del<{ success: boolean }>(`/organizations/locations/${id}`),
+};
+
+/**
+ * Workspace settings. Each section is one JSON blob keyed by name on the
+ * server (SETTING_SECTIONS in the API), so the shapes below are conventions
+ * this client and the API agree on rather than columns.
+ *
+ * Only sections whose behaviour is actually implemented are exposed here.
+ * A stored flag that nothing reads is worse than an absent one — it reports a
+ * policy is in force when it is not.
+ */
+export type SettingSection = 'general' | 'notifications' | 'appearance';
+
+export interface GeneralSettings {
+  appName?: string;
+  language?: string;
+  dateFormat?: string;
+  firstDay?: string;
+}
+
+export interface NotificationSettings {
+  [channelOrEvent: string]: boolean | string | undefined;
+}
+
+export interface AppearanceSettings {
+  density?: 'comfortable' | 'compact';
+}
+
+export const settingsService = {
+  section: <T = Record<string, unknown>>(section: SettingSection) =>
+    api.get<T>(`/settings/${section}`),
+  /** PATCH merges server-side, so partial saves never clear sibling keys. */
+  save: <T = Record<string, unknown>>(section: SettingSection, value: Record<string, unknown>) =>
+    api.patch<T>(`/settings/${section}`, { value }),
+};
+
+export interface NotificationChannelStatus {
+  channel: string;
+  /** False for channels with no provider wired — they accept a send and drop it. */
+  ready: boolean;
+}
+
+export interface NotificationPreference {
+  eventKey: string;
+  channel: string;
+  isEnabled: boolean;
+}
+
+export const notificationPrefsService = {
+  channels: () => api.get<NotificationChannelStatus[]>('/notifications/channels'),
+  list: () => api.get<NotificationPreference[]>('/notifications/preferences'),
+  set: (eventKey: string, channel: string, isEnabled: boolean) =>
+    api.patch<NotificationPreference>('/notifications/preferences', { eventKey, channel, isEnabled }),
 };

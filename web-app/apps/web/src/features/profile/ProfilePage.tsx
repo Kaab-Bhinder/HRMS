@@ -14,6 +14,7 @@ import { Tabs } from '../../components/ui/Tabs';
 import { useAuth } from '../../store/auth';
 import { useTheme } from '../../store/theme';
 import { useToast } from '../../store/toast';
+import { authService } from '../../services';
 import { useQuery } from '../../hooks/useQuery';
 import { sessionsService } from '../../services';
 import { relativeTime } from '../../lib/format';
@@ -153,7 +154,9 @@ function SecuritySection() {
   const [mfa, setMfa] = useState(true);
   const set = (k: keyof typeof pwd, v: string) => setPwd((p) => ({ ...p, [k]: v }));
 
-  const changePassword = () => {
+  const [changing, setChanging] = useState(false);
+
+  const changePassword = async () => {
     if (!pwd.current || !pwd.next || !pwd.confirm) {
       toast.error('Missing fields', 'Please fill in all password fields.');
       return;
@@ -166,8 +169,26 @@ function SecuritySection() {
       toast.error('Passwords do not match', 'The new password and confirmation must be identical.');
       return;
     }
-    setPwd({ current: '', next: '', confirm: '' });
-    toast.success('Password changed', 'Use your new password the next time you sign in.');
+    setChanging(true);
+    try {
+      // The server re-verifies the current password; the checks above are only
+      // to save a round trip, never the thing that protects the account.
+      const res = await authService.changePassword(pwd.current, pwd.next);
+      setPwd({ current: '', next: '', confirm: '' });
+      const others = res?.otherSessionsSignedOut ?? 0;
+      toast.success(
+        'Password changed',
+        others > 0
+          ? `Use it next time you sign in. ${others} other ${others === 1 ? 'session was' : 'sessions were'} signed out.`
+          : 'Use your new password the next time you sign in.',
+      );
+    } catch (e) {
+      // Surfaces "Your current password is incorrect" rather than a green toast
+      // over a failed change — the bug this replaces.
+      toast.error('Could not change password', (e as Error).message);
+    } finally {
+      setChanging(false);
+    }
   };
 
   return (
@@ -192,7 +213,7 @@ function SecuritySection() {
             </div>
           </CardBody>
           <div className="flex justify-end border-t border-border px-5 py-3.5">
-            <Button size="sm" onClick={changePassword}><KeyRound className="h-4 w-4" /> Update password</Button>
+            <Button size="sm" onClick={changePassword} loading={changing}><KeyRound className="h-4 w-4" /> Update password</Button>
           </div>
         </Card>
 

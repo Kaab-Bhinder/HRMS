@@ -19,3 +19,14 @@ export class LoginDto {
   @IsIn(PLATFORMS)
   platform?: Platform;
 }
+
+export class ChangePasswordDto {
+  @ApiProperty({ description: 'The password currently in use — required to prove ownership of the session.' })
+  @IsString()
+  currentPassword!: string;
+
+  @ApiProperty({ minLength: 8 })
+  @IsString()
+  @MinLength(8)
+  newPassword!: string;
+}

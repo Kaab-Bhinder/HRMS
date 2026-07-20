@@ -14,7 +14,8 @@ import { Input, Select, Label } from '../../components/ui/Input';
 import { Checkbox } from '../../components/ui/Switch';
 import { Dropdown, DropdownItem, DropdownSeparator } from '../../components/ui/Dropdown';
 import { EmptyState } from '../../components/feedback/States';
-import { reportsService, REPORT_BACKEND_MODULES } from '../../services';
+import { reportsService, REPORT_BACKEND_MODULES, type SavedReport } from '../../services';
+import { useQuery } from '../../hooks/useQuery';
 import { useToast } from '../../store/toast';
 import { usePermission } from '../../store/auth';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
@@ -76,14 +77,6 @@ const REPORT_CATALOG: ReportDef[] = [
   { id: 'perf-goals', title: 'Goal Attainment', description: 'On-track vs at-risk objectives across the organization.', module: 'Performance' },
 ];
 
-const SCHEDULED: ScheduledReport[] = [
-  { id: 's1', name: 'Weekly Attendance Digest', module: 'Attendance', schedule: 'Every Monday 9:00', recipients: 6, format: 'PDF', lastRun: '2026-07-06T09:00:00Z' },
-  { id: 's2', name: 'Monthly Payroll Register', module: 'Payroll', schedule: '1st of month 07:00', recipients: 3, format: 'Excel', lastRun: '2026-07-01T07:00:00Z' },
-  { id: 's3', name: 'Leave Liability Snapshot', module: 'Leave', schedule: 'Every Friday 17:00', recipients: 4, format: 'Excel', lastRun: '2026-07-04T17:00:00Z' },
-  { id: 's4', name: 'Board Headcount Report', module: 'Employees', schedule: '15th of month 08:00', recipients: 8, format: 'PDF', lastRun: '2026-06-15T08:00:00Z' },
-  { id: 's5', name: 'Quarterly Appraisal Rollup', module: 'Performance', schedule: 'Every quarter 10:00', recipients: 5, format: 'CSV', lastRun: '2026-04-01T10:00:00Z' },
-];
-
 const COLUMN_OPTIONS = ['Employee', 'Department', 'Designation', 'Date', 'Status', 'Amount', 'Manager'];
 const SCHEDULE_OPTIONS = ['None', 'Daily', 'Weekly', 'Monthly'];
 
@@ -95,6 +88,19 @@ export default function ReportsPage() {
   const [search, setSearch] = useState('');
   const debounced = useDebouncedValue(search, 250);
   const [createOpen, setCreateOpen] = useState(false);
+  const { data: savedData, loading: savedLoading, refetch: refetchSaved } =
+    useQuery(() => reportsService.listSaved({ limit: 100 }), []);
+  const saved = savedData?.data ?? [];
+
+  const deleteSaved = async (r: SavedReport) => {
+    try {
+      await reportsService.removeSaved(r.id);
+      refetchSaved();
+      toast.success('Report deleted', `${r.name} was removed.`);
+    } catch (e) {
+      toast.error('Could not delete', (e as Error).message);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = debounced.trim().toLowerCase();
@@ -137,7 +143,7 @@ export default function ReportsPage() {
       <Tabs
         tabs={[
           { value: 'catalog', label: 'Catalog', count: REPORT_CATALOG.length },
-          { value: 'scheduled', label: 'Scheduled', count: SCHEDULED.length },
+          { value: 'scheduled', label: 'Saved', count: saved.length },
         ]}
         value={tab}
         onChange={setTab}
@@ -197,6 +203,15 @@ export default function ReportsPage() {
 
       {tab === 'scheduled' && (
         <Card className="overflow-hidden">
+          {/* Saved definitions persist, but nothing executes them on a timer
+              yet — say so rather than implying reports are being delivered. */}
+          <div className="flex items-start gap-2 border-b border-border bg-warning/5 px-5 py-3 text-xs text-muted-foreground">
+            <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+            <p>
+              Saved reports are stored definitions you can run on demand.
+              Automatic scheduled delivery isn’t active yet — use <strong>Run now</strong>.
+            </p>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -204,31 +219,34 @@ export default function ReportsPage() {
                   <th className="px-5 py-3">Report</th>
                   <th className="px-5 py-3">Module</th>
                   <th className="px-5 py-3">Schedule</th>
-                  <th className="px-5 py-3 text-right">Recipients</th>
-                  <th className="px-5 py-3">Format</th>
-                  <th className="px-5 py-3">Last Run</th>
+                  <th className="px-5 py-3">Created</th>
                   <th className="px-5 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {SCHEDULED.map((s) => (
-                  <tr key={s.id} className="transition-colors hover:bg-surface-2/50">
-                    <td className="px-5 py-3.5 font-medium text-foreground">{s.name}</td>
-                    <td className="px-5 py-3.5"><Badge tone={MODULE_META[s.module].tone}>{s.module}</Badge></td>
+                {savedLoading ? (
+                  <tr><td colSpan={5} className="px-5 py-10 text-center text-muted-foreground">Loading…</td></tr>
+                ) : saved.length === 0 ? (
+                  <tr><td colSpan={5} className="px-5 py-10 text-center text-muted-foreground">
+                    No saved reports yet. Use “New report” to create one.
+                  </td></tr>
+                ) : saved.map((s2: SavedReport) => (
+                  <tr key={s2.id} className="transition-colors hover:bg-surface-2/50">
+                    <td className="px-5 py-3.5 font-medium text-foreground">{s2.name}</td>
+                    <td className="px-5 py-3.5">
+                      <Badge tone="neutral">{s2.module}</Badge>
+                    </td>
                     <td className="px-5 py-3.5">
                       <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                        <Clock className="h-3.5 w-3.5" /> {s.schedule}
+                        <Clock className="h-3.5 w-3.5" /> {s2.scheduleCron || 'On demand'}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-right tabular-nums text-muted-foreground">{s.recipients}</td>
-                    <td className="px-5 py-3.5"><Badge tone={FORMAT_TONE[s.format]}>{s.format}</Badge></td>
-                    <td className="px-5 py-3.5 text-muted-foreground">{relativeTime(s.lastRun)}</td>
+                    <td className="px-5 py-3.5 text-muted-foreground">{relativeTime(s2.createdAt)}</td>
                     <td className="px-5 py-3.5 text-right">
                       <Dropdown trigger={<Button variant="ghost" size="icon" aria-label="Actions"><MoreHorizontal className="h-4 w-4" /></Button>}>
-                        <DropdownItem icon={<Play />} onClick={() => runReport(s.name, s.module)}>Run now</DropdownItem>
-                        <DropdownItem icon={<Pencil />} onClick={() => toast.success('Edit schedule', `Opening editor for ${s.name}.`)}>Edit</DropdownItem>
+                        <DropdownItem icon={<Play />} onClick={() => exportReport(s2.name, capitalize(s2.module))}>Run now</DropdownItem>
                         <DropdownSeparator />
-                        <DropdownItem icon={<Trash2 />} danger onClick={() => toast.success('Schedule deleted', `${s.name} will no longer run automatically.`)}>Delete</DropdownItem>
+                        <DropdownItem icon={<Trash2 />} danger onClick={() => deleteSaved(s2)}>Delete</DropdownItem>
                       </Dropdown>
                     </td>
                   </tr>
@@ -239,12 +257,25 @@ export default function ReportsPage() {
         </Card>
       )}
 
-      <NewReportModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <NewReportModal open={createOpen} onClose={() => setCreateOpen(false)} onSaved={refetchSaved} />
     </div>
   );
 }
 
-function NewReportModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** Maps the UI's schedule labels to cron. Stored for when a scheduler exists;
+ *  nothing runs them today, which the Saved tab states plainly. */
+const SCHEDULE_CRON: Record<string, string | undefined> = {
+  None: undefined,
+  Daily: '0 9 * * *',
+  Weekly: '0 9 * * 1',
+  Monthly: '0 9 1 * *',
+};
+
+function capitalize(v: string): string {
+  return v ? v[0].toUpperCase() + v.slice(1) : v;
+}
+
+function NewReportModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const [name, setName] = useState('');
   const [module, setModule] = useState<ReportModule>('Attendance');
@@ -263,10 +294,38 @@ function NewReportModal({ open, onClose }: { open: boolean; onClose: () => void 
     setColumns(['Employee', 'Department', 'Date']);
   };
 
-  const save = () => {
-    toast.success('Report created', `${name.trim() || 'Untitled report'} was saved${schedule !== 'None' ? ` and scheduled ${schedule.toLowerCase()}` : ''}.`);
-    reset();
-    onClose();
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    const backend = REPORT_BACKEND_MODULES[module];
+    // Only three modules have a server-side data source; saving a definition
+    // for the others would create a report that can never run.
+    if (!backend) {
+      toast.error('Module not available', `${module} reports have no data source yet. Choose Attendance, Employees or Leave.`);
+      return;
+    }
+    setSaving(true);
+    try {
+      await reportsService.createSaved({
+        name: name.trim(),
+        module: backend,
+        definition: { columns, format },
+        scheduleCron: SCHEDULE_CRON[schedule],
+      });
+      onSaved();
+      toast.success(
+        'Report saved',
+        schedule === 'None'
+          ? `${name.trim()} is available under Saved.`
+          : `${name.trim()} was saved. Automatic ${schedule.toLowerCase()} delivery isn’t active yet — run it from Saved.`,
+      );
+      reset();
+      onClose();
+    } catch (e) {
+      toast.error('Could not save', (e as Error).message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const close = () => { reset(); onClose(); };
@@ -280,7 +339,7 @@ function NewReportModal({ open, onClose }: { open: boolean; onClose: () => void 
       footer={
         <>
           <Button variant="outline" onClick={close}>Cancel</Button>
-          <Button onClick={save} disabled={!name.trim()}>Save report</Button>
+          <Button onClick={save} disabled={!name.trim()} loading={saving}>Save report</Button>
         </>
       }
     >
