@@ -50,7 +50,9 @@ async function bootstrap() {
   SwaggerModule.setup(`${prefix}/docs`, app, SwaggerModule.createDocument(app, swagger));
 
   const port = config.get<number>('port')!;
-  await app.listen(port);
+  // Bind all interfaces: container platforms route in from outside the
+  // container, and the default localhost bind would refuse those connections.
+  await app.listen(port, '0.0.0.0');
   const logger = app.get(Logger);
   logger.log(`API ready → http://localhost:${port}/${prefix}  (docs: /${prefix}/docs)`);
 }

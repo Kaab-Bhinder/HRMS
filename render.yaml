@@ -1,0 +1,58 @@
+# Render blueprint for the NestJS API.
+#
+# The API must run as a long-lived server, not a serverless function: the
+# auto-checkout job is an in-process setInterval, and file downloads stream
+# through the process. On Render's free plan the instance sleeps after ~15
+# minutes idle, which both delays the first request by ~50s AND stops
+# auto-checkout from firing — keep it awake with an external ping to /health.
+services:
+  - type: web
+    name: hr-client-api
+    runtime: node
+    plan: free
+    region: singapore # closest to the client (Indonesia)
+    rootDir: web-app
+    # prisma generate must run on the host: the client is built for the
+    # deploy target's platform and is not committed.
+    buildCommand: npm install && npx prisma generate --schema apps/api/prisma/schema.prisma && npm run build --workspace apps/api
+    # migrate deploy runs on every boot; it is a no-op once applied.
+    startCommand: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma && node apps/api/dist/main.js
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # No leading slash — matches the app's own default, so routes land at
+      # /api/v1/... exactly as they do locally.
+      - key: API_PREFIX
+        value: api/v1
+      - key: NODE_VERSION
+        value: "20"
+      # Secrets are set in the Render dashboard, never in this file:
+      #   DATABASE_URL          (Neon, include ?sslmode=require)
+      #   CORS_ORIGINS          https://hrms-bay-iota.vercel.app
+      #   JWT_ACCESS_SECRET     openssl rand -base64 48
+      #   JWT_REFRESH_SECRET    openssl rand -base64 48
+      #   COOKIE_SECRET         openssl rand -base64 48
+      #   SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD
+      #   STORAGE_DRIVER=s3, S3_BUCKET, S3_REGION,
+      #   S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY   (fresh IAM user, not the old keys)
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: COOKIE_SECRET
+        sync: false
+      - key: STORAGE_DRIVER
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false

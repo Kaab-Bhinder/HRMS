@@ -120,11 +120,16 @@ async function main() {
       data: { organizationId: org.id, name: 'General (9–5)', type: 'fixed', startTime: '09:00', endTime: '17:00', graceMinutes: 15, breakMinutes: 60, workMinutes: 480 },
     });
   }
+  // Exactly two types, matching the agreed policy:
+  //   Annual — ALLOTTED. accrualPerYear is the allowance the super admin sets;
+  //            requests beyond the remaining balance are refused by the API.
+  //   Sick   — ADDITIONAL. No accrual, so it never draws down the annual
+  //            allowance and has no ceiling. Still needs approval.
+  // Do not add further types here: a type with no accrual is uncapped, and an
+  // unintended one would hand employees unlimited paid leave.
   const leaveTypes = [
     { name: 'Annual', code: 'ANNUAL', accrualPerYear: 20, carryForwardMax: 5 },
-    { name: 'Sick', code: 'SICK', accrualPerYear: 10 },
-    { name: 'Casual', code: 'CASUAL', accrualPerYear: 8 },
-    { name: 'Unpaid', code: 'UNPAID', isPaid: false },
+    { name: 'Sick', code: 'SICK' },
   ];
   for (const lt of leaveTypes) {
     await prisma.leaveType.upsert({
