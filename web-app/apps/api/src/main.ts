@@ -17,7 +17,25 @@ async function bootstrap() {
 
   app.use(helmet());
   app.use(cookieParser(config.get<string>('cookie.secret')));
-  app.enableCors({ origin: config.get<string[]>('corsOrigins'), credentials: true });
+
+  // CORS. Outside production we also allow any localhost/127.0.0.1 origin: the
+  // Flutter web dev server (`flutter run -d chrome`) picks a random port on each
+  // launch, so a fixed allow-list cannot cover it. Production still uses only
+  // the explicit CORS_ORIGINS list.
+  const allowedOrigins = config.get<string[]>('corsOrigins')!;
+  const isProduction = (process.env.NODE_ENV ?? 'development') === 'production';
+  app.enableCors({
+    origin: (origin, callback) => {
+      // Non-browser clients (curl, the Flutter mobile app) send no Origin header.
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+      if (!isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Origin not allowed by CORS: ${origin}`), false);
+    },
+    credentials: true,
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true, transformOptions: { enableImplicitConversion: true } }),

@@ -44,9 +44,10 @@ export class LeaveController {
 
   @Get('balances/:employeeId')
   @RequirePermissions('leave:read')
-  @ApiOperation({ summary: 'Leave balances for an employee (current year)' })
-  balances(@CurrentUser('organizationId') orgId: string, @Param('employeeId') employeeId: string) {
-    return this.service.balances(orgId, employeeId);
+  @ApiOperation({ summary: 'Leave balances for an employee (current year, scoped)' })
+  balances(@CurrentUser() user: AuthUser, @Param('employeeId') employeeId: string) {
+    // Scoped: an employee may only read their own balances, a head their team's.
+    return this.service.balancesFor(user, employeeId);
   }
 
   // --- Requests ---

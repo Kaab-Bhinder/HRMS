@@ -3,14 +3,15 @@ import 'package:flutter/services.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_spacing.dart';
-import '../../core/widgets/coming_soon.dart';
+import '../../core/theme/app_shadows.dart';
+import '../attendance/presentation/screens/attendance_records_screen.dart';
 import '../attendance/presentation/screens/home_screen.dart';
+import '../leave/leave_screen.dart';
 import '../profile/presentation/profile_screen.dart';
 import '../tasks/presentation/tasks_screen.dart';
 
 /// The authenticated app frame: a bottom-nav shell that keeps each tab alive via
-/// an IndexedStack. Home is real; the other tabs are polished placeholders until
-/// their features land.
+/// an IndexedStack. Every tab is a real feature.
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -36,12 +37,15 @@ class _AppShellState extends State<AppShell> {
       value: context.isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       child: Scaffold(
         backgroundColor: c.background,
+        // The nav floats over the content, so the page's ambient wash runs to
+        // the bottom edge instead of stopping at a hard rule.
+        extendBody: true,
         body: IndexedStack(
           index: _index,
           children: const [
             HomeScreen(),
-            ComingSoon(title: 'Attendance', icon: Icons.access_time_filled_rounded, message: 'Your attendance history, shifts and check-in log will live here.'),
-            ComingSoon(title: 'Leave', icon: Icons.event_available_rounded, message: 'Request time off and track your balances and approvals.'),
+            AttendanceRecordsScreen(embedded: true),
+            LeaveScreen(),
             TasksScreen(),
             ProfileScreen(),
           ],
@@ -77,15 +81,18 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Container(
-      decoration: BoxDecoration(
-        color: c.surface,
-        border: Border(top: BorderSide(color: c.border, width: 1)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 62,
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
+        child: Container(
+          height: 66,
+          decoration: BoxDecoration(
+            color: c.surface,
+            borderRadius: BorderRadius.circular(AppRadius.xl2),
+            border: Border.all(color: c.border),
+            boxShadow: AppShadows.raised(c.shadow, dark: context.isDark),
+          ),
           child: Row(
             children: [
               for (var i = 0; i < tabs.length; i++)
@@ -107,29 +114,43 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final color = selected ? c.primary : c.mutedForeground;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.md),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
+            duration: const Duration(milliseconds: 240),
             curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 6),
             decoration: BoxDecoration(
-              color: selected ? c.primary.withValues(alpha: 0.12) : Colors.transparent,
+              // Solid fill when active: at five tabs a faint tint is too weak to
+              // find at a glance.
+              gradient: selected
+                  ? LinearGradient(
+                      colors: c.primaryGradient,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
               borderRadius: BorderRadius.circular(AppRadius.pill),
+              boxShadow: selected ? AppShadows.glow(c.primary, opacity: 0.30, blur: 12, y: 4) : null,
             ),
-            child: Icon(selected ? spec.activeIcon : spec.icon, size: 22, color: color),
+            child: Icon(
+              selected ? spec.activeIcon : spec.icon,
+              size: 21,
+              color: selected ? c.primaryForeground : c.mutedForeground,
+            ),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 4),
           Text(
             spec.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: context.text.labelSmall?.copyWith(
-              color: color,
-              letterSpacing: 0.2,
+              color: selected ? c.foreground : c.mutedForeground,
+              letterSpacing: 0.1,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
             ),
           ),

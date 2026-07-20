@@ -7,10 +7,13 @@ import 'package:intl/intl.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/ambient_background.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../../../core/widgets/app_states.dart';
+import '../../../core/widgets/hero_surface.dart';
 import '../../../core/widgets/skeleton.dart';
 import '../../../core/widgets/status_pill.dart';
 import '../domain/task_item.dart';
@@ -43,7 +46,8 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     final c = context.colors;
     final async = ref.watch(tasksControllerProvider);
 
-    return SafeArea(
+    return AmbientBackground(
+      child: SafeArea(
       child: Column(
         children: [
           Padding(
@@ -55,6 +59,15 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                 _FilterChips(value: _filter, onChanged: (v) => setState(() => _filter = v)),
               ],
             ),
+          ),
+          // At-a-glance analytics for the tasks assigned to this employee,
+          // derived from the already-loaded list (no extra request).
+          async.maybeWhen(
+            data: (all) => Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.screen, 0, AppSpacing.screen, AppSpacing.xl),
+              child: _TasksHero(tasks: all),
+            ),
+            orElse: () => const SizedBox.shrink(),
           ),
           Expanded(
             child: RefreshIndicator(
@@ -86,7 +99,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                   }
                   return ListView.separated(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(AppSpacing.screen, 0, AppSpacing.screen, AppSpacing.xl3),
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.screen, 0, AppSpacing.screen, 108),
                     itemCount: list.length,
                     separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
                     itemBuilder: (context, i) => _TaskCard(task: list[i], onTap: () => _openDetail(list[i]))
@@ -98,6 +111,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -107,6 +121,113 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _TaskDetailSheet(task: task),
+    );
+  }
+}
+
+/// Task summary. Open work is the headline — that is what the employee acts on
+/// — with completion progress underneath and the full breakdown below it.
+class _TasksHero extends StatelessWidget {
+  const _TasksHero({required this.tasks});
+  final List<TaskItem> tasks;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final open = tasks.where((t) => t.isOpen).length;
+    final inProgress = tasks.where((t) => t.status == 'in_progress').length;
+    final done = tasks.where((t) => t.isDone).length;
+    final overdue =
+        tasks.where((t) => t.isOpen && t.dueDate != null && t.dueDate!.isBefore(now)).length;
+    final progress = tasks.isEmpty ? 0.0 : done / tasks.length;
+
+    return HeroSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('ASSIGNED TO YOU', style: AppTypography.overline(HeroSurface.onHeroMuted)),
+              const Spacer(),
+              if (overdue > 0)
+                HeroChip(label: '$overdue overdue', tone: const Color(0xFFF59B9B)),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text('$open', style: AppTypography.numeric(40, FontWeight.w700, HeroSurface.onHero)),
+              const SizedBox(width: AppSpacing.sm),
+              Text(open == 1 ? 'task open' : 'tasks open',
+                  style: context.text.bodyMedium?.copyWith(color: HeroSurface.onHeroMuted)),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            child: Stack(
+              children: [
+                Container(height: 7, color: Colors.white.withValues(alpha: 0.18)),
+                LayoutBuilder(
+                  builder: (context, box) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 420),
+                    curve: Curves.easeOutCubic,
+                    height: 7,
+                    width: box.maxWidth * progress,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      gradient: const LinearGradient(colors: [Color(0xFF8FD8FF), Color(0xFF5BE0A8)]),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            tasks.isEmpty
+                ? 'Nothing assigned yet'
+                : '$done of ${tasks.length} complete',
+            style: context.text.labelSmall
+                ?.copyWith(color: HeroSurface.onHeroMuted, letterSpacing: 0.1),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          Row(
+            children: [
+              _count(context, 'Open', open, const Color(0xFF9DC2F0)),
+              _count(context, 'Active', inProgress, const Color(0xFF8FD8FF)),
+              _count(context, 'Done', done, const Color(0xFF5BE0A8)),
+              _count(context, 'Overdue', overdue, const Color(0xFFF59B9B)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _count(BuildContext context, String label, int value, Color dot) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(height: 7, width: 7, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.text.bodySmall?.copyWith(color: HeroSurface.onHeroMuted)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text('$value', style: AppTypography.numeric(19, FontWeight.w700, HeroSurface.onHero)),
+        ],
+      ),
     );
   }
 }

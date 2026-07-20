@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 /// Environment configuration.
 ///
 /// The API host is resolved at startup by probing [candidates] in parallel and
@@ -20,12 +22,21 @@ abstract final class AppConfig {
     'http://localhost:4000/api/v1',       // iOS simulator
   ];
 
-  /// The active base URL. Resolved at startup by [resolveApiHost]; defaults to
-  /// the override (if any) or the first candidate.
-  static String apiBaseUrl = _override.isNotEmpty ? _override : candidates.first;
+  /// The API host used when running in a browser (`flutter run -d chrome`).
+  /// The page is served from localhost, so the API is reachable at localhost
+  /// too; probing LAN IPs from a browser only produces blocked cross-origin
+  /// requests, so web skips probing entirely.
+  static const String webBaseUrl = 'http://localhost:4000/api/v1';
 
-  /// True when a build-time override was supplied (skip host probing).
-  static bool get hasOverride => _override.isNotEmpty;
+  /// The active base URL. Resolved at startup by [resolveApiHost]; defaults to
+  /// the override (if any), then the web host, then the first candidate.
+  static String apiBaseUrl = _override.isNotEmpty
+      ? _override
+      : (kIsWeb ? webBaseUrl : candidates.first);
+
+  /// True when the host is already fixed and startup probing must be skipped:
+  /// either a build-time override was supplied, or we are running on the web.
+  static bool get hasOverride => _override.isNotEmpty || kIsWeb;
 
   /// This app always authenticates as the mobile platform (per-role platform gate).
   static const String platform = 'mobile';

@@ -6,14 +6,21 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/widgets/ambient_background.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_states.dart';
+import '../../../../core/widgets/hero_surface.dart';
 import '../../../../core/widgets/skeleton.dart';
 import '../../../../core/widgets/status_pill.dart';
 import '../providers/records_provider.dart';
 
 class AttendanceRecordsScreen extends ConsumerStatefulWidget {
-  const AttendanceRecordsScreen({super.key});
+  const AttendanceRecordsScreen({super.key, this.embedded = false});
+
+  /// True when hosted inside the bottom-nav shell, where the tab supplies the
+  /// frame: the screen then renders without its own Scaffold/AppBar (and
+  /// without a back button, since there is nothing to pop).
+  final bool embedded;
 
   @override
   ConsumerState<AttendanceRecordsScreen> createState() => _AttendanceRecordsScreenState();
@@ -34,36 +41,37 @@ class _AttendanceRecordsScreenState extends ConsumerState<AttendanceRecordsScree
     final c = context.colors;
     final slip = ref.watch(mySlipProvider(_month));
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('My Attendance')),
-      body: SafeArea(
+    final body = AmbientBackground(
+      child: SafeArea(
         child: RefreshIndicator(
           color: c.primary,
           onRefresh: () async => ref.invalidate(mySlipProvider(_month)),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(AppSpacing.screen, AppSpacing.md, AppSpacing.screen, AppSpacing.xl3),
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.screen, AppSpacing.md, AppSpacing.screen,
+              // Clear the floating nav bar when hosted as a tab.
+              widget.embedded ? 108 : AppSpacing.xl3,
+            ),
             children: [
+              if (widget.embedded) ...[
+                Text('My Attendance', style: context.text.headlineSmall),
+                Text('Your check-ins, hours and flags',
+                    style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
+                const SizedBox(height: AppSpacing.lg),
+              ],
               _MonthBar(label: DateFormat('MMMM yyyy').format(_month), canNext: !_isCurrentMonth, onPrev: () => _shift(-1), onNext: () => _shift(1)),
               const SizedBox(height: AppSpacing.lg),
               slip.when(
-                loading: () => const Column(children: [Skeleton(height: 84, radius: AppRadius.xl), SizedBox(height: AppSpacing.md), Skeleton(height: 240, radius: AppRadius.xl)]),
+                loading: () => const Column(children: [Skeleton(height: 168, radius: AppRadius.xl2), SizedBox(height: AppSpacing.lg), Skeleton(height: 240, radius: AppRadius.xl)]),
                 error: (e, _) => AppCard(child: ErrorStateView(message: e is ApiException ? e.message : 'Couldn’t load your records.', onRetry: () => ref.invalidate(mySlipProvider(_month)))),
                 data: (s) => Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        _Stat(label: 'Present', value: '${s.present}', tone: c.success),
-                        const SizedBox(width: AppSpacing.md),
-                        _Stat(label: 'Late', value: '${s.late}', tone: c.warning),
-                        const SizedBox(width: AppSpacing.md),
-                        _Stat(label: 'Absent', value: '${s.absent}', tone: c.danger),
-                        const SizedBox(width: AppSpacing.md),
-                        _Stat(label: 'Hours', value: '${s.workedHours}', tone: c.primary),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
+                    _MonthHero(slip: s, month: _month),
+                    const SizedBox(height: AppSpacing.xl2),
+                    Text('Daily record', style: context.text.titleLarge),
+                    const SizedBox(height: AppSpacing.md),
                     if (s.days.isEmpty)
                       const AppCard(child: EmptyState(icon: Icons.event_busy_rounded, title: 'No records', message: 'No attendance was recorded this month.'))
                     else
@@ -76,6 +84,11 @@ class _AttendanceRecordsScreenState extends ConsumerState<AttendanceRecordsScree
         ),
       ),
     );
+
+    // As a tab the shell already provides the frame; standalone (pushed from
+    // Home) it needs its own Scaffold and app bar.
+    if (widget.embedded) return body;
+    return Scaffold(appBar: AppBar(title: const Text('My Attendance')), body: body);
   }
 }
 
@@ -89,34 +102,115 @@ class _MonthBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        IconButton(onPressed: onPrev, icon: const Icon(Icons.chevron_left_rounded)),
-        Text(label, style: context.text.titleMedium),
-        IconButton(onPressed: canNext ? onNext : null, icon: Icon(Icons.chevron_right_rounded, color: canNext ? c.foreground : c.mutedForeground.withValues(alpha: 0.4))),
-      ],
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: c.border),
+      ),
+      child: Row(
+        children: [
+          _arrow(context, Icons.chevron_left_rounded, onPrev),
+          Expanded(
+            child: Center(child: Text(label, style: context.text.titleSmall)),
+          ),
+          _arrow(context, Icons.chevron_right_rounded, canNext ? onNext : null),
+        ],
+      ),
+    );
+  }
+
+  Widget _arrow(BuildContext context, IconData icon, VoidCallback? onTap) {
+    final c = context.colors;
+    final enabled = onTap != null;
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: Container(
+        height: 36,
+        width: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: enabled ? c.muted : Colors.transparent,
+        ),
+        child: Icon(icon,
+            size: 20,
+            color: enabled ? c.foreground : c.mutedForeground.withValues(alpha: 0.35)),
+      ),
     );
   }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value, required this.tone});
-  final String label;
-  final String value;
-  final Color tone;
+/// Month summary. Hours worked is the headline; the present/late/absent counts
+/// sit beneath it as supporting detail rather than four equal-weight boxes,
+/// which gave no sense of what to read first.
+class _MonthHero extends StatelessWidget {
+  const _MonthHero({required this.slip, required this.month});
+  final AttendanceSlip slip;
+  final DateTime month;
+
   @override
   Widget build(BuildContext context) {
+    final flagged = slip.days.where((d) => d.isFlagged).length;
+
+    return HeroSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(DateFormat('MMMM').format(month).toUpperCase(),
+                  style: AppTypography.overline(HeroSurface.onHeroMuted)),
+              const Spacer(),
+              if (flagged > 0)
+                HeroChip(
+                  label: '$flagged flagged',
+                  icon: Icons.flag_rounded,
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(slip.workedHours.toStringAsFixed(1),
+                  style: AppTypography.numeric(40, FontWeight.w700, HeroSurface.onHero)),
+              const SizedBox(width: AppSpacing.sm),
+              Text('hours worked',
+                  style: context.text.bodyMedium?.copyWith(color: HeroSurface.onHeroMuted)),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          Row(
+            children: [
+              _heroCount(context, 'Present', slip.present, const Color(0xFF5BE0A8)),
+              _heroCount(context, 'Late', slip.late, const Color(0xFFF5C56B)),
+              _heroCount(context, 'Absent', slip.absent, const Color(0xFFF59B9B)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _heroCount(BuildContext context, String label, int value, Color dot) {
     return Expanded(
-      child: AppCard(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.sm),
-        child: Column(
-          children: [
-            Text(value, style: AppTypography.numeric(20, FontWeight.w700, tone)),
-            const SizedBox(height: 2),
-            Text(label, style: context.text.bodySmall?.copyWith(color: context.colors.mutedForeground)),
-          ],
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(height: 7, width: 7, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
+              const SizedBox(width: 6),
+              Text(label, style: context.text.bodySmall?.copyWith(color: HeroSurface.onHeroMuted)),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text('$value', style: AppTypography.numeric(19, FontWeight.w700, HeroSurface.onHero)),
+        ],
       ),
     );
   }
@@ -137,7 +231,8 @@ class _RecordsTable extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      radius: AppRadius.rXl,
       child: Table(
         border: TableBorder(horizontalInside: BorderSide(color: c.border, width: 0.7)),
         columnWidths: const {

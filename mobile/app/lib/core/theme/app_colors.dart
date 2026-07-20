@@ -19,6 +19,8 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.primary,
     required this.primaryForeground,
     required this.primaryGradient,
+    required this.heroGradient,
+    required this.ambient,
     required this.accent,
     required this.accentForeground,
     required this.success,
@@ -41,6 +43,17 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color primary;
   final Color primaryForeground;
   final List<Color> primaryGradient;
+
+  /// Richer 3-stop wash for the one hero surface per screen. Deeper and more
+  /// saturated than [primaryGradient] so the hero clearly outranks everything
+  /// else rather than looking like just another card.
+  final List<Color> heroGradient;
+
+  /// Two soft blobs painted far behind the content, giving the page a gentle
+  /// tinted depth instead of a flat fill. Very low alpha by design — this
+  /// should read as atmosphere, never as a shape.
+  final List<Color> ambient;
+
   final Color accent;
   final Color accentForeground;
   final Color success;
@@ -63,6 +76,8 @@ class AppColors extends ThemeExtension<AppColors> {
     primary: Color(0xFF1B4E8A),
     primaryForeground: Colors.white,
     primaryGradient: [Color(0xFF1B4E8A), Color(0xFF2E6DB4)],
+    heroGradient: [Color(0xFF16406F), Color(0xFF23578F), Color(0xFF3D6FA8)],
+    ambient: [Color(0xFF7FA8DC), Color(0xFFB9A0E0)],
     accent: Color(0xFFC0891C),
     accentForeground: Color(0xFF2E220A),
     success: Color(0xFF208763),
@@ -86,6 +101,8 @@ class AppColors extends ThemeExtension<AppColors> {
     primary: Color(0xFF5B94D6),
     primaryForeground: Color(0xFF0A1626),
     primaryGradient: [Color(0xFF3E7FC4), Color(0xFF5B94D6)],
+    heroGradient: [Color(0xFF1B2E4D), Color(0xFF23446E), Color(0xFF2F5A8C)],
+    ambient: [Color(0xFF3E6FA8), Color(0xFF6B5BA8)],
     accent: Color(0xFFE0AC43),
     accentForeground: Color(0xFF1A1305),
     success: Color(0xFF3BB88A),
@@ -98,6 +115,27 @@ class AppColors extends ThemeExtension<AppColors> {
 
   /// Tint helper — a translucent wash of any token (for chip/badge fills).
   Color tint(Color c, [double opacity = 0.12]) => c.withValues(alpha: opacity);
+
+  /// Distinct hues for category tiles, so a row of quick actions reads as
+  /// separate destinations at a glance rather than one grey block. Always used
+  /// as a soft tint behind an icon — never as a text color, where contrast
+  /// against the surface isn't guaranteed.
+  static const swatches = <Color>[
+    Color(0xFF4C7DF0), // blue
+    Color(0xFFE0629B), // pink
+    Color(0xFF39A97B), // green
+    Color(0xFFE0A03C), // amber
+    Color(0xFF8A6BD1), // violet
+    Color(0xFF3FA9C4), // teal
+  ];
+
+  /// Element-wise gradient interpolation. Gradients here differ in stop count
+  /// (2 vs 3), so this walks the shorter list and keeps its length rather than
+  /// assuming both ends match.
+  static List<Color> _lerpAll(List<Color> a, List<Color> b, double t) {
+    final n = a.length < b.length ? a.length : b.length;
+    return [for (var i = 0; i < n; i++) Color.lerp(a[i], b[i], t)!];
+  }
 
   @override
   AppColors copyWith({
@@ -113,6 +151,8 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? primary,
     Color? primaryForeground,
     List<Color>? primaryGradient,
+    List<Color>? heroGradient,
+    List<Color>? ambient,
     Color? accent,
     Color? accentForeground,
     Color? success,
@@ -135,6 +175,8 @@ class AppColors extends ThemeExtension<AppColors> {
       primary: primary ?? this.primary,
       primaryForeground: primaryForeground ?? this.primaryForeground,
       primaryGradient: primaryGradient ?? this.primaryGradient,
+      heroGradient: heroGradient ?? this.heroGradient,
+      ambient: ambient ?? this.ambient,
       accent: accent ?? this.accent,
       accentForeground: accentForeground ?? this.accentForeground,
       success: success ?? this.success,
@@ -161,10 +203,9 @@ class AppColors extends ThemeExtension<AppColors> {
       ring: Color.lerp(ring, other.ring, t)!,
       primary: Color.lerp(primary, other.primary, t)!,
       primaryForeground: Color.lerp(primaryForeground, other.primaryForeground, t)!,
-      primaryGradient: [
-        Color.lerp(primaryGradient.first, other.primaryGradient.first, t)!,
-        Color.lerp(primaryGradient.last, other.primaryGradient.last, t)!,
-      ],
+      primaryGradient: _lerpAll(primaryGradient, other.primaryGradient, t),
+      heroGradient: _lerpAll(heroGradient, other.heroGradient, t),
+      ambient: _lerpAll(ambient, other.ambient, t),
       accent: Color.lerp(accent, other.accent, t)!,
       accentForeground: Color.lerp(accentForeground, other.accentForeground, t)!,
       success: Color.lerp(success, other.success, t)!,

@@ -1,5 +1,6 @@
 import '../../../core/network/api_client.dart';
 import '../domain/task_item.dart';
+import '../../../core/network/json_num.dart';
 
 class TaskRepository {
   TaskRepository(this._api);
@@ -20,7 +21,7 @@ class TaskRepository {
       title: j['title']?.toString() ?? '',
       status: j['status']?.toString() ?? 'todo',
       priority: j['priority']?.toString() ?? 'medium',
-      progress: (j['progress'] as num?)?.toInt() ?? 0,
+      progress: asInt(j['progress'], 0),
       description: j['description']?.toString(),
       departmentName: j['departmentName']?.toString(),
       dueDate: j['dueDate'] == null ? null : DateTime.tryParse(j['dueDate'].toString())?.toLocal(),

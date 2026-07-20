@@ -13,7 +13,13 @@ export type DataScope =
 export interface ViewContext {
   view: 'admin' | 'hr' | 'dept_head' | 'employee';
   employeeId: string | null;
+  /** Departments this caller HEADS (empty unless view === 'dept_head'). */
   headsDepartments: { id: string; name: string }[];
+  /** The department this caller BELONGS to, and who leads it. */
+  departmentId: string | null;
+  departmentName: string | null;
+  departmentHeadName: string | null;
+  departmentHeadEmail: string | null;
 }
 
 @Injectable()
@@ -95,10 +101,21 @@ export class ScopeService {
   async view(user: AuthUser): Promise<ViewContext> {
     const scope = await this.resolve(user);
 
+    // The caller's own employee record, with the department they belong to and
+    // the person they report to. The mobile app shows "your department head"
+    // on an employee's dashboard, which needs exactly this.
+    const me = await this.prisma.employee.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: {
+        id: true,
+        department: { select: { id: true, name: true, head: { select: { firstName: true, lastName: true, workEmail: true } } } },
+        manager: { select: { firstName: true, lastName: true, workEmail: true } },
+      },
+    });
+
     let employeeId: string | null = scope.kind === 'org' ? null : scope.employeeId;
     if (scope.kind === 'org') {
-      const emp = await this.prisma.employee.findFirst({ where: { userId: user.id, deletedAt: null }, select: { id: true } });
-      employeeId = emp?.id ?? null;
+      employeeId = me?.id ?? null;
     }
 
     const headsDepartments = scope.kind === 'team'
@@ -113,6 +130,19 @@ export class ScopeService {
           ? 'dept_head'
           : 'employee';
 
-    return { view, employeeId, headsDepartments };
+    // Prefer the department's designated head; fall back to the direct manager
+    // (they are normally the same person, since new employees default to
+    // reporting to their department head).
+    const head = me?.department?.head ?? me?.manager ?? null;
+
+    return {
+      view,
+      employeeId,
+      headsDepartments,
+      departmentId: me?.department?.id ?? null,
+      departmentName: me?.department?.name ?? null,
+      departmentHeadName: head ? `${head.firstName} ${head.lastName}` : null,
+      departmentHeadEmail: head?.workEmail ?? null,
+    };
   }
 }

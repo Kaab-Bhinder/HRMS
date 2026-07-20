@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/providers.dart';
 import '../../../access/access_providers.dart';
+import '../../../../core/network/json_num.dart';
 
 /// One day in the attendance slip.
 class SlipDay {
@@ -32,9 +33,9 @@ class SlipDay {
     return SlipDay(
       date: dt(j['workDate']) ?? DateTime.now(),
       status: j['status']?.toString() ?? 'absent',
-      workedMinutes: (j['workedMinutes'] as num?)?.toInt() ?? 0,
-      lateMinutes: (j['lateMinutes'] as num?)?.toInt() ?? 0,
-      breakMinutes: (j['breakMinutes'] as num?)?.toInt() ?? 0,
+      workedMinutes: asInt(j['workedMinutes'], 0),
+      lateMinutes: asInt(j['lateMinutes'], 0),
+      breakMinutes: asInt(j['breakMinutes'], 0),
       isFlagged: j['isFlagged'] as bool? ?? false,
       firstInAt: dt(j['firstInAt']),
       lastOutAt: dt(j['lastOutAt']),
@@ -54,10 +55,10 @@ class AttendanceSlip {
   static AttendanceSlip fromJson(Map<String, dynamic> j) {
     final totals = (j['totals'] as Map?)?.cast<String, dynamic>() ?? const {};
     return AttendanceSlip(
-      present: (totals['present'] as num?)?.toInt() ?? 0,
-      late: (totals['late'] as num?)?.toInt() ?? 0,
-      absent: (totals['absent'] as num?)?.toInt() ?? 0,
-      workedHours: (totals['workedHours'] as num?)?.toDouble() ?? 0,
+      present: asInt(totals['present'], 0),
+      late: asInt(totals['late'], 0),
+      absent: asInt(totals['absent'], 0),
+      workedHours: asDouble(totals['workedHours'], 0),
       days: (j['days'] as List?)?.map((e) => SlipDay.fromJson((e as Map).cast<String, dynamic>())).toList().reversed.toList() ?? const [],
     );
   }

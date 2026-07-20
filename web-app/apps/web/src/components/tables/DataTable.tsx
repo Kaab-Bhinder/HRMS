@@ -37,9 +37,9 @@ export function DataTable<T>({ columns, rows, loading, error, onRetry, rowKey, o
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border bg-surface-2/50">
+            <tr className="border-b border-border bg-surface-2/60">
               {columns.map((c) => (
-                <th key={c.key} className={cn('px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground', align(c.align), c.className)}>
+                <th key={c.key} className={cn('px-4 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground', align(c.align), c.className)}>
                   {c.sortable && onSortChange ? (
                     <button onClick={() => onSortChange(c.key)} className={cn('inline-flex items-center gap-1 hover:text-foreground', c.align === 'right' && 'flex-row-reverse')}>
                       {th(c.header)}
@@ -62,10 +62,10 @@ export function DataTable<T>({ columns, rows, loading, error, onRetry, rowKey, o
                 <tr
                   key={rowKey(row)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={cn('transition-colors', onRowClick && 'cursor-pointer hover:bg-surface-2/60')}
+                  className={cn('transition-colors', onRowClick && 'cursor-pointer hover:bg-accent/[0.06]')}
                 >
                   {columns.map((c) => (
-                    <td key={c.key} className={cn('px-4 py-3 text-foreground', align(c.align), c.className)}>
+                    <td key={c.key} className={cn('px-4 py-4 text-foreground', align(c.align), c.className)}>
                       {c.render(row)}
                     </td>
                   ))}

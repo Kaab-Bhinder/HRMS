@@ -4,6 +4,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Card, CardHeader, CardBody } from '../../components/ui/Card';
+import { StatCard } from '../../components/charts/StatCard';
 import { Checkbox, Switch } from '../../components/ui/Switch';
 import { Modal } from '../../components/ui/Modal';
 import { Input, Label } from '../../components/ui/Input';
@@ -92,6 +93,14 @@ export default function RolesPage() {
         description="Define access levels and control what each team can see and do."
         actions={canCreate ? <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" /> Create Role</Button> : undefined}
       />
+
+      {/* Headline counts, derived from the already-loaded role list (no extra requests). */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard loading={loading} label="Roles" value={roles?.length ?? 0} icon={<ShieldCheck />} accent="accent" />
+        <StatCard loading={loading} label="Web Access" value={(roles ?? []).filter((r) => r.canAccessWeb).length} icon={<Monitor />} accent="info" />
+        <StatCard loading={loading} label="Mobile Access" value={(roles ?? []).filter((r) => r.canAccessMobile).length} icon={<Smartphone />} accent="success" />
+        <StatCard loading={loading} label="Assigned Users" value={(roles ?? []).reduce((s, r) => s + (r.userCount ?? 0), 0)} icon={<Users />} accent="warning" />
+      </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_1fr]">
         {/* LEFT — role list */}

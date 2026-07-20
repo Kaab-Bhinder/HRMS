@@ -189,6 +189,33 @@ async function main() {
     }
   }
 
+  // 8) Assign the open tasks to people. Without this every employee's "My
+  //    tasks" list is empty, and login-capable accounts (the demo logins) get
+  //    an extra few so their Tasks tab is never bare.
+  const openTasks = await prisma.task.findMany({
+    where: { organizationId: orgId, deletedAt: null, status: { notIn: ['done', 'cancelled'] } },
+    select: { id: true, departmentId: true },
+  });
+  const assignable = await prisma.employee.findMany({
+    where: { organizationId: orgId, deletedAt: null, status: { in: ['active', 'probation'] } },
+    select: { id: true, departmentId: true, userId: true },
+  });
+  for (const t of openTasks) {
+    const sameDept = assignable.filter((e) => e.departmentId === t.departmentId);
+    const who = (sameDept.length ? sameDept : assignable)[rnd(sameDept.length || assignable.length)];
+    if (who) {
+      await prisma.taskAssignment.create({ data: { taskId: t.id, employeeId: who.id, role: 'assignee' } });
+    }
+  }
+  let cursor = 0;
+  for (const e of assignable.filter((x) => x.userId)) {
+    for (let k = 0; k < 4 && openTasks.length; k++) {
+      const t = openTasks[cursor++ % openTasks.length];
+      const dup = await prisma.taskAssignment.findFirst({ where: { taskId: t.id, employeeId: e.id } });
+      if (!dup) await prisma.taskAssignment.create({ data: { taskId: t.id, employeeId: e.id, role: 'assignee' } });
+    }
+  }
+
   const counts = {
     employees: await prisma.employee.count({ where: { organizationId: orgId, deletedAt: null } }),
     attendance: await prisma.attendanceDay.count({ where: { organizationId: orgId } }),

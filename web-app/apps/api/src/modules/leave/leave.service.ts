@@ -69,23 +69,65 @@ export class LeaveService {
 
   // --- Balances ---
 
+  /**
+   * This year's balance for every leave type, with the remaining allowance
+   * computed.
+   *
+   * A type whose `accrualPerYear` is set (Annual) is ALLOTTED: the employee has
+   * a fixed number of days and `remaining` counts down. A type with no accrual
+   * (Sick) is ADDITIONAL: it does not draw on the annual allotment, so it has no
+   * cap and `remaining` is reported as null.
+   *
+   * Balance rows are provisioned on read from the leave type's accrual, so an
+   * employee who has never applied still sees the correct starting allowance
+   * (the admin sets it in Attendance Settings → annual leave allowance).
+   *
+   * Two different numbers come out of this, and the distinction matters:
+   *
+   *  - `remaining` counts down only on APPROVAL. This is what the employee is
+   *    shown: applying for leave never silently eats their balance, and a
+   *    rejected request costs them nothing.
+   *  - `available` also subtracts days already awaiting a decision, and is what
+   *    `createRequest` validates against. Without it an employee with 17 days
+   *    left could file two separate 17-day requests — both would pass the check
+   *    while pending, and approving both would push the balance negative.
+   */
   async balances(orgId: string, employeeId: string) {
-    const rows = await this.prisma.leaveBalance.findMany({
-      where: { organizationId: orgId, employeeId, year: this.currentYear() },
-      include: { leaveType: { select: { name: true } } },
-      orderBy: { leaveType: { name: 'asc' } },
+    const year = this.currentYear();
+    const types = await this.prisma.leaveType.findMany({
+      where: { organizationId: orgId, deletedAt: null },
+      orderBy: { name: 'asc' },
     });
-    return rows.map((b) => ({
-      id: b.id,
-      employeeId: b.employeeId,
-      leaveTypeId: b.leaveTypeId,
-      leaveType: b.leaveType?.name ?? null,
-      year: b.year,
-      entitled: b.entitled,
-      taken: b.taken,
-      pending: b.pending,
-      carriedForward: b.carriedForward,
-    }));
+    const rows = await this.prisma.leaveBalance.findMany({
+      where: { organizationId: orgId, employeeId, year },
+    });
+    const byType = new Map(rows.map((r) => [r.leaveTypeId, r]));
+
+    return types.map((t) => {
+      const b = byType.get(t.id);
+      const allotted = t.accrualPerYear != null ? Number(t.accrualPerYear) : null;
+      const entitled = allotted ?? 0;
+      const taken = b ? Number(b.taken) : 0;
+      const pending = b ? Number(b.pending) : 0;
+      const carriedForward = b ? Number(b.carriedForward) : 0;
+      const remaining = allotted == null ? null : entitled + carriedForward - taken;
+      return {
+        employeeId,
+        leaveTypeId: t.id,
+        leaveType: t.name,
+        year,
+        // Null means "not capped" — an additional type such as Sick leave.
+        allotted,
+        entitled,
+        taken,
+        pending,
+        carriedForward,
+        // Deducted on approval only — the number the employee is shown.
+        remaining,
+        // What can still be requested right now (pending days are held back).
+        available: remaining == null ? null : remaining - pending,
+      };
+    });
   }
 
   // --- Requests ---
@@ -128,6 +170,26 @@ export class LeaveService {
     return paginated(rows.map((r) => this.serialize(r)), total, q.page, q.limit);
   }
 
+  /**
+   * Balances for a target employee, refusing callers outside their data scope:
+   * an employee may only read their own, a department head their team's, and
+   * admins/HR anyone's.
+   */
+  async balancesFor(user: AuthUser, employeeId: string) {
+    const scope = await this.scope.resolve(user);
+    if (scope.kind === 'self' && scope.employeeId !== employeeId) {
+      throw new BadRequestException('You can only view your own leave balance');
+    }
+    if (scope.kind === 'team') {
+      const inTeam = await this.prisma.employee.findFirst({
+        where: { id: employeeId, departmentId: { in: scope.departmentIds } },
+        select: { id: true },
+      });
+      if (!inTeam) throw new BadRequestException('This employee is not in your team');
+    }
+    return this.balances(user.organizationId, employeeId);
+  }
+
   async createRequest(orgId: string, userId: string, dto: CreateLeaveRequestDto) {
     const employeeId = dto.employeeId ?? (await this.resolveEmployee(orgId, userId));
 
@@ -144,6 +206,23 @@ export class LeaveService {
     const endDate = new Date(dto.endDate);
     const days = this.inclusiveDays(startDate, endDate);
     if (days < 1) throw new BadRequestException('endDate must be on or after startDate');
+
+    // Allotted types (those with an accrual, e.g. Annual) may not be overdrawn:
+    // already-taken plus still-pending days cannot exceed the allowance. Types
+    // without an accrual (e.g. Sick) are additional and are not capped here.
+    if (leaveType.accrualPerYear != null) {
+      const balance = (await this.balances(orgId, employeeId))
+        .find((b) => b.leaveTypeId === dto.leaveTypeId);
+      const available = balance?.available ?? 0;
+      if (days > available) {
+        const pending = balance?.pending ?? 0;
+        // Name the held-back days, otherwise the message contradicts the balance
+        // the employee can see on screen.
+        const held = pending > 0 ? ` (${pending} day(s) already awaiting approval)` : '';
+        throw new BadRequestException(
+          `Only ${available} day(s) of ${leaveType.name} leave can be requested${held}; this request is ${days} day(s).`);
+      }
+    }
 
     const request = await this.prisma.leaveRequest.create({
       data: {
@@ -295,7 +374,10 @@ export class LeaveService {
       leaveType: r.leaveType?.name ?? null,
       startDate: r.startDate,
       endDate: r.endDate,
-      days: r.days,
+      // Prisma serializes Decimal as a string ("25"), which every client then
+      // has to special-case. Days are at most a few hundred with one decimal
+      // place, so a JS number carries them exactly — emit a real number.
+      days: r.days == null ? null : Number(r.days),
       reason: r.reason,
       status: r.status,
       appliedAt: r.appliedAt,

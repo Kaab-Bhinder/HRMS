@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Plus, MoreHorizontal, Pencil, KeyRound, UserCheck, UserX, Trash2, ShieldAlert, LogOut } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, KeyRound, UserCheck, UserX, Trash2, ShieldAlert, LogOut, Users, Mail } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { FilterBar } from '../../components/FilterBar';
 import { DataTable, type Column } from '../../components/tables/DataTable';
+import { StatCard } from '../../components/charts/StatCard';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Badge';
@@ -44,6 +45,17 @@ export default function UsersPage() {
   const [busy, setBusy] = useState(false);
 
   const { data: roles } = useQuery(() => rolesService.list(), []);
+  // Unfiltered headline counts (limit:1 — only meta.total is read), so the KPI
+  // row stays stable while the table below is filtered.
+  const { data: totals, loading: totalsLoading } = useQuery(async () => {
+    const [all, active, invited, disabled] = await Promise.all([
+      usersService.list({ page: 1, limit: 1 }),
+      usersService.list({ page: 1, limit: 1, filters: { status: 'active' } }),
+      usersService.list({ page: 1, limit: 1, filters: { status: 'invited' } }),
+      usersService.list({ page: 1, limit: 1, filters: { status: 'disabled' } }),
+    ]);
+    return { all: all.meta.total, active: active.meta.total, invited: invited.meta.total, disabled: disabled.meta.total };
+  }, []);
   const params = useMemo(
     () => ({ page, limit: 10, search: debounced, sort: sort.key, order: sort.order, filters }),
     [page, debounced, sort, filters],
@@ -141,6 +153,13 @@ export default function UsersPage() {
         description="Manage login accounts, assign roles, and control access to the admin panel."
         actions={canCreate && <Button size="sm" onClick={() => { setSelected(null); setFormOpen(true); }}><Plus className="h-4 w-4" /> Add User</Button>}
       />
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard loading={totalsLoading} label="Total Users" value={totals?.all ?? 0} icon={<Users />} accent="accent" />
+        <StatCard loading={totalsLoading} label="Active" value={totals?.active ?? 0} icon={<UserCheck />} accent="success" />
+        <StatCard loading={totalsLoading} label="Invited" value={totals?.invited ?? 0} icon={<Mail />} accent="info" />
+        <StatCard loading={totalsLoading} label="Disabled" value={totals?.disabled ?? 0} icon={<UserX />} accent="danger" />
+      </div>
 
       <FilterBar
         search={search}

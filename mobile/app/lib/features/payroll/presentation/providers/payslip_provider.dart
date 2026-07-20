@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/providers.dart';
 import '../../../access/access_providers.dart';
+import '../../../../core/network/json_num.dart';
 
 class PayslipDay {
   const PayslipDay({required this.date, required this.status, required this.payableMinutes, required this.pay, required this.isFlagged});
@@ -15,8 +16,8 @@ class PayslipDay {
     return PayslipDay(
       date: DateTime.tryParse(j['workDate']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
       status: j['status']?.toString() ?? 'absent',
-      payableMinutes: (j['payableMinutes'] as num?)?.toInt() ?? 0,
-      pay: (j['pay'] as num?)?.toDouble() ?? 0,
+      payableMinutes: asInt(j['payableMinutes'], 0),
+      pay: asDouble(j['pay'], 0),
       isFlagged: j['isFlagged'] as bool? ?? false,
     );
   }
@@ -49,14 +50,14 @@ class Payslip {
 
   static Payslip fromJson(Map<String, dynamic> j) {
     return Payslip(
-      earnedPay: (j['earnedPay'] as num?)?.toDouble() ?? 0,
-      potentialPay: (j['potentialPay'] as num?)?.toDouble() ?? 0,
-      payableHours: (j['payableHours'] as num?)?.toDouble() ?? 0,
-      progressPct: (j['progressPct'] as num?)?.toInt() ?? 0,
-      daysPresent: (j['daysPresent'] as num?)?.toInt() ?? 0,
-      lateMinutes: (j['lateMinutes'] as num?)?.toInt() ?? 0,
-      officeHoursPerDay: (j['officeHoursPerDay'] as num?)?.toDouble() ?? 8,
-      payPerHour: (j['payPerHour'] as num?)?.toDouble(),
+      earnedPay: asDouble(j['earnedPay'], 0),
+      potentialPay: asDouble(j['potentialPay'], 0),
+      payableHours: asDouble(j['payableHours'], 0),
+      progressPct: asInt(j['progressPct'], 0),
+      daysPresent: asInt(j['daysPresent'], 0),
+      lateMinutes: asInt(j['lateMinutes'], 0),
+      officeHoursPerDay: asDouble(j['officeHoursPerDay'], 8),
+      payPerHour: asDoubleOrNull(j['payPerHour']),
       days: (j['days'] as List?)?.map((e) => PayslipDay.fromJson((e as Map).cast<String, dynamic>())).toList().reversed.toList() ?? const [],
     );
   }

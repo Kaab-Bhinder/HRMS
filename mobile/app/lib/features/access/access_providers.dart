@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/di/providers.dart';
 import 'me_scope.dart';
+import '../../core/network/json_num.dart';
 
 /// The signed-in user's role view (admin / hr / dept_head / employee).
 final meScopeProvider = FutureProvider<MeScope>((ref) async {
@@ -22,7 +23,7 @@ final teamSummaryProvider = FutureProvider<TeamSummary>((ref) async {
   final api = ref.watch(apiClientProvider);
   Future<int> total(String path) async {
     final env = await api.getEnvelope(path);
-    return (env.meta?['total'] as num?)?.toInt() ?? 0;
+    return asInt(env.meta?['total'], 0);
   }
 
   final results = await Future.wait([

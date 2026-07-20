@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Plus, Upload, Download, MoreHorizontal, Eye, Pencil, Trash2, Users } from 'lucide-react';
+import { Plus, Upload, Download, MoreHorizontal, Eye, Pencil, Trash2, Users, UserCheck, Clock, Building2 } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { FilterBar } from '../../components/FilterBar';
 import { DataTable, type Column } from '../../components/tables/DataTable';
+import { StatCard } from '../../components/charts/StatCard';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Badge';
@@ -62,6 +63,16 @@ export default function EmployeesPage() {
   const [deleting, setDeleting] = useState(false);
 
   const { data: depts } = useQuery(() => departmentsService.tree(), []);
+  // Unfiltered headline counts (limit:1 — we only read meta.total, not the rows),
+  // so the KPI row stays stable while the table below is filtered/searched.
+  const { data: totals, loading: totalsLoading } = useQuery(async () => {
+    const [all, active, probation] = await Promise.all([
+      employeesService.list({ page: 1, limit: 1 }),
+      employeesService.list({ page: 1, limit: 1, filters: { status: 'active' } }),
+      employeesService.list({ page: 1, limit: 1, filters: { status: 'probation' } }),
+    ]);
+    return { all: all.meta.total, active: active.meta.total, probation: probation.meta.total };
+  }, []);
   const params = useMemo(
     () => ({ page, limit: 10, search: debounced, sort: sort.key, order: sort.order, filters }),
     [page, debounced, sort, filters],
@@ -130,6 +141,13 @@ export default function EmployeesPage() {
           </>
         }
       />
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard loading={totalsLoading} label="Total Employees" value={totals?.all ?? 0} icon={<Users />} accent="accent" />
+        <StatCard loading={totalsLoading} label="Active" value={totals?.active ?? 0} icon={<UserCheck />} accent="success" />
+        <StatCard loading={totalsLoading} label="On Probation" value={totals?.probation ?? 0} icon={<Clock />} accent="warning" />
+        <StatCard loading={!depts} label="Departments" value={depts?.length ?? 0} icon={<Building2 />} accent="info" />
+      </div>
 
       <FilterBar
         search={search}

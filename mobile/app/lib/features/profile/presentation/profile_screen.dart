@@ -4,10 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/ambient_background.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/hero_surface.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../../../core/widgets/pressable.dart';
-import '../../../core/widgets/status_pill.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 
 /// Account tab: identity header + grouped settings rows. Sign-out is live;
@@ -17,21 +18,22 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final c = context.colors;
     final user = ref.watch(authControllerProvider).user;
 
     void soon(String what) => AppSnackbar.show(context, '$what is coming soon.');
 
-    return SafeArea(
+    return AmbientBackground(
+      child: SafeArea(
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.screen, AppSpacing.lg, AppSpacing.screen, AppSpacing.xl3),
+        padding: const EdgeInsets.fromLTRB(AppSpacing.screen, AppSpacing.lg, AppSpacing.screen, 108),
         children: [
           Text('Profile', style: context.text.headlineMedium),
           const SizedBox(height: AppSpacing.lg),
 
-          // Identity card
-          AppCard(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+          // Identity, on the screen's one hero surface. The avatar reverses
+          // to a light disc here because the primary gradient it used before is
+          // the same family as the hero itself and would vanish into it.
+          HeroSurface(
             child: Row(
               children: [
                 Container(
@@ -39,10 +41,13 @@ class ProfileScreen extends ConsumerWidget {
                   width: 62,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: LinearGradient(colors: c.primaryGradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    color: Colors.white.withValues(alpha: 0.18),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.28), width: 1.5),
                   ),
                   child: Center(
-                    child: Text(user?.initials ?? '?', style: context.text.titleLarge?.copyWith(color: c.primaryForeground, fontWeight: FontWeight.w700)),
+                    child: Text(user?.initials ?? '?',
+                        style: context.text.titleLarge
+                            ?.copyWith(color: HeroSurface.onHero, fontWeight: FontWeight.w700)),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.lg),
@@ -50,14 +55,21 @@ class ProfileScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(user?.fullName ?? 'Signed in', style: context.text.titleLarge, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(user?.fullName ?? 'Signed in',
+                          style: context.text.titleLarge?.copyWith(color: HeroSurface.onHero),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 2),
-                      Text(user?.email ?? '', style: context.text.bodySmall?.copyWith(color: c.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(user?.email ?? '',
+                          style: context.text.bodySmall?.copyWith(color: HeroSurface.onHeroMuted),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
                       if ((user?.roles ?? const []).isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.sm),
+                        const SizedBox(height: AppSpacing.md),
                         Wrap(
                           spacing: 6,
-                          children: [for (final r in user!.roles) StatusPill(_title(r), tone: PillTone.primary, dot: false)],
+                          runSpacing: 6,
+                          children: [for (final r in user!.roles) HeroChip(label: _title(r))],
                         ),
                       ],
                     ],
@@ -101,6 +113,7 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ]),
         ],
+      ),
       ),
     );
   }

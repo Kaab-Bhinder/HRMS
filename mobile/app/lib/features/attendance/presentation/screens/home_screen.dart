@@ -8,15 +8,22 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/ambient_background.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_snackbar.dart';
 import '../../../../core/widgets/app_states.dart';
-import '../../../../core/widgets/progress_ring.dart';
+import '../../../../core/widgets/hero_surface.dart';
+import '../../../../core/widgets/section_header.dart';
 import '../../../../core/widgets/skeleton.dart';
+import '../../../../core/widgets/soft_tile.dart';
+import '../../../../core/widgets/spark_chart.dart';
 import '../../../../core/widgets/status_pill.dart';
 import '../../../auth/presentation/providers/auth_controller.dart';
 import '../../../access/access_providers.dart';
+import '../../../leave/leave_providers.dart';
 import '../../../payroll/presentation/screens/payslip_screen.dart';
+import '../providers/records_provider.dart';
 import '../../data/location_service.dart';
 import '../../data/selfie_service.dart';
 import '../../domain/entities/today_status.dart';
@@ -86,13 +93,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? 'Head of ${scope!.primaryDepartment}'
         : _roleLabel(user?.roles);
 
-    return SafeArea(
+    return AmbientBackground(
+      child: SafeArea(
       bottom: false,
       child: RefreshIndicator(
         color: context.colors.primary,
         backgroundColor: context.colors.surface,
         onRefresh: () async {
           ref.invalidate(teamSummaryProvider);
+          ref.invalidate(myLeaveBalancesProvider);
+          ref.invalidate(mySlipProvider);
           await ref.read(todayControllerProvider.notifier).refresh();
         },
         child: ListView(
@@ -114,8 +124,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: AppSpacing.md),
               const _TeamSection(),
             ],
+            // Employees see who leads their department (their approver for
+            // leave and the person who assigns their tasks).
+            if (scope != null && scope.hasDepartmentHead) ...[
+              const SizedBox(height: AppSpacing.xl2),
+              Text('Your department', style: context.text.titleLarge).animate(delay: 100.ms).fadeIn(),
+              const SizedBox(height: AppSpacing.md),
+              _DeptHeadCard(
+                department: scope.departmentName,
+                head: scope.departmentHeadName!,
+                email: scope.departmentHeadEmail,
+              ).animate(delay: 140.ms).fadeIn(),
+            ],
             const SizedBox(height: AppSpacing.xl2),
-            Text('Quick actions', style: context.text.titleLarge).animate(delay: 120.ms).fadeIn(),
+            SectionHeader(
+              'This week',
+              actionLabel: 'See all',
+              onAction: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AttendanceRecordsScreen()),
+              ),
+            ).animate(delay: 120.ms).fadeIn(),
+            const SizedBox(height: AppSpacing.md),
+            const _WeekChartCard(),
+            const SizedBox(height: AppSpacing.xl2),
+            Text('Quick actions', style: context.text.titleLarge).animate(delay: 140.ms).fadeIn(),
             const SizedBox(height: AppSpacing.md),
             const _QuickActions(),
             const SizedBox(height: AppSpacing.xl2),
@@ -124,6 +156,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const _UpcomingCard(),
           ],
         ),
+      ),
       ),
     );
   }
@@ -245,73 +278,119 @@ class _HeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
     final (chipLabel, chipTone) = _chip;
     final fmt = DateFormat('h:mm a');
     final progress = (status.workedMinutes / _shiftTargetMinutes).clamp(0.0, 1.0);
 
-    return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    // The dot color has to read against the gradient, so these are fixed
+    // on-hero values rather than the theme's success/warning tokens.
+    final dot = switch (chipTone) {
+      PillTone.success => const Color(0xFF5BE0A8),
+      PillTone.warning => const Color(0xFFF5C56B),
+      PillTone.accent => const Color(0xFF9DC2F0),
+      _ => HeroSurface.onHeroMuted,
+    };
+
+    return Column(
+      children: [
+        HeroSurface(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('TODAY', style: AppTypography.overline(c.mutedForeground)),
-              const Spacer(),
-              StatusPill(chipLabel, tone: chipTone),
+              Row(
+                children: [
+                  Text('TODAY', style: AppTypography.overline(HeroSurface.onHeroMuted)),
+                  const Spacer(),
+                  HeroChip(label: chipLabel, tone: dot),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text(_headline,
+                  style: context.text.titleMedium?.copyWith(color: HeroSurface.onHeroMuted)),
+              const SizedBox(height: 2),
+              // The single number this screen exists to show.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(status.workedLabel,
+                      style: AppTypography.numeric(40, FontWeight.w700, HeroSurface.onHero)),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text('of 8h',
+                      style: context.text.bodyMedium?.copyWith(color: HeroSurface.onHeroMuted)),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              _HeroProgress(value: progress),
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                children: [
+                  _heroStat(context, Icons.login_rounded, 'In',
+                      status.firstInAt == null ? '—' : fmt.format(status.firstInAt!)),
+                  const SizedBox(width: AppSpacing.xl),
+                  _heroStat(context, Icons.logout_rounded, 'Out',
+                      status.lastOutAt == null ? '—' : fmt.format(status.lastOutAt!)),
+                  const Spacer(),
+                  Text(DateFormat('EEE, d MMM').format(DateTime.now()),
+                      style: context.text.bodySmall?.copyWith(color: HeroSurface.onHeroMuted)),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: AppSpacing.lg),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_headline, style: context.text.headlineSmall),
-                    const SizedBox(height: 4),
-                    Text(DateFormat('EEEE, d MMM').format(DateTime.now()), style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
-                    const SizedBox(height: AppSpacing.md),
-                    _miniStat(context, Icons.login_rounded, 'In', status.firstInAt == null ? '—' : fmt.format(status.firstInAt!), c.success),
-                    const SizedBox(height: AppSpacing.sm),
-                    _miniStat(context, Icons.logout_rounded, 'Out', status.lastOutAt == null ? '—' : fmt.format(status.lastOutAt!), c.accent),
-                  ],
-                ),
-              ),
-              ProgressRing(
-                value: progress,
-                size: 116,
-                stroke: 11,
-                center: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(status.workedLabel, style: AppTypography.numeric(22, FontWeight.w700, c.foreground)),
-                    Text('of 8h', style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          PunchButton(isCheckedIn: status.isCheckedIn, busy: busy, onTap: onPunch),
-          if (status.isCheckedIn) ...[
-            const SizedBox(height: AppSpacing.md),
-            _BreakButton(onBreak: status.isOnBreak, busy: breaking, breakLabel: status.breakLabel, onTap: onBreak),
-          ],
+        ),
+        // The primary action sits below the hero rather than inside it, so it
+        // reads as a control and not as part of the readout.
+        const SizedBox(height: AppSpacing.lg),
+        PunchButton(isCheckedIn: status.isCheckedIn, busy: busy, onTap: onPunch),
+        if (status.isCheckedIn) ...[
+          const SizedBox(height: AppSpacing.md),
+          _BreakButton(onBreak: status.isOnBreak, busy: breaking, breakLabel: status.breakLabel, onTap: onBreak),
         ],
-      ),
+      ],
     );
   }
 
-  Widget _miniStat(BuildContext context, IconData icon, String label, String value, Color tone) {
+  Widget _heroStat(BuildContext context, IconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(icon, size: 15, color: tone),
+        Icon(icon, size: 15, color: HeroSurface.onHeroMuted),
         const SizedBox(width: 6),
-        Text('$label  ', style: context.text.bodySmall?.copyWith(color: context.colors.mutedForeground)),
-        Text(value, style: context.text.titleSmall),
+        Text('$label ', style: context.text.bodySmall?.copyWith(color: HeroSurface.onHeroMuted)),
+        Text(value, style: context.text.titleSmall?.copyWith(color: HeroSurface.onHero)),
       ],
+    );
+  }
+}
+
+/// Slim progress track drawn in on-hero whites so it stays legible over the
+/// gradient, where the usual muted/primary tokens would disappear.
+class _HeroProgress extends StatelessWidget {
+  const _HeroProgress({required this.value});
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+      child: Stack(
+        children: [
+          Container(height: 7, color: Colors.white.withValues(alpha: 0.18)),
+          LayoutBuilder(
+            builder: (context, box) => AnimatedContainer(
+              duration: const Duration(milliseconds: 420),
+              curve: Curves.easeOutCubic,
+              height: 7,
+              width: box.maxWidth * value,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF8FD8FF), Color(0xFF5BE0A8)],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -363,52 +442,131 @@ class _BreakButton extends StatelessWidget {
   }
 }
 
-class _QuickActions extends StatelessWidget {
+class _QuickActions extends ConsumerWidget {
   const _QuickActions();
 
   @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
+  Widget build(BuildContext context, WidgetRef ref) {
     void go(Widget screen) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
-    final items = <(IconData, String, Color, VoidCallback)>[
-      (Icons.access_time_filled_rounded, 'Attendance', c.primary, () => go(const AttendanceRecordsScreen())),
-      (Icons.receipt_long_rounded, 'Payslip', c.success, () => go(const PayslipScreen())),
-      (Icons.event_available_rounded, 'Leave', c.info, () => AppSnackbar.show(context, 'Leave is coming soon.')),
-      (Icons.folder_open_rounded, 'Documents', c.mutedForeground, () => AppSnackbar.show(context, 'Documents are coming soon.')),
-    ];
-    return SizedBox(
-      height: 104,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: items.length,
-        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.md),
-        itemBuilder: (context, i) {
-          final (icon, label, tone, onTap) = items[i];
-          return AppCard(
-            onTap: onTap,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.md),
-            child: SizedBox(
-              width: 66,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
+
+    // Each tile carries a live figure so the grid is a status readout, not just
+    // a menu. Values resolve independently — a tile that has no number yet
+    // simply shows its caption rather than blocking the whole row.
+    final month = ref.watch(mySlipProvider(DateTime(DateTime.now().year, DateTime.now().month)));
+    final balances = ref.watch(myLeaveBalancesProvider);
+
+    final annual = balances.valueOrNull
+        ?.where((b) => !b.isAdditional)
+        .fold<double?>(null, (sum, b) => (sum ?? 0) + (b.remaining ?? 0));
+
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: AppSpacing.md,
+      crossAxisSpacing: AppSpacing.md,
+      childAspectRatio: 1.42,
+      children: [
+        SoftTile(
+          icon: Icons.access_time_filled_rounded,
+          title: 'Attendance',
+          tone: AppColors.swatches[0],
+          value: month.valueOrNull == null ? null : '${month.valueOrNull!.present} days',
+          caption: 'present this month',
+          onTap: () => go(const AttendanceRecordsScreen()),
+        ),
+        SoftTile(
+          icon: Icons.event_available_rounded,
+          title: 'Leave',
+          tone: AppColors.swatches[2],
+          value: annual == null ? null : '${_trim(annual)} days',
+          caption: 'annual leave left',
+          onTap: () => AppSnackbar.show(context, 'Open the Leave tab to apply.'),
+        ),
+        SoftTile(
+          icon: Icons.receipt_long_rounded,
+          title: 'Payslip',
+          tone: AppColors.swatches[3],
+          caption: 'this month so far',
+          onTap: () => go(const PayslipScreen()),
+        ),
+        SoftTile(
+          icon: Icons.folder_open_rounded,
+          title: 'Documents',
+          tone: AppColors.swatches[4],
+          caption: 'coming soon',
+          onTap: () => AppSnackbar.show(context, 'Documents are coming soon.'),
+        ),
+      ],
+    );
+  }
+
+  /// Drop a trailing ".0" so 17.0 reads as 17 but a half-day stays 0.5.
+  static String _trim(double v) =>
+      v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
+}
+
+/// Hours worked over the last seven calendar days.
+///
+/// Reuses this month's slip rather than adding an endpoint. A week that spans a
+/// month boundary therefore only shows the days inside the current month — the
+/// chart is a trend cue, and the Attendance tab is the full record.
+class _WeekChartCard extends ConsumerWidget {
+  const _WeekChartCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final now = DateTime.now();
+    final slip = ref.watch(mySlipProvider(DateTime(now.year, now.month)));
+
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.md),
+      radius: AppRadius.rXl,
+      child: slip.when(
+        loading: () => const Skeleton(height: 178),
+        error: (_, _) => SizedBox(
+          height: 178,
+          child: Center(
+            child: Text('Couldn’t load this week.',
+                style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
+          ),
+        ),
+        data: (s) {
+          // `days` arrives newest-first; take the recent week and flip it so the
+          // chart reads left-to-right in time order.
+          final recent = s.days.take(7).toList().reversed.toList();
+          final points = [
+            for (final d in recent)
+              SparkPoint(DateFormat('E').format(d.date).substring(0, 1), d.workedMinutes / 60),
+          ];
+          final total = recent.fold<int>(0, (sum, d) => sum + d.workedMinutes);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Container(
-                    height: 40,
-                    width: 40,
-                    decoration: BoxDecoration(color: tone.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-                    child: Icon(icon, size: 20, color: tone),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(label, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.text.labelSmall?.copyWith(color: c.foreground, letterSpacing: 0)),
+                  Text(_hm(total), style: AppTypography.numeric(24, FontWeight.w700, c.foreground)),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text('worked', style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
                 ],
               ),
-            ),
+              const SizedBox(height: AppSpacing.md),
+              SparkChart(points: points, format: (v) => _hm((v * 60).round())),
+            ],
           );
         },
       ),
     );
+  }
+
+  static String _hm(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    return m == 0 ? '${h}h' : '${h}h ${m}m';
   }
 }
 
@@ -437,6 +595,65 @@ class _UpcomingCard extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Who leads this employee's department — their task assigner and leave approver.
+class _DeptHeadCard extends StatelessWidget {
+  const _DeptHeadCard({required this.department, required this.head, this.email});
+  final String? department;
+  final String head;
+  final String? email;
+
+  String get _initials {
+    final parts = head.trim().split(RegExp(r'\s+'));
+    final a = parts.isNotEmpty && parts[0].isNotEmpty ? parts[0][0] : '';
+    final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+    return (a + b).toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return AppCard(
+      child: Row(
+        children: [
+          Container(
+            height: 46,
+            width: 46,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(colors: c.primaryGradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+            ),
+            child: Center(
+              child: Text(_initials,
+                  style: context.text.titleSmall?.copyWith(color: c.primaryForeground, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(head, style: context.text.titleSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                Text(
+                  department == null ? 'Department head' : 'Head of $department',
+                  style: context.text.bodySmall?.copyWith(color: c.mutedForeground),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if ((email ?? '').isNotEmpty)
+                  Text(email!,
+                      style: context.text.bodySmall?.copyWith(color: c.mutedForeground),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          StatusPill('Your approver', tone: PillTone.accent),
         ],
       ),
     );

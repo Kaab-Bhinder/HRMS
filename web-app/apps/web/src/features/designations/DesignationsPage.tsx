@@ -4,6 +4,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Card, CardBody } from '../../components/ui/Card';
+import { StatCard } from '../../components/charts/StatCard';
 import { Modal, ConfirmDialog } from '../../components/ui/Modal';
 import { Input, Textarea, Label } from '../../components/ui/Input';
 import { Skeleton, EmptyState, ErrorState } from '../../components/feedback/States';
@@ -47,6 +48,13 @@ export default function DesignationsPage() {
         description="Define the job titles employees can hold, e.g. Senior Engineer or Branch Manager."
         actions={canCreate ? <Button size="sm" onClick={() => { setSelected(null); setFormOpen(true); }}><Plus className="h-4 w-4" /> Add Designation</Button> : undefined}
       />
+
+      {/* Derived from the already-loaded list — no extra requests. */}
+      <div className="grid grid-cols-3 gap-4">
+        <StatCard loading={loading} label="Job Titles" value={data?.length ?? 0} icon={<BriefcaseBusiness />} accent="accent" />
+        <StatCard loading={loading} label="Employees Assigned" value={(data ?? []).reduce((s, d) => s + (d.employeeCount ?? 0), 0)} icon={<Users />} accent="success" />
+        <StatCard loading={loading} label="Unused Titles" value={(data ?? []).filter((d) => !d.employeeCount).length} icon={<BriefcaseBusiness />} accent="warning" hint="No employees hold these" />
+      </div>
 
       {loading && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
