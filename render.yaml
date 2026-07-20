@@ -12,9 +12,12 @@ services:
     plan: free
     region: singapore # closest to the client (Indonesia)
     rootDir: web-app
-    # prisma generate must run on the host: the client is built for the
-    # deploy target's platform and is not committed.
-    buildCommand: npm install && npx prisma generate --schema apps/api/prisma/schema.prisma && npm run build --workspace apps/api
+    # --include=dev is required: NODE_ENV=production makes npm skip
+    # devDependencies, and the build tools (@nestjs/cli, typescript) plus the
+    # prisma CLI all live there. Without it the build dies on "nest: not found".
+    # These stay on disk for the start command, which needs the prisma CLI to
+    # run migrate deploy. Only dist/ and runtime deps are actually served.
+    buildCommand: npm install --include=dev && npx prisma generate --schema apps/api/prisma/schema.prisma && npm run build --workspace apps/api
     # migrate deploy runs on every boot; it is a no-op once applied.
     startCommand: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma && node apps/api/dist/main.js
     healthCheckPath: /api/v1/health
