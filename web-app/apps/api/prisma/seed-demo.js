@@ -7,6 +7,7 @@
  */
 require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
+const argon2 = require('argon2');
 const prisma = new PrismaClient();
 
 const rnd = (n) => Math.floor(Math.random() * n);
@@ -111,6 +112,55 @@ async function main() {
     await prisma.employee.updateMany({ where: { organizationId: orgId, departmentId: d.id, deletedAt: null, id: { not: head.id } }, data: { managerId: head.id } });
     if (head.userId && headRole) await prisma.userRole.upsert({ where: { userId_roleId: { userId: head.userId, roleId: headRole.id } }, update: {}, create: { userId: head.userId, roleId: headRole.id } });
   }
+
+  // 4c) Login accounts. Without these nobody but the super admin can sign in,
+  //     so the mobile app is undemoable and the task-assignment step below
+  //     (which filters on userId) silently assigns almost nothing.
+  //
+  //     Only a subset gets an account, mirroring reality: not every employee on
+  //     the payroll has app access. Heads get the Department Head role, the
+  //     rest get Employee — which is mobile-only, so these accounts cannot
+  //     reach the web dashboard.
+  const employeeRole = await prisma.role.findFirst({ where: { organizationId: orgId, slug: 'employee', deletedAt: null } });
+  const DEMO_PASSWORD = process.env.DEMO_EMPLOYEE_PASSWORD ?? 'Test@12345';
+  const demoHash = await argon2.hash(DEMO_PASSWORD);
+
+  const headIds = new Set(
+    (await prisma.department.findMany({ where: { organizationId: orgId, headEmployeeId: { not: null } }, select: { headEmployeeId: true } }))
+      .map((d) => d.headEmployeeId),
+  );
+  // Every head, plus the first few members of each department.
+  const loginCandidates = [
+    ...seeded.filter((e) => headIds.has(e.id)),
+    ...seeded.filter((e) => !headIds.has(e.id) && e.status === 'active').slice(0, 12),
+  ];
+
+  let loginsCreated = 0;
+  for (const emp of loginCandidates) {
+    if (emp.userId) continue;
+    // Names are drawn at random and repeat, so the employee code — not the
+    // name — is what keeps the address unique.
+    const slug = `${emp.firstName}.${emp.lastName}`.toLowerCase().replace(/[^a-z.]/g, '');
+    const email = `${slug}.${emp.employeeCode.replace('SEED-', '')}@demo.local`;
+    const existing = await prisma.user.findFirst({ where: { organizationId: orgId, email } });
+    if (existing) continue;
+    const user = await prisma.user.create({
+      data: {
+        organizationId: orgId,
+        email,
+        passwordHash: demoHash,
+        fullName: `${emp.firstName} ${emp.lastName}`,
+        status: 'active',
+        isSuperAdmin: false,
+      },
+    });
+    const role = headIds.has(emp.id) ? headRole : employeeRole;
+    if (role) await prisma.userRole.create({ data: { userId: user.id, roleId: role.id } });
+    await prisma.employee.update({ where: { id: emp.id }, data: { userId: user.id } });
+    emp.userId = user.id; // keep the in-memory copy in step with the DB
+    loginsCreated++;
+  }
+  console.log(`Created ${loginsCreated} demo login accounts (password: ${DEMO_PASSWORD})`);
 
   // Include real employees in attendance too
   const realActive = await prisma.employee.findMany({ where: { organizationId: orgId, deletedAt: null, employeeCode: { not: { startsWith: 'SEED-' } } } });
