@@ -275,3 +275,64 @@ export const rolesService = {
   update: (id: string, payload: Partial<Role>) => api.patch<Role>(`/roles/${id}`, pick(payload, ROLE_FIELDS)),
   remove: (id: string) => api.del<{ success: boolean }>(`/roles/${id}`),
 };
+
+/**
+ * Organization profile and office locations.
+ *
+ * `registrationNo` and `fiscalYearStart` have no column on the organization
+ * table, so they live under `settings` — a JSON blob the API stores verbatim.
+ * Callers pass them as flat fields and this service folds them in, so the form
+ * doesn't have to know where each value ends up.
+ */
+export interface OrganizationProfile {
+  id: string;
+  name: string;
+  legalName?: string | null;
+  timezone?: string | null;
+  locale?: string | null;
+  currency?: string | null;
+  logoUrl?: string | null;
+  settings?: Record<string, unknown> | null;
+}
+
+const ORG_COLUMN_FIELDS = ['name', 'legalName', 'timezone', 'locale', 'currency', 'logoUrl'];
+const ORG_SETTING_FIELDS = ['registrationNo', 'fiscalYearStart'];
+
+export const organizationService = {
+  current: () => api.get<OrganizationProfile>('/organizations/current'),
+  locations: () => api.get<OfficeLocationDto[]>('/organizations/locations'),
+
+  /**
+   * Merges into the existing settings rather than replacing them: the API
+   * overwrites the whole JSON blob, so sending only our two keys would discard
+   * anything else stored there.
+   */
+  update: (payload: Record<string, any>, existingSettings?: Record<string, unknown> | null) => {
+    const settings = { ...(existingSettings ?? {}), ...pick(payload, ORG_SETTING_FIELDS) };
+    return api.patch<OrganizationProfile>('/organizations/current', {
+      ...pick(payload, ORG_COLUMN_FIELDS),
+      settings,
+    });
+  },
+};
+
+export interface OfficeLocationDto {
+  id: string;
+  name: string;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  radiusMeters?: number | null;
+  timezone?: string | null;
+  isActive?: boolean;
+}
+
+const LOCATION_FIELDS = ['name', 'address', 'latitude', 'longitude', 'radiusMeters', 'timezone', 'isActive'];
+export const locationsService = {
+  list: () => api.get<OfficeLocationDto[]>('/organizations/locations'),
+  create: (payload: Partial<OfficeLocationDto>) =>
+    api.post<OfficeLocationDto>('/organizations/locations', pick(payload, LOCATION_FIELDS)),
+  update: (id: string, payload: Partial<OfficeLocationDto>) =>
+    api.patch<OfficeLocationDto>(`/organizations/locations/${id}`, pick(payload, LOCATION_FIELDS)),
+  remove: (id: string) => api.del<{ success: boolean }>(`/organizations/locations/${id}`),
+};

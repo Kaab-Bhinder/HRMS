@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Pencil, Building2, MapPin, Upload, Check, Globe } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
@@ -10,6 +10,8 @@ import { Input, Select, Label } from '../../components/ui/Input';
 import { Switch } from '../../components/ui/Switch';
 import { useToast } from '../../store/toast';
 import { useAuth } from '../../store/auth';
+import { useQuery } from '../../hooks/useQuery';
+import { organizationService } from '../../services';
 
 const TIMEZONES = ['Asia/Karachi', 'Asia/Dubai', 'Asia/Riyadh', 'Europe/London', 'America/New_York', 'UTC'];
 const LOCALES = [
@@ -89,22 +91,57 @@ export default function OrganizationPage() {
 function GeneralTab() {
   const toast = useToast();
   const { user } = useAuth();
+  const { data: org, loading, error, refetch } = useQuery(() => organizationService.current(), []);
   const [form, setForm] = useState<GeneralSettings>(SEED_GENERAL);
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof GeneralSettings>(k: K, v: GeneralSettings[K]) => setForm((f) => ({ ...f, [k]: v }));
 
-  const save = () => {
+  // Populate from the API once it arrives. SEED_GENERAL is only the shape
+  // placeholder for the first render — anything the organization has not set
+  // falls back to it rather than rendering blank inputs.
+  useEffect(() => {
+    if (!org) return;
+    const s = (org.settings ?? {}) as Record<string, string | undefined>;
+    setForm({
+      name: org.name ?? '',
+      legalName: org.legalName ?? '',
+      registrationNo: s.registrationNo ?? '',
+      timezone: org.timezone ?? SEED_GENERAL.timezone,
+      locale: org.locale ?? SEED_GENERAL.locale,
+      currency: org.currency ?? SEED_GENERAL.currency,
+      fiscalYearStart: s.fiscalYearStart ?? SEED_GENERAL.fiscalYearStart,
+    });
+  }, [org]);
+
+  const save = async () => {
+    if (!form.name.trim()) {
+      toast.error('Name required', 'The organization needs a name.');
+      return;
+    }
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
+    try {
+      await organizationService.update(form, org?.settings);
+      refetch();
       toast.success('Settings saved', `${form.name} was updated${user ? ` by ${user.fullName}` : ''}.`);
-    }, 500);
+    } catch (e: any) {
+      // Surface the real reason: a silent failure here previously looked like
+      // success, which is how this page shipped without anyone noticing it
+      // never saved.
+      toast.error('Could not save', e?.message ?? 'The organization was not updated.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <Card>
       <CardHeader title="General settings" description="Core identity and localization defaults applied across the platform." />
       <CardBody className="space-y-5">
+        {error && (
+          <div className="rounded-lg border border-danger/30 bg-danger/5 px-3.5 py-2.5 text-sm text-danger">
+            Couldn’t load the organization: {error}
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
           <Row label="Organization name" required>
             <Input value={form.name} onChange={(e) => set('name', e.target.value)} />
@@ -137,7 +174,7 @@ function GeneralTab() {
           </Row>
         </div>
         <div className="flex justify-end border-t border-border pt-4">
-          <Button onClick={save} loading={saving}>Save changes</Button>
+          <Button onClick={save} loading={saving} disabled={loading}>Save changes</Button>
         </div>
       </CardBody>
     </Card>
