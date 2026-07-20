@@ -26,10 +26,21 @@ export class AuthController {
   }
 
   private setRefreshCookie(res: Response, token: string) {
+    const isProduction = this.config.get('env') === 'production';
+    // In production the dashboard and API sit on different sites (vercel.app vs
+    // onrender.com), and a browser will not send a SameSite=Strict cookie
+    // across that boundary — every session would die when the 15-minute access
+    // token expired. 'none' permits it, and requires Secure, which production
+    // already sets. Locally both run on localhost, so 'strict' still holds and
+    // keeps the stronger CSRF protection where it costs nothing.
+    //
+    // Once the API moves behind the same registrable domain as the dashboard
+    // (api.client.com + app.client.com), change this back to 'lax': it is
+    // same-site then, and 'none' would be needlessly permissive.
     res.cookie(this.cookieName(), token, {
       httpOnly: true,
-      secure: this.config.get('env') === 'production',
-      sameSite: 'strict',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'strict',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
