@@ -152,7 +152,36 @@ export const attendanceService = {
       wfh: s.wfh ?? 0, onLeave: s.on_leave ?? 0, flagged: s.flagged ?? 0,
     })),
   settings: () => api.get<AttendanceSettings>('/attendance/settings'),
-  updateSettings: (dto: DeepPartial<AttendanceSettingsInput>) => api.put<AttendanceSettings>('/attendance/settings', dto),
+  /**
+   * Saves attendance settings.
+   *
+   * The GET returns fields the PUT does not accept — notably `office.id`, and
+   * the read-only totals the API derives. The API validates with
+   * `forbidNonWhitelisted`, so posting the fetched object back verbatim fails
+   * the WHOLE request with "office.property id should not exist", blocking every
+   * field on the page including the timezone. So the payload is rebuilt here
+   * from the fields the API actually accepts, rather than echoing what we were
+   * given.
+   */
+  updateSettings: (dto: DeepPartial<AttendanceSettingsInput>) =>
+    api.put<AttendanceSettings>('/attendance/settings', {
+      ...(dto.timezone !== undefined ? { timezone: dto.timezone } : {}),
+      ...(dto.officeHours
+        ? { officeHours: pick(dto.officeHours, ['startTime', 'endTime', 'graceMinutes', 'breakMinutes']) }
+        : {}),
+      ...(dto.policy
+        ? {
+            policy: pick(dto.policy, [
+              'lateAfterMinutes', 'halfDayMinutes', 'enforceGeofence',
+              'allowRemote', 'weeklyOffDays', 'trackingIntervalSec',
+            ]),
+          }
+        : {}),
+      ...(dto.office
+        ? { office: pick(dto.office, ['name', 'address', 'latitude', 'longitude', 'radiusMeters']) }
+        : {}),
+      ...(dto.leave ? { leave: pick(dto.leave, ['annualLeaveDays']) } : {}),
+    }),
   slip: (employeeId: string, from: string, to: string) =>
     api.get<AttendanceSlip>(`/attendance/slip?employeeId=${employeeId}&from=${from}&to=${to}`),
   live: () => api.get<LiveSession[]>('/attendance/live'),
