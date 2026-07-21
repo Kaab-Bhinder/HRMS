@@ -8,6 +8,8 @@ import '../../../core/widgets/ambient_background.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/hero_surface.dart';
 import '../../../core/widgets/app_snackbar.dart';
+import '../../../core/widgets/app_button.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 
@@ -83,7 +85,16 @@ class ProfileScreen extends ConsumerWidget {
           _SectionLabel('ACCOUNT'),
           _Group(children: [
             _Row(icon: Icons.badge_outlined, label: 'Personal information', onTap: () => soon('Personal information')),
-            _Row(icon: Icons.lock_outline_rounded, label: 'Change password', onTap: () => soon('Change password')),
+            _Row(
+              icon: Icons.lock_outline_rounded,
+              label: 'Change password',
+              onTap: () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => const _ChangePasswordSheet(),
+              ),
+            ),
             _Row(icon: Icons.devices_outlined, label: 'Active sessions', onTap: () => soon('Active sessions')),
           ]),
           const SizedBox(height: AppSpacing.xl),
@@ -182,6 +193,124 @@ class _Row extends StatelessWidget {
               const SizedBox(width: 4),
               Icon(Icons.chevron_right_rounded, size: 20, color: c.mutedForeground),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Change your own password.
+///
+/// The current password is required by the API — holding a valid session is not
+/// proof of ownership. Changing it revokes every other session (including this
+/// account on other devices) but keeps this one, so the user is not signed out
+/// of the app they just used to secure the account.
+class _ChangePasswordSheet extends ConsumerStatefulWidget {
+  const _ChangePasswordSheet();
+
+  @override
+  ConsumerState<_ChangePasswordSheet> createState() => _ChangePasswordSheetState();
+}
+
+class _ChangePasswordSheetState extends ConsumerState<_ChangePasswordSheet> {
+  final _current = TextEditingController();
+  final _next = TextEditingController();
+  final _confirm = TextEditingController();
+  bool _busy = false;
+  bool _show = false;
+
+  @override
+  void dispose() {
+    _current.dispose();
+    _next.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final cur = _current.text, next = _next.text;
+    if (cur.isEmpty || next.isEmpty) {
+      AppSnackbar.show(context, 'Fill in both password fields.', tone: SnackTone.neutral);
+      return;
+    }
+    if (next.length < 8) {
+      AppSnackbar.show(context, 'Use at least 8 characters.', tone: SnackTone.danger);
+      return;
+    }
+    if (next != _confirm.text) {
+      AppSnackbar.show(context, 'The new passwords do not match.', tone: SnackTone.danger);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref.read(authRepositoryProvider).changePassword(currentPassword: cur, newPassword: next);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      AppSnackbar.show(context, 'Password changed. Other devices were signed out.', tone: SnackTone.success);
+    } on ApiException catch (e) {
+      // Surfaces "Your current password is incorrect" rather than a false success.
+      if (mounted) AppSnackbar.show(context, e.message, tone: SnackTone.danger);
+    } catch (_) {
+      if (mounted) AppSnackbar.show(context, 'Could not change your password.', tone: SnackTone.danger);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Container(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.xl2)),
+      ),
+      padding: EdgeInsets.only(
+        left: AppSpacing.xl, right: AppSpacing.xl, top: AppSpacing.md,
+        bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + AppSpacing.xl,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(width: 40, height: 4,
+                decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(999))),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            Text('Change password', style: context.text.titleLarge),
+            const SizedBox(height: 2),
+            Text('You will stay signed in on this device.',
+                style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
+            const SizedBox(height: AppSpacing.lg),
+            TextField(
+              controller: _current,
+              obscureText: !_show,
+              decoration: const InputDecoration(labelText: 'Current password'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: _next,
+              obscureText: !_show,
+              decoration: InputDecoration(
+                labelText: 'New password',
+                helperText: 'At least 8 characters',
+                suffixIcon: IconButton(
+                  icon: Icon(_show ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 20),
+                  onPressed: () => setState(() => _show = !_show),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: _confirm,
+              obscureText: !_show,
+              decoration: const InputDecoration(labelText: 'Confirm new password'),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            AppButton(label: 'Update password', loading: _busy, onPressed: _busy ? null : _save),
           ],
         ),
       ),

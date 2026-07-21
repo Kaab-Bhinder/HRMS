@@ -3,6 +3,7 @@ import { LeaveRequestStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { ApprovalService } from '../approvals/approval.service';
 import { ScopeService } from '../access/scope.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { paginated } from '../../common/dto/pagination.dto';
 import {
@@ -17,6 +18,7 @@ export class LeaveService {
     private readonly prisma: PrismaService,
     private readonly approvals: ApprovalService,
     private readonly scope: ScopeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // --- Leave types ---
@@ -252,6 +254,22 @@ export class LeaveService {
     const chain = employee.manager?.userId ? [{ userId: employee.manager.userId }] : [];
     await this.approvals.start(orgId, SUBJECT, request.id, chain);
 
+    // Tell the approver there is something waiting. Best-effort: a notification
+    // failure must never roll back a leave request the employee successfully
+    // filed — they would see an error for work that actually succeeded.
+    if (employee.manager?.userId) {
+      const name = `${employee.firstName} ${employee.lastName}`;
+      await this.notifications
+        .notify(orgId, employee.manager.userId, {}, {
+          eventKey: 'leave.requested',
+          category: 'leave',
+          title: 'Leave request awaiting your approval',
+          body: `${name} requested ${days} day(s) of ${leaveType.name} leave.`,
+          data: { leaveRequestId: request.id },
+        })
+        .catch(() => undefined);
+    }
+
     return this.serialize(request);
   }
 
@@ -291,6 +309,27 @@ export class LeaveService {
       await this.moveToTaken(request.organizationId, request.employeeId, request.leaveTypeId, request.days);
     } else {
       await this.releasePending(request.organizationId, request.employeeId, request.leaveTypeId, request.days);
+    }
+
+    // Let the employee know the outcome — this is the half of the loop they
+    // actually wait on.
+    const applicant = await this.prisma.employee.findUnique({
+      where: { id: request.employeeId },
+      select: { userId: true, firstName: true },
+    });
+    if (applicant?.userId) {
+      await this.notifications
+        .notify(orgId, applicant.userId, {}, {
+          eventKey: `leave.${decision}`,
+          category: 'leave',
+          title: decision === 'approved' ? 'Leave approved' : 'Leave rejected',
+          body:
+            decision === 'approved'
+              ? `Your ${request.days} day(s) of leave was approved.`
+              : `Your leave request was rejected${comment ? `: ${comment}` : '.'}`,
+          data: { leaveRequestId: id },
+        })
+        .catch(() => undefined);
     }
 
     const updated = await this.prisma.leaveRequest.update({

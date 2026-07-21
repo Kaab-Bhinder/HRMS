@@ -1,11 +1,13 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { ScopeService } from '../access/scope.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { paginated } from '../../common/dto/pagination.dto';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import {
   AssignTaskDto, CreateCommentDto, CreateTaskDto, QueryTasksDto, UpdateTaskDto, UpdateTaskStatusDto,
+  SubmitTaskDto,
 } from './dto/task.dto';
 
 @Injectable()
@@ -13,6 +15,7 @@ export class TasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly scope: ScopeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(user: AuthUser, q: QueryTasksDto) {
@@ -111,13 +114,31 @@ export class TasksService {
   // --- assignments ---
 
   async assign(orgId: string, userId: string, id: string, dto: AssignTaskDto) {
-    await this.findOrThrow(orgId, id);
+    const task = await this.findOrThrow(orgId, id);
     const role = dto.role ?? 'assignee';
     const assignment = await this.prisma.taskAssignment.upsert({
       where: { taskId_employeeId_role: { taskId: id, employeeId: dto.employeeId, role } },
       create: { taskId: id, employeeId: dto.employeeId, role, assignedById: userId },
       update: { assignedById: userId },
     });
+
+    // Tell the assignee. Best-effort — a notification failure must not undo an
+    // assignment that already succeeded.
+    const assignee = await this.prisma.employee.findUnique({
+      where: { id: dto.employeeId },
+      select: { userId: true },
+    });
+    if (assignee?.userId) {
+      await this.notifications
+        .notify(orgId, assignee.userId, {}, {
+          eventKey: 'task.assigned',
+          category: 'tasks',
+          title: 'New task assigned to you',
+          body: task.title,
+          data: { taskId: id },
+        })
+        .catch(() => undefined);
+    }
     return assignment;
   }
 
@@ -143,6 +164,73 @@ export class TasksService {
     return this.prisma.taskComment.create({
       data: { taskId: id, authorEmployeeId: employee?.id, body: dto.body },
     });
+  }
+
+  /**
+   * An assignee reports back on their task.
+   *
+   * Records the note on the comment thread (so the head sees it in context),
+   * counts any files already attached to the task, and — when the assignee says
+   * the work is done — moves the task to `in_review` rather than `done`. The
+   * department head confirms completion; someone closing their own task removes
+   * the point of reporting up.
+   */
+  async submit(orgId: string, user: AuthUser, id: string, dto: SubmitTaskDto) {
+    const task = await this.findOrThrow(orgId, id);
+
+    const employee = await this.prisma.employee.findFirst({
+      where: { userId: user.id, organizationId: orgId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!employee) throw new ForbiddenException('No employee record is linked to your account');
+
+    const isAssignee =
+      (await this.prisma.taskAssignment.count({ where: { taskId: id, employeeId: employee.id } })) > 0;
+    if (!isAssignee && !user.isSuperAdmin) {
+      throw new ForbiddenException('Only someone assigned to this task can submit against it');
+    }
+
+    if (task.status === 'done' || task.status === 'cancelled') {
+      throw new BadRequestException(`This task is already ${task.status} and cannot be submitted against`);
+    }
+
+    const comment = await this.prisma.taskComment.create({
+      data: { taskId: id, authorEmployeeId: employee.id, body: dto.note },
+    });
+
+    let status = task.status;
+    if (dto.markComplete) {
+      status = 'in_review';
+      await this.prisma.task.update({
+        where: { id },
+        // completedAt stays unset: the work is submitted, not yet accepted.
+        // The head setting status=done is what completes it.
+        data: { status, progress: 100 },
+      });
+    }
+
+    const attachments = await this.prisma.fileObject.count({
+      where: { organizationId: orgId, ownerType: 'task', ownerId: id, deletedAt: null },
+    });
+
+    // Notify the department head that work is waiting on them.
+    const head = await this.prisma.employee.findFirst({
+      where: { headOf: { some: { id: task.departmentId ?? '' } }, deletedAt: null },
+      select: { userId: true },
+    });
+    if (head?.userId && head.userId !== user.id) {
+      await this.notifications
+        .notify(orgId, head.userId, {}, {
+          eventKey: dto.markComplete ? 'task.submitted' : 'task.updated',
+          category: 'tasks',
+          title: dto.markComplete ? 'Task submitted for review' : 'Task update',
+          body: `${task.title}${attachments > 0 ? ` · ${attachments} document(s)` : ''}`,
+          data: { taskId: id },
+        })
+        .catch(() => undefined);
+    }
+
+    return { success: true, taskId: id, status, commentId: comment.id, attachments };
   }
 
   // --- activity ---

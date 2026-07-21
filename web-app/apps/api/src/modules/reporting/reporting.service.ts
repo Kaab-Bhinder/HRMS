@@ -73,7 +73,15 @@ export class ReportingService {
 
   async review(user: AuthUser, id: string, dto: ReviewReportDto) {
     if (!this.isReviewer(user)) throw new ForbiddenException('Only HR and super admins can review reports');
-    await this.ensure(user.organizationId, id);
+    const existing = await this.ensure(user.organizationId, id);
+
+    // Separation of duties: the reviewer check alone asks "are you a reviewer?",
+    // never "are you the author?". A super admin (who is both) could otherwise
+    // submit a report and sign it off themselves in two calls — the exact thing
+    // an audit of this chain is meant to prevent.
+    if (existing.submittedByUserId === user.id) {
+      throw new ForbiddenException('You cannot review a report you submitted yourself');
+    }
     const report = await this.prisma.report.update({
       where: { id },
       data: {

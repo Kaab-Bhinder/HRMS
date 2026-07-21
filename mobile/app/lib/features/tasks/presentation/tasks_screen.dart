@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/network/api_exception.dart';
@@ -318,22 +319,24 @@ class _TaskDetailSheet extends ConsumerStatefulWidget {
 class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
   bool _busy = false;
 
-  /// Next-status actions offered for the current status.
+  /// Status changes an assignee may make directly.
+  ///
+  /// Completion is deliberately absent: an assignee reports the work finished
+  /// via "Submit report", which moves the task to in_review for their
+  /// department head to confirm. Closing your own task would defeat reporting
+  /// upward, which is the point of the flow.
   List<({String label, String status, bool primary})> _actions(String status) {
     switch (status) {
       case 'todo':
       case 'backlog':
         return [(label: 'Start task', status: 'in_progress', primary: true)];
-      case 'in_progress':
-        return [(label: 'Mark done', status: 'done', primary: true), (label: 'Send to review', status: 'in_review', primary: false)];
-      case 'in_review':
-        return [(label: 'Mark done', status: 'done', primary: true)];
       case 'blocked':
         return [(label: 'Resume', status: 'in_progress', primary: true)];
+      case 'in_progress':
+      case 'in_review':
       case 'done':
-        return [(label: 'Reopen', status: 'in_progress', primary: false)];
       default:
-        return [(label: 'Start task', status: 'in_progress', primary: true)];
+        return const [];
     }
   }
 
@@ -350,6 +353,16 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _openSubmit(TaskItem t) async {
+    final done = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SubmitReportSheet(task: t),
+    );
+    if (done == true && mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -403,7 +416,245 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
+          if (t.status == 'in_review') ...[
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: c.tint(c.accent, 0.10),
+                borderRadius: AppRadius.rLg,
+                border: Border.all(color: c.tint(c.accent, 0.25)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.hourglass_top_rounded, size: 16, color: c.accent),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text('Submitted — waiting for your department head to confirm.',
+                        style: context.text.bodySmall?.copyWith(color: c.foreground)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          if (!t.isDone && t.status != 'in_review')
+            AppButton(
+              label: 'Submit report',
+              icon: Icons.upload_file_rounded,
+              onPressed: _busy ? null : () => _openSubmit(t),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+/// Reporting back on a task: what was done, any supporting documents, and
+/// whether the work is finished.
+///
+/// Attachments upload as they are picked rather than on submit, so a large
+/// photo on a poor connection cannot silently lose the written note — by the
+/// time the note is sent, the files are already on the server.
+class _SubmitReportSheet extends ConsumerStatefulWidget {
+  const _SubmitReportSheet({required this.task});
+  final TaskItem task;
+
+  @override
+  ConsumerState<_SubmitReportSheet> createState() => _SubmitReportSheetState();
+}
+
+class _SubmitReportSheetState extends ConsumerState<_SubmitReportSheet> {
+  final _note = TextEditingController();
+  final _picker = ImagePicker();
+  final List<String> _attached = [];
+  bool _busy = false;
+  bool _uploading = false;
+  bool _markComplete = false;
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  Future<void> _attach(ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(source: source, imageQuality: 70, maxWidth: 2000);
+      if (picked == null) return;
+      setState(() => _uploading = true);
+      final bytes = await picked.readAsBytes();
+      final name = picked.name.isEmpty ? 'attachment.jpg' : picked.name;
+      await ref.read(taskRepositoryProvider).attach(
+            widget.task.id,
+            bytes,
+            filename: name,
+            contentType: picked.mimeType ?? 'image/jpeg',
+          );
+      if (!mounted) return;
+      setState(() => _attached.add(name));
+      AppSnackbar.show(context, 'Attached $name', tone: SnackTone.success);
+    } on ApiException catch (e) {
+      if (mounted) AppSnackbar.show(context, e.message, tone: SnackTone.danger);
+    } catch (_) {
+      if (mounted) AppSnackbar.show(context, 'Could not attach that file.', tone: SnackTone.danger);
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    final note = _note.text.trim();
+    if (note.isEmpty) {
+      AppSnackbar.show(context, 'Write a short note about what you did.', tone: SnackTone.neutral);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final res = await ref.read(taskRepositoryProvider).submit(
+            widget.task.id,
+            note: note,
+            markComplete: _markComplete,
+          );
+      ref.invalidate(tasksControllerProvider);
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+      Navigator.of(context).pop(true);
+      AppSnackbar.show(
+        context,
+        _markComplete
+            ? 'Submitted for review${res.attachments > 0 ? ' with ${res.attachments} document(s)' : ''}.'
+            : 'Update sent to your department head.',
+        tone: SnackTone.success,
+      );
+    } on ApiException catch (e) {
+      if (mounted) AppSnackbar.show(context, e.message, tone: SnackTone.danger);
+    } catch (_) {
+      if (mounted) AppSnackbar.show(context, 'Could not submit the report.', tone: SnackTone.danger);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Container(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.xl2)),
+      ),
+      padding: EdgeInsets.only(
+        left: AppSpacing.xl,
+        right: AppSpacing.xl,
+        top: AppSpacing.md,
+        bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + AppSpacing.xl,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(999)),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            Text('Submit report', style: context.text.titleLarge),
+            const SizedBox(height: 2),
+            Text(widget.task.title,
+                style: context.text.bodySmall?.copyWith(color: c.mutedForeground),
+                maxLines: 2, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: AppSpacing.lg),
+
+            Text('What did you do?', style: context.text.titleSmall),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _note,
+              minLines: 3,
+              maxLines: 6,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(hintText: 'Summarise the work for your department head…'),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            Text('Documents', style: context.text.titleSmall),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _uploading ? null : () => _attach(ImageSource.camera),
+                    icon: const Icon(Icons.photo_camera_rounded, size: 18),
+                    label: const Text('Camera'),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _uploading ? null : () => _attach(ImageSource.gallery),
+                    icon: const Icon(Icons.attach_file_rounded, size: 18),
+                    label: const Text('Gallery'),
+                  ),
+                ),
+              ],
+            ),
+            if (_uploading) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Row(children: [
+                SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: c.primary)),
+                const SizedBox(width: AppSpacing.sm),
+                Text('Uploading…', style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
+              ]),
+            ],
+            if (_attached.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (final f in _attached)
+                    StatusPill(f, tone: PillTone.success, icon: Icons.check_rounded, dot: false),
+                ],
+              ),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+
+            // in_review, not done: the head confirms completion.
+            InkWell(
+              onTap: () => setState(() => _markComplete = !_markComplete),
+              borderRadius: AppRadius.rLg,
+              child: Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  borderRadius: AppRadius.rLg,
+                  border: Border.all(color: _markComplete ? c.primary : c.border),
+                  color: _markComplete ? c.tint(c.primary, 0.06) : null,
+                ),
+                child: Row(
+                  children: [
+                    Icon(_markComplete ? Icons.check_circle_rounded : Icons.circle_outlined,
+                        size: 20, color: _markComplete ? c.primary : c.mutedForeground),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('The work is finished', style: context.text.titleSmall),
+                          Text('Sends it to your department head to confirm',
+                              style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            AppButton(label: 'Send to department head', loading: _busy, onPressed: _busy ? null : _submit),
+          ],
+        ),
       ),
     );
   }

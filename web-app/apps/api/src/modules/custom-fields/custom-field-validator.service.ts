@@ -22,7 +22,7 @@ export class CustomFieldValidatorService {
     orgId: string,
     entity: CustomFieldEntity,
     values: Record<string, unknown> | undefined,
-    opts: { entityId?: string; skipRequired?: boolean } = {},
+    opts: { entityId?: string; skipRequired?: boolean; previous?: Record<string, unknown> } = {},
   ): Promise<Record<string, unknown>> {
     const defs = await this.prisma.customFieldDefinition.findMany({
       where: { organizationId: orgId, entity, deletedAt: null },
@@ -42,6 +42,21 @@ export class CustomFieldValidatorService {
 
       const [value, error] = this.coerce(def, raw);
       if (error) {
+        // A definition can change after data is stored — an option removed, a
+        // range narrowed, a type tightened. If the offending value is exactly
+        // what is already saved, the user is not introducing it; refusing here
+        // would make the record permanently uneditable through the UI, with a
+        // generic "validation failed" and no way to recover. Keep the stored
+        // value and let them edit everything else. Only *new* values must
+        // satisfy the current rules.
+        const unchanged =
+          opts.previous !== undefined &&
+          Object.prototype.hasOwnProperty.call(opts.previous, def.fieldKey) &&
+          JSON.stringify(opts.previous[def.fieldKey]) === JSON.stringify(raw);
+        if (unchanged) {
+          out[def.fieldKey] = opts.previous![def.fieldKey];
+          continue;
+        }
         errors[def.fieldKey] = error;
         continue;
       }

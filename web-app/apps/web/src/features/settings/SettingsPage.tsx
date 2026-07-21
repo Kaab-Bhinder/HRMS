@@ -1,8 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import {
-  Settings2, ShieldCheck, Bell, Palette, Plug, Save, Sun, Moon, Check, Info,
-  Calendar, MessageSquare, Slack, Fingerprint, Rows3, Rows2,
-} from 'lucide-react';
+import { Settings2, Bell, Palette, Save, Sun, Moon, Check, Info } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { Card, CardHeader, CardBody } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -14,10 +11,7 @@ import { Tabs } from '../../components/ui/Tabs';
 import { useToast } from '../../store/toast';
 import { useTheme } from '../../store/theme';
 import { useQuery } from '../../hooks/useQuery';
-import {
-  settingsService, notificationPrefsService,
-  type GeneralSettings, type AppearanceSettings,
-} from '../../services';
+import { settingsService, notificationPrefsService, type GeneralSettings } from '../../services';
 import { cn } from '../../lib/utils';
 
 // Security and Integrations were removed rather than wired. Both presented
@@ -296,35 +290,14 @@ function NotificationsSection() {
 function AppearanceSection() {
   const toast = useToast();
   const { theme, setTheme } = useTheme();
-  const { data } = useQuery(() => settingsService.section<AppearanceSettings>('appearance'), []);
-  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (data?.density) setDensity(data.density);
-  }, [data]);
-
-  // Theme applies instantly through the theme store and is per-device, so it
-  // is not part of this save — only density, which is a workspace default.
-  const save = async () => {
-    setSaving(true);
-    try {
-      await settingsService.save('appearance', { density });
-      toast.success('Appearance saved', 'Display density updated for the workspace.');
-    } catch (e) {
-      toast.error('Could not save', (e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Density was removed: nothing in the app read the value, so the control
+  // changed a stored string and no spacing. Theme is the only real setting
+  // here — it applies instantly via the theme store and is per-device, so
+  // there is nothing to save.
 
   const themes = [
     { value: 'light' as const, label: 'Light', icon: <Sun className="h-5 w-5" />, hint: 'Bright, high-contrast interface.' },
     { value: 'dark' as const, label: 'Dark', icon: <Moon className="h-5 w-5" />, hint: 'Dimmed palette for low-light use.' },
-  ];
-  const densities = [
-    { value: 'comfortable' as const, label: 'Comfortable', icon: <Rows2 className="h-5 w-5" />, hint: 'Roomier spacing across tables and lists.' },
-    { value: 'compact' as const, label: 'Compact', icon: <Rows3 className="h-5 w-5" />, hint: 'Fit more rows on screen at once.' },
   ];
 
   return (
@@ -357,35 +330,10 @@ function AppearanceSection() {
           </div>
         </div>
 
-        <Divider />
-
-        <div>
-          <p className="mb-3 text-sm font-medium text-foreground">Density</p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {densities.map((d) => {
-              const active = density === d.value;
-              return (
-                <button
-                  key={d.value}
-                  onClick={() => setDensity(d.value)}
-                  className={cn(
-                    'flex items-center gap-3 rounded-xl border p-4 text-left transition-colors focus-ring',
-                    active ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:border-primary/40 hover:bg-surface-2/50',
-                  )}
-                >
-                  <span className={cn('flex h-10 w-10 items-center justify-center rounded-lg', active ? 'bg-primary/10 text-primary' : 'bg-surface-2 text-muted-foreground')}>{d.icon}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground">{d.label}</p>
-                    <p className="text-xs text-muted-foreground">{d.hint}</p>
-                  </div>
-                  {active && <Check className="h-4 w-4 shrink-0 text-primary" />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </CardBody>
-      <SaveBar onSave={save} saving={saving} />
+      <div className="border-t border-border px-5 py-3.5">
+        <p className="text-xs text-muted-foreground">Theme applies immediately and is remembered on this device.</p>
+      </div>
     </Card>
   );
 }

@@ -210,7 +210,13 @@ export class EmployeesService {
       // Editing an existing employee must not be blocked by a required custom
       // field that was never filled (e.g. adding blood_group later). Type/format
       // rules still apply — only the "required" gate is relaxed on update.
-      customFields = (await this.customFields.validate(orgId, 'employee', merged, { entityId: id, skipRequired: true })) as Prisma.InputJsonValue;
+      customFields = (await this.customFields.validate(orgId, 'employee', merged, {
+        entityId: id,
+        skipRequired: true,
+        // Values already on the record are grandfathered when a definition
+        // changed under them — see CustomFieldValidatorService.validate.
+        previous: (existing.customFields as Record<string, unknown>) ?? {},
+      })) as Prisma.InputJsonValue;
     }
 
     const emp = await this.prisma.employee.update({

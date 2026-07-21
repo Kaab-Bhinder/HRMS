@@ -5,7 +5,7 @@ import { Response } from 'express';
 import { FilesService } from './files.service';
 import { ListFilesQuery, PresignDto, RegisterFileDto, UploadFileDto } from './dto/file.dto';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
 
 const MAX_UPLOAD = 15 * 1024 * 1024;
 
@@ -20,24 +20,26 @@ export class FilesController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload a file for an owner (multipart; e.g. a task or report attachment)' })
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD } }))
-  upload(
-    @CurrentUser('organizationId') orgId: string,
-    @CurrentUser('id') userId: string,
+  async upload(
+    @CurrentUser() user: AuthUser,
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadFileDto,
   ) {
-    return this.service.upload(orgId, userId, file, dto.ownerType, dto.ownerId, dto.category);
+    // Employees may attach files to their own tasks/records only.
+    await this.service.assertOwnerAccess(user, dto.ownerType, dto.ownerId);
+    return this.service.upload(user.organizationId, user.id, file, dto.ownerType, dto.ownerId, dto.category);
   }
 
   @Get(':id/download')
   @RequirePermissions('files:read')
   @ApiOperation({ summary: 'Stream a file download' })
   async download(
-    @CurrentUser('organizationId') orgId: string,
+    @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    const { file, bytes } = await this.service.download(orgId, id);
+    await this.service.assertFileAccess(user, id);
+    const { file, bytes } = await this.service.download(user.organizationId, id);
     res.set({
       'Content-Type': file.mimeType,
       'Content-Disposition': `attachment; filename="${encodeURIComponent(file.fileName)}"`,
@@ -62,14 +64,16 @@ export class FilesController {
   @Get()
   @RequirePermissions('files:read')
   @ApiOperation({ summary: 'List files for an owner (e.g. ownerType=employee&ownerId=...)' })
-  list(@CurrentUser('organizationId') orgId: string, @Query() q: ListFilesQuery) {
-    return this.service.listByOwner(orgId, q.ownerType, q.ownerId);
+  async list(@CurrentUser() user: AuthUser, @Query() q: ListFilesQuery) {
+    await this.service.assertOwnerAccess(user, q.ownerType, q.ownerId);
+    return this.service.listByOwner(user.organizationId, q.ownerType, q.ownerId);
   }
 
   @Get(':id')
   @RequirePermissions('files:read')
-  get(@CurrentUser('organizationId') orgId: string, @Param('id') id: string) {
-    return this.service.get(orgId, id);
+  async get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.service.assertFileAccess(user, id);
+    return this.service.get(user.organizationId, id);
   }
 
   @Delete(':id')

@@ -11,6 +11,7 @@ import { Badge } from '../../components/ui/Badge';
 import { StatusBadge } from '../../components/StatusBadge';
 import { Dropdown, DropdownItem } from '../../components/ui/Dropdown';
 import { Modal } from '../../components/ui/Modal';
+import { TaskDetailModal } from './TaskDetailModal';
 import { Tabs } from '../../components/ui/Tabs';
 import { Progress } from '../../components/ui/Misc';
 import { Input, Textarea, Select, Label } from '../../components/ui/Input';
@@ -74,6 +75,7 @@ export default function TasksPage() {
   const [formOpen, setFormOpen] = useState(false);
 
   // Board data — full set used for stats + kanban
+  const [detail, setDetail] = useState<Task | null>(null);
   const { data: board, loading: boardLoading, error: boardError, refetch: refetchBoard } = useQuery(() => tasksService.board(), []);
 
   // List data — paginated + filtered
@@ -179,7 +181,7 @@ export default function TasksPage() {
       />
 
       {tab === 'board' ? (
-        <BoardView loading={boardLoading} error={boardError} onRetry={refetchBoard} grouped={grouped} />
+        <BoardView loading={boardLoading} error={boardError} onRetry={refetchBoard} grouped={grouped} onOpen={setDetail} />
       ) : (
         <div className="space-y-4">
           <FilterBar
@@ -200,6 +202,7 @@ export default function TasksPage() {
             error={listError}
             onRetry={refetchList}
             rowKey={(t) => t.id}
+            onRowClick={(t) => setDetail(t)}
             sort={sort}
             onSortChange={onSort}
             empty={{ title: 'No tasks found', description: 'Adjust your filters or create a new task to get started.', action: canCreate ? <Button size="sm" onClick={() => setFormOpen(true)}><Plus className="h-4 w-4" /> New Task</Button> : undefined }}
@@ -208,18 +211,24 @@ export default function TasksPage() {
         </div>
       )}
 
+      <TaskDetailModal
+        task={detail}
+        onClose={() => setDetail(null)}
+        onChanged={() => { refetchBoard(); refetchList(); }}
+      />
       <NewTaskModal open={formOpen} onClose={() => setFormOpen(false)} onCreated={() => { refetchBoard(); refetchList(); }} />
     </div>
   );
 }
 
 function BoardView({
-  loading, error, onRetry, grouped,
+  loading, error, onRetry, grouped, onOpen,
 }: {
   loading: boolean;
   error?: string;
   onRetry: () => void;
   grouped: Record<TaskStatus, Task[]>;
+  onOpen: (task: Task) => void;
 }) {
   if (error) {
     return (
@@ -248,7 +257,7 @@ function BoardView({
                 ) : items.length === 0 ? (
                   <EmptyState className="py-8" title="Nothing here" description="No tasks in this column." />
                 ) : (
-                  items.map((t) => <TaskCard key={t.id} task={t} />)
+                  items.map((t) => <TaskCard key={t.id} task={t} onOpen={() => onOpen(t)} />)
                 )}
               </div>
             </section>
@@ -259,9 +268,11 @@ function BoardView({
   );
 }
 
-function TaskCard({ task }: { task: Task }) {
+function TaskCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
   return (
-    <article className="rounded-lg border border-border bg-surface p-3 shadow-card transition-colors hover:border-primary/40">
+    <article
+      onClick={onOpen}
+      className="cursor-pointer rounded-lg border border-border bg-surface p-3 shadow-card transition-colors hover:border-primary/40">
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium leading-snug text-foreground">{task.title}</p>
         <StatusBadge value={task.priority} dot={false} />

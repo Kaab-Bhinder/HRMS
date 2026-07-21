@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
-  IsDateString, IsEnum, IsInt, IsNumber, IsObject, IsOptional, IsString, IsUUID, Max, MaxLength, Min,
+  IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsObject, IsOptional, IsString, IsUUID, Max, MaxLength, Min,
 } from 'class-validator';
 import { TaskPriority, TaskStatus } from '@prisma/client';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -53,4 +53,23 @@ export class UpdateTaskStatusDto {
 
   @ApiPropertyOptional({ minimum: 0, maximum: 100 })
   @IsOptional() @IsInt() @Min(0) @Max(100) progress?: number;
+}
+
+/**
+ * An assignee reporting back on a task: a written update, optional attachments
+ * (uploaded separately against ownerType=task), and optionally handing the task
+ * to their department head for review.
+ */
+export class SubmitTaskDto {
+  @ApiProperty({ description: 'What was done — becomes a comment on the task thread.' })
+  @IsString()
+  @MaxLength(4000)
+  note!: string;
+
+  @ApiPropertyOptional({
+    description: 'Mark the work finished. Moves the task to in_review — the department head confirms completion, the assignee does not close their own task.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  markComplete?: boolean;
 }

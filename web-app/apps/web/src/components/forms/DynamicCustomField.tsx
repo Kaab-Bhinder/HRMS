@@ -47,15 +47,22 @@ export function DynamicCustomField({
             <Switch checked={!!value} onChange={set} label={def.label} />
           </div>
         );
-      case 'select':
+      case 'select': {
+        // A stored value whose option was later removed has no matching
+        // <option>, so the browser would fall back to the placeholder — the
+        // field would look empty and saving would quietly wipe it. Surface it
+        // instead, labelled so the admin knows to pick a current option.
+        const known = def.options?.some((o) => o.value === str);
         return (
           <Select id={id} value={str} onChange={(e) => set(e.target.value)} invalid={!!error}>
             <option value="">Select…</option>
+            {str && !known && <option value={str}>{str} — no longer an option</option>}
             {def.options?.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </Select>
         );
+      }
       case 'multiselect': {
         const arr = Array.isArray(value) ? (value as string[]) : [];
         return (

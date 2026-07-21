@@ -231,7 +231,25 @@ export const tasksService = {
   board: () => api.get<Task[]>('/tasks/board'),
   create: (payload: Record<string, unknown>) => api.post<Task>('/tasks', pick(payload, TASK_FIELDS)),
   assign: (id: string, employeeId: string) => api.post<unknown>(`/tasks/${id}/assign`, { employeeId }),
+  get: (id: string) => api.get<Task>(`/tasks/${id}`),
+  comments: (id: string) => api.get<TaskComment[]>(`/tasks/${id}/comments`),
+  addComment: (id: string, body: string) => api.post<TaskComment>(`/tasks/${id}/comments`, { body }),
+  updateStatus: (id: string, status: string, progress?: number) =>
+    api.patch<Task>(`/tasks/${id}/status`, { status, ...(progress != null ? { progress } : {}) }),
+  /** An assignee reporting back. markComplete moves the task to in_review —
+   *  the head confirms completion, the assignee does not close their own task. */
+  submit: (id: string, note: string, markComplete: boolean) =>
+    api.post<{ taskId: string; status: string; attachments: number }>(`/tasks/${id}/submit`, { note, markComplete }),
 };
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  authorEmployeeId?: string | null;
+  authorName?: string | null;
+  body: string;
+  createdAt: string;
+}
 
 export const performanceService = {
   reviews: (p?: ListParams) => api.get<Paginated<PerformanceReview>>(`/performance/reviews${qs(p)}`),

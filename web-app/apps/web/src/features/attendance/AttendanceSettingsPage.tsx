@@ -11,17 +11,11 @@ import { useQuery } from '../../hooks/useQuery';
 import { attendanceService, type AttendanceSettings } from '../../services';
 import { useToast } from '../../store/toast';
 import { cn } from '../../lib/utils';
+import { timezoneGroups } from '../../lib/timezones';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /** Full IANA list when the browser supports it, else a sensible shortlist. */
-const TIMEZONES: string[] = (() => {
-  try {
-    const all = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.('timeZone');
-    if (all && all.length) return all;
-  } catch { /* ignore */ }
-  return ['UTC', 'Asia/Karachi', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Europe/London', 'America/New_York', 'America/Los_Angeles'];
-})();
 
 /** Current local time in a zone, e.g. "2:30 PM" — a live sanity check. */
 function nowInZone(tz: string): string {
@@ -89,8 +83,11 @@ export default function AttendanceSettingsPage() {
           <div className="flex-1">
             <Label htmlFor="tz">Organization timezone</Label>
             <Select id="tz" value={form.timezone} onChange={(e) => setForm((f) => (f ? { ...f, timezone: e.target.value } : f))}>
-              {!TIMEZONES.includes(form.timezone) && <option value={form.timezone}>{form.timezone}</option>}
-              {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
+              {timezoneGroups(form.timezone).map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.options.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </optgroup>
+              ))}
             </Select>
           </div>
           <div className="rounded-md bg-muted/40 px-3 py-2 text-sm">

@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { TasksService } from './tasks.service';
 import {
   AssignTaskDto, CreateCommentDto, CreateTaskDto, QueryTasksDto, UpdateTaskDto, UpdateTaskStatusDto,
+  SubmitTaskDto,
 } from './dto/task.dto';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthUser, CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -86,6 +87,13 @@ export class TasksController {
   @RequirePermissions('tasks:update')
   addComment(@CurrentUser('organizationId') orgId: string, @CurrentUser('id') userId: string, @Param('id') id: string, @Body() dto: CreateCommentDto) {
     return this.service.addComment(orgId, userId, id, dto);
+  }
+
+  @Post(':id/submit')
+  @RequirePermissions('tasks:update')
+  @ApiOperation({ summary: 'Report back on an assigned task (note + optional completion)' })
+  submit(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SubmitTaskDto) {
+    return this.service.submit(user.organizationId, user, id, dto);
   }
 
   @Get(':id/activity')

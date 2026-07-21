@@ -60,7 +60,10 @@ async function main() {
     { name: 'HR Manager', description: 'Full HR operations', keys: permKeys.filter((k) => !k.startsWith('settings:') && !k.startsWith('roles:') && !k.startsWith('permissions:')), web: true, mobile: true },
     { name: 'Department Head', description: 'Leads a department: team visibility, approvals and task assignment', keys: ['employees:read', 'attendance:read', 'attendance:track', 'leave:read', 'leave:update', 'tasks:read', 'tasks:create', 'tasks:update', 'performance:read', 'reports:read', 'analytics:read', 'files:read', 'files:create', 'files:delete'], web: true, mobile: true },
     { name: 'Finance Officer', description: 'Payroll and financial reports', keys: ['employees:read', 'reports:read', 'reports:create', 'attendance:read', 'analytics:read'], web: true, mobile: false },
-    { name: 'Employee', description: 'Self-service access', keys: ['attendance:read', 'leave:read', 'leave:create', 'tasks:read', 'tasks:update'], web: false, mobile: true },
+    // files:* is safe to grant broadly because FilesService.assertOwnerAccess
+    // narrows unprivileged users to their own tasks, their own employee record
+    // and their own reports — the permission alone is not org-wide access.
+    { name: 'Employee', description: 'Self-service access', keys: ['attendance:read', 'leave:read', 'leave:create', 'tasks:read', 'tasks:update', 'files:read', 'files:create'], web: false, mobile: true },
   ];
 
   let superAdminRoleId = '';

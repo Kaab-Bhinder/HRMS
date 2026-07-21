@@ -21,8 +21,19 @@ class ApiClient {
       _send(() => _dio.delete(path, data: body));
 
   /// Multipart upload of raw bytes under [field]. Returns the unwrapped `data`.
-  Future<dynamic> uploadBytes(String path, List<int> bytes, {String field = 'file', String filename = 'upload.jpg', String contentType = 'image/jpeg'}) {
+  /// Multipart upload. [fields] carries any extra form values the endpoint
+  /// needs alongside the file — /files/upload requires ownerType and ownerId,
+  /// and without them the request is rejected before the bytes are read.
+  Future<dynamic> uploadBytes(
+    String path,
+    List<int> bytes, {
+    String field = 'file',
+    String filename = 'upload.jpg',
+    String contentType = 'image/jpeg',
+    Map<String, String> fields = const {},
+  }) {
     final form = FormData.fromMap({
+      ...fields,
       field: MultipartFile.fromBytes(bytes, filename: filename, contentType: DioMediaType.parse(contentType)),
     });
     return _send(() => _dio.post(path, data: form));

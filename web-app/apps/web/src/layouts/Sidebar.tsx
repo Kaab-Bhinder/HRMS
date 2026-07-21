@@ -5,9 +5,12 @@ import { cn } from '../lib/utils';
 import { useAuth } from '../store/auth';
 import { useI18n } from '../store/i18n';
 import { useQuery } from '../hooks/useQuery';
-import { notificationsService } from '../services';
+import { notificationsService, organizationService } from '../services';
 
 function Brand() {
+  // The organization's own name, not a hardcoded one — Settings → Organization
+  // is where an admin changes it, and it should visibly take effect.
+  const { data: org } = useQuery(() => organizationService.current(), []);
   return (
     <div className="flex items-center gap-2.5 px-2">
       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white">
@@ -16,7 +19,9 @@ function Brand() {
         </svg>
       </div>
       <div className="leading-tight">
-        <p className="text-sm font-semibold text-sidebar-foreground">Workforce</p>
+        <p className="text-sm font-semibold text-sidebar-foreground" title={org?.name ?? ''}>
+          {org?.name || 'Workforce'}
+        </p>
         <p className="text-[11px] text-sidebar-muted">Admin Console</p>
       </div>
     </div>
@@ -24,6 +29,8 @@ function Brand() {
 }
 
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  const { data: orgForFooter } = useQuery(() => organizationService.current(), []);
+  const orgName = orgForFooter?.name;
   const { can } = useAuth();
   const { t } = useI18n();
   const { data: notifs } = useQuery(() => notificationsService.list(), []);
@@ -73,7 +80,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
       <div className="border-t border-sidebar-border p-3">
         <div className="rounded-lg bg-sidebar-foreground/10 p-3">
-          <p className="text-xs font-medium text-sidebar-foreground">Acme Bank · Workforce</p>
+          <p className="text-xs font-medium text-sidebar-foreground">{orgName || 'Workforce'}</p>
           <p className="mt-0.5 text-[11px] text-sidebar-muted">v1.0 · Live</p>
         </div>
       </div>

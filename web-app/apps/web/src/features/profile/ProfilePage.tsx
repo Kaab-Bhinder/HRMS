@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
-  Camera, Save, Mail, KeyRound, ShieldCheck, Monitor, Smartphone, LogIn, MapPin,
+  Save, Mail, KeyRound, ShieldCheck, Monitor, Smartphone, LogIn, MapPin,
   CheckCircle2, AlertTriangle, Laptop,
 } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
@@ -16,8 +16,9 @@ import { useTheme } from '../../store/theme';
 import { useToast } from '../../store/toast';
 import { authService } from '../../services';
 import { useQuery } from '../../hooks/useQuery';
-import { sessionsService } from '../../services';
+import { sessionsService, auditService, notificationPrefsService } from '../../services';
 import { relativeTime } from '../../lib/format';
+import type { AuditLog } from '../../lib/types';
 import { cn } from '../../lib/utils';
 import type { SessionInfo } from '../../lib/types';
 
@@ -46,13 +47,6 @@ export default function ProfilePage() {
         <CardBody className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="relative shrink-0">
             <Avatar name={fullName} src={user?.avatarUrl} size="lg" className="!h-20 !w-20 text-2xl" />
-            <button
-              onClick={() => toast.success('Photo updated', 'Your profile picture has been changed.')}
-              className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface text-muted-foreground shadow-sm transition-colors hover:text-foreground focus-ring"
-              aria-label="Upload photo"
-            >
-              <Camera className="h-4 w-4" />
-            </button>
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -63,9 +57,6 @@ export default function ProfilePage() {
               <Mail className="h-3.5 w-3.5" /> {email}
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => toast.success('Photo updated', 'Your profile picture has been changed.')}>
-            <Camera className="h-4 w-4" /> Upload photo
-          </Button>
         </CardBody>
       </Card>
 
@@ -141,17 +132,9 @@ function PersonalSection({ fullName, email }: { fullName: string; email: string 
 
 /* ---------- Security ---------- */
 
-const SECURITY_ACTIVITY = [
-  { icon: <LogIn className="h-4 w-4 text-info" />, label: 'Signed in from Karachi, PK', at: '2026-07-09T08:12:00Z' },
-  { icon: <KeyRound className="h-4 w-4 text-success" />, label: 'Password changed', at: '2026-06-21T14:03:00Z' },
-  { icon: <ShieldCheck className="h-4 w-4 text-primary" />, label: 'Two-factor authentication enabled', at: '2026-06-21T13:58:00Z' },
-  { icon: <AlertTriangle className="h-4 w-4 text-warning" />, label: 'Failed sign-in attempt blocked', at: '2026-06-05T22:41:00Z' },
-];
-
 function SecuritySection() {
   const toast = useToast();
   const [pwd, setPwd] = useState({ current: '', next: '', confirm: '' });
-  const [mfa, setMfa] = useState(true);
   const set = (k: keyof typeof pwd, v: string) => setPwd((p) => ({ ...p, [k]: v }));
 
   const [changing, setChanging] = useState(false);
@@ -217,35 +200,9 @@ function SecuritySection() {
           </div>
         </Card>
 
-        <Card>
-          <CardBody className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground">Two-factor authentication</p>
-              <p className="mt-0.5 text-sm text-muted-foreground">Add an extra layer of security using an authenticator app.</p>
-            </div>
-            <Switch
-              checked={mfa}
-              onChange={(v) => { setMfa(v); toast.success(v ? 'MFA enabled' : 'MFA disabled', v ? 'Two-factor authentication is now on.' : 'Two-factor authentication is now off.'); }}
-              label="Enable MFA"
-            />
-          </CardBody>
-        </Card>
       </div>
 
-      <Card className="lg:col-span-1">
-        <CardHeader title="Recent security activity" />
-        <CardBody className="space-y-1">
-          {SECURITY_ACTIVITY.map((a, i) => (
-            <div key={i} className="flex items-start gap-3 rounded-md px-1 py-2">
-              <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-surface-2">{a.icon}</span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm text-foreground">{a.label}</p>
-                <p className="text-xs text-muted-foreground/70">{relativeTime(a.at)}</p>
-              </div>
-            </div>
-          ))}
-        </CardBody>
-      </Card>
+      <RecentActivityCard />
     </div>
   );
 }
@@ -255,39 +212,11 @@ function SecuritySection() {
 function PreferencesSection() {
   const toast = useToast();
   const { theme, setTheme } = useTheme();
-  const [channels, setChannels] = useState({ email: true, sms: false, push: true, whatsapp: false });
   const [language, setLanguage] = useState('en');
-
-  const rows: { key: keyof typeof channels; title: string; description: string }[] = [
-    { key: 'email', title: 'Email', description: 'Approvals, reminders and weekly digests.' },
-    { key: 'sms', title: 'SMS', description: 'Time-sensitive alerts to your mobile.' },
-    { key: 'push', title: 'Push', description: 'In-browser and mobile push notifications.' },
-    { key: 'whatsapp', title: 'WhatsApp', description: 'Payroll and leave updates over WhatsApp.' },
-  ];
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-      <Card>
-        <CardHeader title="Notification channels" description="Choose how you'd like to be reached." />
-        <CardBody className="divide-y divide-border py-0">
-          {rows.map((r) => (
-            <div key={r.key} className="flex items-start justify-between gap-4 py-3.5">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">{r.title}</p>
-                <p className="mt-0.5 text-sm text-muted-foreground">{r.description}</p>
-              </div>
-              <div className="shrink-0 pt-0.5">
-                <Switch checked={channels[r.key]} onChange={(v) => setChannels((c) => ({ ...c, [r.key]: v }))} label={r.title} />
-              </div>
-            </div>
-          ))}
-        </CardBody>
-        <div className="flex justify-end border-t border-border px-5 py-3.5">
-          <Button size="sm" onClick={() => toast.success('Preferences saved', 'Your notification channels have been updated.')}>
-            <Save className="h-4 w-4" /> Save changes
-          </Button>
-        </div>
-      </Card>
+      <NotificationChannelsCard />
 
       <Card>
         <CardHeader title="Display &amp; language" description="Personalize your workspace experience." />
@@ -401,6 +330,146 @@ function SessionsSection() {
           </div>
         ))}
       </CardBody>
+    </Card>
+  );
+}
+
+/**
+ * The signed-in user's own recent activity, taken from the audit trail.
+ *
+ * This replaced a hardcoded list ("Signed in from Karachi", "MFA enabled") that
+ * described events which had never happened. The audit log is written
+ * automatically by a global interceptor on every mutating request, so this is
+ * real. It is filtered client-side by actor because the audit endpoint has no
+ * actor filter yet — fine at this volume, worth a server-side filter later.
+ */
+function RecentActivityCard() {
+  const { user } = useAuth();
+  const { data, loading } = useQuery(() => auditService.list({ limit: 50, sort: 'createdAt', order: 'desc' }), []);
+
+  const mine = (data?.data ?? []).filter((a: AuditLog) => a.actorName === user?.fullName).slice(0, 6);
+
+  const ICON: Record<string, ReactNode> = {
+    login: <LogIn className="h-4 w-4 text-info" />,
+    logout: <LogIn className="h-4 w-4 text-muted-foreground" />,
+    create: <ShieldCheck className="h-4 w-4 text-success" />,
+    update: <KeyRound className="h-4 w-4 text-primary" />,
+    delete: <AlertTriangle className="h-4 w-4 text-danger" />,
+  };
+
+  return (
+    <Card className="lg:col-span-1">
+      <CardHeader title="Your recent activity" description="From the audit trail." />
+      <CardBody className="space-y-1">
+        {loading ? (
+          <p className="px-1 py-2 text-sm text-muted-foreground">Loading…</p>
+        ) : mine.length === 0 ? (
+          <p className="px-1 py-2 text-sm text-muted-foreground">Nothing recorded yet.</p>
+        ) : (
+          mine.map((a: AuditLog) => (
+            <div key={a.id} className="flex items-start gap-3 rounded-md px-1 py-2">
+              <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-surface-2">
+                {ICON[a.action] ?? <ShieldCheck className="h-4 w-4 text-muted-foreground" />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm capitalize text-foreground">
+                  {a.action} {a.entityType}
+                  {a.entityLabel ? ` — ${a.entityLabel}` : ''}
+                </p>
+                <p className="text-xs text-muted-foreground/70">{relativeTime(a.createdAt)}</p>
+              </div>
+            </div>
+          ))
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+const CHANNEL_COPY: Record<string, { title: string; description: string }> = {
+  in_app: { title: 'In-app', description: 'Shown in the bell menu and on the Notifications page.' },
+  email: { title: 'Email', description: 'Approvals, reminders and digests.' },
+  sms: { title: 'SMS', description: 'Time-sensitive alerts to your mobile.' },
+  push: { title: 'Push', description: 'Mobile push notifications.' },
+  whatsapp: { title: 'WhatsApp', description: 'Payroll and leave updates over WhatsApp.' },
+};
+
+/**
+ * Per-channel notification preferences, saved to the real preferences API.
+ *
+ * Availability comes from the server rather than a constant here: each channel
+ * reports whether a provider is actually wired. Today only in-app is — the
+ * others accept a send and drop it — so their switches are disabled instead of
+ * letting someone enable a delivery that will never arrive. When a provider is
+ * connected and reports ready, the switch enables itself with no change here.
+ */
+function NotificationChannelsCard() {
+  const toast = useToast();
+  const { data: channels, loading } = useQuery(() => notificationPrefsService.channels(), []);
+  const { data: prefs, refetch } = useQuery(() => notificationPrefsService.list(), []);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  // One row per channel; the event key is the catch-all for "any notification".
+  const EVENT = 'all';
+  const isOn = (channel: string) => {
+    const found = (prefs ?? []).find((p) => p.eventKey === EVENT && p.channel === channel);
+    return found ? found.isEnabled : true;
+  };
+
+  const toggle = async (channel: string, next: boolean) => {
+    setBusy(channel);
+    try {
+      await notificationPrefsService.set(EVENT, channel, next);
+      refetch();
+    } catch (e) {
+      toast.error('Could not update', (e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const list = channels ?? [];
+
+  return (
+    <Card>
+      <CardHeader title="Notification channels" description="Choose how you'd like to be reached." />
+      <CardBody className="divide-y divide-border py-0">
+        {loading ? (
+          <p className="py-4 text-sm text-muted-foreground">Loading channels…</p>
+        ) : (
+          list.map((ch) => {
+            const copy = CHANNEL_COPY[ch.channel] ?? { title: ch.channel, description: '' };
+            return (
+              <div key={ch.channel} className="flex items-start justify-between gap-4 py-3.5">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    {copy.title}
+                    {!ch.ready && (
+                      <span className="rounded bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning">
+                        soon
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {ch.ready ? copy.description : 'No delivery provider connected yet.'}
+                  </p>
+                </div>
+                <div className="shrink-0 pt-0.5">
+                  <Switch
+                    checked={ch.ready ? isOn(ch.channel) : false}
+                    onChange={(v) => ch.ready && toggle(ch.channel, v)}
+                    disabled={!ch.ready || busy === ch.channel}
+                    label={copy.title}
+                  />
+                </div>
+              </div>
+            );
+          })
+        )}
+      </CardBody>
+      <div className="border-t border-border px-5 py-3.5">
+        <p className="text-xs text-muted-foreground">Changes save immediately.</p>
+      </div>
     </Card>
   );
 }

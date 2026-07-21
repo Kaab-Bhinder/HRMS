@@ -29,6 +29,8 @@ import '../../data/selfie_service.dart';
 import '../../domain/entities/today_status.dart';
 import '../providers/attendance_controller.dart';
 import '../widgets/punch_button.dart';
+import '../widgets/office_map.dart';
+import '../../../notifications/notifications_screen.dart';
 import 'attendance_records_screen.dart';
 
 const _shiftTargetMinutes = 8 * 60; // assumed 8h day until shift data is wired
@@ -137,6 +139,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ).animate(delay: 140.ms).fadeIn(),
             ],
             const SizedBox(height: AppSpacing.xl2),
+            Text('Where you work', style: context.text.titleLarge).animate(delay: 110.ms).fadeIn(),
+            const SizedBox(height: AppSpacing.md),
+            const OfficeMapCard(),
+            const SizedBox(height: AppSpacing.xl2),
             SectionHeader(
               'This week',
               actionLabel: 'See all',
@@ -224,7 +230,52 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
-        _IconBtn(icon: Icons.notifications_none_rounded, onTap: () => AppSnackbar.show(context, 'Notifications are coming soon.')),
+        const _NotificationBell(),
+      ],
+    );
+  }
+}
+
+/// Bell with an unread badge. Reads the same count the Notifications screen
+/// does, so opening the screen and marking read updates the badge too.
+class _NotificationBell extends ConsumerWidget {
+  const _NotificationBell();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final unread = ref.watch(unreadCountProvider).valueOrNull ?? 0;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        _IconBtn(
+          icon: Icons.notifications_none_rounded,
+          onTap: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+            );
+            ref.invalidate(unreadCountProvider);
+          },
+        ),
+        if (unread > 0)
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              constraints: const BoxConstraints(minWidth: 18),
+              decoration: BoxDecoration(
+                color: c.danger,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: c.background, width: 2),
+              ),
+              child: Text(
+                unread > 99 ? '99+' : '$unread',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
+              ),
+            ),
+          ),
       ],
     );
   }

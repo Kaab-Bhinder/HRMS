@@ -16,6 +16,7 @@ import { Skeleton } from '../../components/feedback/States';
 import { Modal } from '../../components/ui/Modal';
 import { Textarea } from '../../components/ui/Input';
 import { useQuery } from '../../hooks/useQuery';
+import { exportCsv, datedFilename, type CsvColumn } from '../../lib/csv';
 import { AttendanceSlipModal } from './AttendanceSlipModal';
 import { attendanceService, analyticsService, departmentsService } from '../../services';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
@@ -49,6 +50,23 @@ function formatMethod(method?: string): string {
   return method.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** Bound on one export: attendance grows by ~1 row per employee per day. */
+const ATTENDANCE_EXPORT_LIMIT = 5000;
+
+const ATTENDANCE_CSV_COLUMNS: CsvColumn<AttendanceRecord>[] = [
+  { header: 'Date', value: (r) => r.workDate?.slice(0, 10) },
+  { header: 'Employee code', value: (r) => r.employeeCode },
+  { header: 'Employee', value: (r) => r.employeeName },
+  { header: 'Department', value: (r) => r.departmentName },
+  { header: 'Status', value: (r) => r.status },
+  { header: 'Check in', value: (r) => (r.checkInAt ? new Date(r.checkInAt).toISOString() : '') },
+  { header: 'Check out', value: (r) => (r.checkOutAt ? new Date(r.checkOutAt).toISOString() : '') },
+  { header: 'Method', value: (r) => r.checkInMethod ?? '' },
+  { header: 'Worked minutes', value: (r) => r.workedMinutes ?? 0 },
+  { header: 'Overtime minutes', value: (r) => r.overtimeMinutes ?? 0 },
+  { header: 'Flagged', value: (r) => (r.isFlagged ? 'yes' : 'no') },
+];
+
 export default function AttendancePage() {
   const [search, setSearch] = useState('');
   const debounced = useDebouncedValue(search, 300);
@@ -65,6 +83,33 @@ export default function AttendancePage() {
     [page, debounced, sort, filters],
   );
   const { data, loading, error, refetch } = useQuery(() => attendanceService.list(params), [params]);
+
+  // Exports every record matching the current filters, not just the visible
+  // page — the list is paginated, so this re-requests with a high limit.
+  const [exporting, setExporting] = useState(false);
+  const exportRows = async () => {
+    setExporting(true);
+    try {
+      const all = await attendanceService.list({ ...params, page: 1, limit: ATTENDANCE_EXPORT_LIMIT });
+      const records = all?.data ?? [];
+      if (!records.length) {
+        toast.error('Nothing to export', 'No attendance records match the current filters.');
+        return;
+      }
+      exportCsv(datedFilename('attendance'), records, ATTENDANCE_CSV_COLUMNS);
+      const capped = (all?.meta?.total ?? records.length) > records.length;
+      toast.success(
+        `Exported ${records.length} record${records.length === 1 ? '' : 's'}`,
+        capped
+          ? `Capped at ${ATTENDANCE_EXPORT_LIMIT}. Narrow the date range to export more.`
+          : 'Downloaded as CSV.',
+      );
+    } catch (e) {
+      toast.error('Export failed', (e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
   const [slipFor, setSlipFor] = useState<{ id: string; name: string } | null>(null);
   const canResolve = usePermission('attendance:update');
   const toast = useToast();
@@ -143,7 +188,9 @@ export default function AttendancePage() {
             <span className="hidden items-center gap-1.5 rounded-md border border-border bg-surface-2/40 px-3 py-1.5 text-xs font-medium text-muted-foreground sm:inline-flex">
               <CalendarDays className="h-3.5 w-3.5" /> {today}
             </span>
-            <Button variant="outline" size="sm"><Download className="h-4 w-4" /> Export</Button>
+            <Button variant="outline" size="sm" onClick={exportRows} loading={exporting}>
+              <Download className="h-4 w-4" /> Export
+            </Button>
           </>
         }
       />

@@ -59,4 +59,12 @@ class AuthRepositoryImpl implements AuthRepository {
       await _tokens.saveTokens(access: access, refresh: refresh);
     }
   }
+
+  @override
+  Future<void> changePassword({required String currentPassword, required String newPassword}) async {
+    await _api.post('/auth/change-password', body: {
+      'currentPassword': currentPassword,
+      'newPassword': newPassword,
+    });
+  }
 }
