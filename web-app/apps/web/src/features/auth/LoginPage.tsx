@@ -32,21 +32,21 @@ export default function LoginPage() {
       <div className="relative hidden flex-col justify-between overflow-hidden bg-primary p-10 text-primary-foreground lg:flex">
         <div className="absolute inset-0" style={{ background: 'radial-gradient(700px 300px at 80% 0%, rgba(230,181,61,0.18), transparent 60%)' }} />
         <div className="relative flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-foreground/15">
             <svg viewBox="0 0 32 32" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M9 22V10l7 5 7-5v12" /></svg>
           </div>
           <span className="font-semibold">Workforce Admin</span>
         </div>
         <div className="relative">
           <h1 className="max-w-md text-3xl font-semibold leading-tight">Run your entire workforce from one intelligent console.</h1>
-          <p className="mt-4 max-w-md text-white/80">Employees, attendance, leave, tasks, performance and analytics — unified, secure, and AI-ready.</p>
-          <div className="mt-8 flex gap-6 text-sm text-white/80">
-            <div><p className="text-2xl font-semibold text-white">600+</p>employees</div>
-            <div><p className="text-2xl font-semibold text-white">12</p>modules</div>
-            <div><p className="text-2xl font-semibold text-white">99.9%</p>uptime target</div>
+          <p className="mt-4 max-w-md text-primary-foreground/80">Employees, attendance, leave, tasks, performance and analytics — unified, secure, and AI-ready.</p>
+          <div className="mt-8 flex gap-6 text-sm text-primary-foreground/80">
+            <div><p className="text-2xl font-semibold text-primary-foreground">600+</p>employees</div>
+            <div><p className="text-2xl font-semibold text-primary-foreground">12</p>modules</div>
+            <div><p className="text-2xl font-semibold text-primary-foreground">99.9%</p>uptime target</div>
           </div>
         </div>
-        <p className="relative text-xs text-white/60">© 2026 Workforce Management System · Confidential</p>
+        <p className="relative text-xs text-primary-foreground/70">© 2026 Workforce Management System · Confidential</p>
       </div>
 
       {/* Form panel */}
