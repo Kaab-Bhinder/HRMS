@@ -282,9 +282,19 @@ export interface TaskComment {
   createdAt: string;
 }
 
+export interface ReviewCycle {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+}
 export const performanceService = {
   reviews: (p?: ListParams) => api.get<Paginated<PerformanceReview>>(`/performance/reviews${qs(p)}`),
   goals: () => api.get<Goal[]>('/performance/goals'),
+  cycles: () => api.get<ReviewCycle[]>('/performance/cycles'),
+  createCycle: (payload: { name: string; startDate: string; endDate: string; isActive?: boolean }) =>
+    api.post<ReviewCycle>('/performance/cycles', payload),
 };
 
 export const notificationsService = {

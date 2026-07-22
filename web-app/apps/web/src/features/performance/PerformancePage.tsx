@@ -13,6 +13,10 @@ import { StatCard } from '../../components/charts/StatCard';
 import { Tabs } from '../../components/ui/Tabs';
 import { Progress } from '../../components/ui/Misc';
 import { Dropdown, DropdownItem } from '../../components/ui/Dropdown';
+import { Modal } from '../../components/ui/Modal';
+import { Input, Label } from '../../components/ui/Input';
+import { useToast } from '../../store/toast';
+import { usePermission } from '../../store/auth';
 import { EmptyState, Skeleton } from '../../components/feedback/States';
 import { useQuery } from '../../hooks/useQuery';
 import { performanceService } from '../../services';
@@ -39,7 +43,9 @@ const GOAL_PROGRESS_TONE: Record<Goal['status'], 'success' | 'primary' | 'warnin
 };
 
 export default function PerformancePage() {
+  const canManage = usePermission('performance:create');
   const [tab, setTab] = useState<'reviews' | 'goals'>('reviews');
+  const [cycleOpen, setCycleOpen] = useState(false);
 
   const [search, setSearch] = useState('');
   const debounced = useDebouncedValue(search, 300);
@@ -122,7 +128,7 @@ export default function PerformancePage() {
       <PageHeader
         title="Performance"
         description="Track review cycles, appraisal scores and goal progress across teams."
-        actions={<Button size="sm"><Play className="h-4 w-4" /> Start Review Cycle</Button>}
+        actions={canManage && <Button size="sm" onClick={() => setCycleOpen(true)}><Play className="h-4 w-4" /> Start Review Cycle</Button>}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -167,6 +173,8 @@ export default function PerformancePage() {
       ) : (
         <GoalsGrid goals={sortedGoals} loading={goalsLoading} error={goalsError} onRetry={refetchGoals} />
       )}
+
+      <StartCycleModal open={cycleOpen} onClose={() => setCycleOpen(false)} onCreated={() => { setCycleOpen(false); refetch(); }} />
     </div>
   );
 }
@@ -231,5 +239,67 @@ function GoalsGrid({ goals, loading, error, onRetry }: { goals?: Goal[]; loading
         );
       })}
     </div>
+  );
+}
+
+function StartCycleModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!name.trim() || !startDate || !endDate) {
+      toast.error('Missing fields', 'Give the cycle a name and a date range.');
+      return;
+    }
+    if (endDate < startDate) {
+      toast.error('Invalid range', 'End date must be on or after the start date.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await performanceService.createCycle({ name: name.trim(), startDate, endDate, isActive: true });
+      toast.success('Review cycle started', `${name.trim()} is now open.`);
+      onCreated();
+      setName(''); setStartDate(''); setEndDate('');
+    } catch (e) {
+      toast.error('Could not start cycle', (e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Start review cycle"
+      description="Open an appraisal window. Reviewers then score their team within these dates."
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={save} loading={saving}>Start cycle</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="cycle-name" required>Cycle name</Label>
+          <Input id="cycle-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. H2 2026 Appraisal" />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="cycle-start" required>Start date</Label>
+            <Input id="cycle-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </div>
+          <div>
+            <Label htmlFor="cycle-end" required>End date</Label>
+            <Input id="cycle-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
