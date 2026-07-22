@@ -12,6 +12,8 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/ambient_background.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/pressable.dart';
+import '../../../core/theme/app_shadows.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../../../core/widgets/app_states.dart';
 import '../../../core/widgets/hero_surface.dart';
@@ -20,6 +22,7 @@ import '../../../core/widgets/status_pill.dart';
 import '../domain/task_item.dart';
 import 'task_ui.dart';
 import 'tasks_controller.dart';
+import '../../../core/i18n/app_i18n.dart';
 
 class TasksScreen extends ConsumerStatefulWidget {
   const TasksScreen({super.key});
@@ -268,10 +271,28 @@ class _FilterChips extends StatelessWidget {
   }
 }
 
+/// Task row with a priority-coloured spine down the left edge.
+///
+/// The spine carries urgency at a glance while the card body stays neutral —
+/// a full-colour card per priority would make a scrolling list unreadable.
 class _TaskCard extends StatelessWidget {
   const _TaskCard({required this.task, required this.onTap});
   final TaskItem task;
   final VoidCallback onTap;
+
+  Color _spine(BuildContext context) {
+    final c = context.colors;
+    switch (task.priority) {
+      case 'urgent':
+        return c.danger;
+      case 'high':
+        return c.warning;
+      case 'low':
+        return c.success;
+      default:
+        return c.info;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -279,31 +300,80 @@ class _TaskCard extends StatelessWidget {
     final st = statusMeta(task.status);
     final pr = priorityMeta(task.priority);
     final tl = timeLeftMeta(task.dueDate, task.isDone);
-    return AppCard(
+
+    return Pressable(
       onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(child: Text(task.title, style: context.text.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis)),
-              const SizedBox(width: AppSpacing.sm),
-              StatusPill(pr.label, tone: pr.tone, dot: false),
-            ],
+      scale: 0.985,
+      child: Container(
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: AppRadius.rXl,
+          border: Border.all(color: c.border),
+          boxShadow: AppShadows.card(c.shadow, dark: context.isDark),
+        ),
+        child: ClipRRect(
+          borderRadius: AppRadius.rXl,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 4, color: _spine(context)),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                task.departmentName ?? 'Task',
+                                style: context.text.labelSmall?.copyWith(
+                                    color: c.mutedForeground, letterSpacing: 0.2),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              pr.label.toUpperCase(),
+                              style: context.text.labelSmall?.copyWith(
+                                  color: _spine(context), letterSpacing: 0.6),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(task.title,
+                            style: context.text.titleMedium,
+                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: AppSpacing.md),
+                        Row(
+                          children: [
+                            Icon(Icons.schedule_rounded, size: 14, color: c.mutedForeground),
+                            const SizedBox(width: 5),
+                            Text(
+                              tl?.label ?? (task.dueDate == null
+                                  ? 'No due date'
+                                  : DateFormat('d MMM').format(task.dueDate!)),
+                              style: context.text.bodySmall?.copyWith(
+                                  color: tl != null && tl.tone == PillTone.danger
+                                      ? c.danger
+                                      : c.mutedForeground),
+                            ),
+                            const Spacer(),
+                            StatusPill(st.label, tone: st.tone),
+                            const SizedBox(width: 4),
+                            Icon(Icons.chevron_right_rounded, size: 18, color: c.mutedForeground),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          if (task.description != null && task.description!.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(task.description!, style: context.text.bodySmall?.copyWith(color: c.mutedForeground), maxLines: 1, overflow: TextOverflow.ellipsis),
-          ],
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              StatusPill(st.label, tone: st.tone),
-              const Spacer(),
-              if (tl != null) StatusPill(tl.label, tone: tl.tone, icon: Icons.alarm_rounded),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -318,6 +388,26 @@ class _TaskDetailSheet extends ConsumerStatefulWidget {
 
 class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
   bool _busy = false;
+
+  /// The list endpoint does not resolve who assigned the task, so the sheet
+  /// fetches the full record on open. Falls back to the list copy if that call
+  /// fails — a missing assigner should not blank the sheet.
+  late TaskItem _task = widget.task;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDetail();
+  }
+
+  Future<void> _loadDetail() async {
+    try {
+      final full = await ref.read(taskRepositoryProvider).getOne(widget.task.id);
+      if (mounted) setState(() => _task = full);
+    } catch (_) {
+      // Keep the list copy.
+    }
+  }
 
   /// Status changes an assignee may make directly.
   ///
@@ -406,6 +496,38 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
             const SizedBox(height: AppSpacing.lg),
             Text(t.description!, style: context.text.bodyMedium?.copyWith(height: 1.5)),
           ],
+          if ((_task.assignedByName ?? '').isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            Text(context.tr('Assigned by'), style: context.text.labelSmall?.copyWith(color: c.mutedForeground)),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Container(
+                  height: 38,
+                  width: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: c.primaryGradient,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _initialsOf(_task.assignedByName!),
+                      style: context.text.titleSmall
+                          ?.copyWith(color: c.primaryForeground, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(_task.assignedByName!, style: context.text.titleSmall),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: AppSpacing.xl),
           for (final a in _actions(t.status)) ...[
             AppButton(
@@ -455,6 +577,13 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
 /// Attachments upload as they are picked rather than on submit, so a large
 /// photo on a poor connection cannot silently lose the written note — by the
 /// time the note is sent, the files are already on the server.
+String _initialsOf(String name) {
+  final parts = name.trim().split(RegExp(r'\s+'));
+  final a = parts.isNotEmpty && parts[0].isNotEmpty ? parts[0][0] : '';
+  final b = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+  return (a + b).toUpperCase();
+}
+
 class _SubmitReportSheet extends ConsumerStatefulWidget {
   const _SubmitReportSheet({required this.task});
   final TaskItem task;
@@ -561,14 +690,14 @@ class _SubmitReportSheetState extends ConsumerState<_SubmitReportSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.xl),
-            Text('Submit report', style: context.text.titleLarge),
+            Text(context.tr('Submit report'), style: context.text.titleLarge),
             const SizedBox(height: 2),
             Text(widget.task.title,
                 style: context.text.bodySmall?.copyWith(color: c.mutedForeground),
                 maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: AppSpacing.lg),
 
-            Text('What did you do?', style: context.text.titleSmall),
+            Text(context.tr('What did you do?'), style: context.text.titleSmall),
             const SizedBox(height: 6),
             TextField(
               controller: _note,
@@ -587,7 +716,7 @@ class _SubmitReportSheetState extends ConsumerState<_SubmitReportSheet> {
                   child: OutlinedButton.icon(
                     onPressed: _uploading ? null : () => _attach(ImageSource.camera),
                     icon: const Icon(Icons.photo_camera_rounded, size: 18),
-                    label: const Text('Camera'),
+                    label: Text(context.tr('Camera')),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -595,7 +724,7 @@ class _SubmitReportSheetState extends ConsumerState<_SubmitReportSheet> {
                   child: OutlinedButton.icon(
                     onPressed: _uploading ? null : () => _attach(ImageSource.gallery),
                     icon: const Icon(Icons.attach_file_rounded, size: 18),
-                    label: const Text('Gallery'),
+                    label: Text(context.tr('Gallery')),
                   ),
                 ),
               ],
@@ -641,7 +770,7 @@ class _SubmitReportSheetState extends ConsumerState<_SubmitReportSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('The work is finished', style: context.text.titleSmall),
+                          Text(context.tr('The work is finished'), style: context.text.titleSmall),
                           Text('Sends it to your department head to confirm',
                               style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
                         ],
@@ -651,7 +780,28 @@ class _SubmitReportSheetState extends ConsumerState<_SubmitReportSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.xl),
+            const SizedBox(height: AppSpacing.md),
+            // States the rule before they tap, not after the status surprises
+            // them: an assignee cannot close their own task.
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: c.tint(c.info, 0.10),
+                borderRadius: AppRadius.rLg,
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.shield_outlined, size: 16, color: c.info),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(context.tr('You cannot mark your own task done. Finished work moves to In Review.'),
+                      style: context.text.bodySmall?.copyWith(color: c.foreground),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
             AppButton(label: 'Send to department head', loading: _busy, onPressed: _busy ? null : _submit),
           ],
         ),

@@ -8,6 +8,7 @@ import '../../data/location_service.dart';
 import '../../data/selfie_service.dart';
 import '../../domain/entities/today_status.dart';
 import '../../domain/repositories/attendance_repository.dart';
+import '../../domain/entities/geo_point.dart';
 
 final attendanceRepositoryProvider = Provider<AttendanceRepository>((ref) {
   return AttendanceRepositoryImpl(ref.watch(apiClientProvider));
@@ -56,6 +57,29 @@ class TodayController extends AsyncNotifier<TodayStatus> {
     state = AsyncData(updated);
     return checkIn;
   }
+
+  /// Completes a check-in whose selfie and GPS fix were already gathered by the
+  /// stepped sheet.
+  ///
+  /// The one-shot [togglePunch] captures both itself, which is right for a
+  /// single tap. The guided flow collects them across three screens and needs to
+  /// commit what the user already reviewed — re-capturing at the end would
+  /// re-open the camera after they had confirmed.
+  Future<void> commitCheckIn({required String faceImageKey, required GeoPoint fix}) async {
+    final updated = await _repo.punch(
+      kind: PunchKind.checkIn,
+      location: fix,
+      faceImageKey: faceImageKey,
+    );
+    state = AsyncData(updated);
+  }
+
+  /// Uploads a captured selfie and returns its storage key.
+  Future<String> uploadSelfie(Uint8List bytes) => _repo.uploadSelfie(bytes);
+
+  /// Current GPS fix, exposed so the sheet can show where the user is before
+  /// committing.
+  Future<GeoPoint> currentPosition() => _location.currentPosition();
 
   /// Starts or ends a break. Returns true if a break was just started.
   Future<bool> toggleBreak() async {

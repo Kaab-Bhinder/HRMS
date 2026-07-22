@@ -1,15 +1,16 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/network/api_exception.dart';
-import '../../../../core/theme/app_assets.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_shadows.dart';
+import '../../../../core/widgets/ambient_background.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_snackbar.dart';
 import '../providers/auth_controller.dart';
+import '../../../../core/i18n/app_i18n.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -64,30 +65,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final dark = context.isDark;
     return Scaffold(
       resizeToAvoidBottomInset: true,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Softly-blurred backdrop so the glass card is the clear focal point.
-          // Slight over-scale hides the blur's edge falloff.
-          ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: 16, sigmaY: 16, tileMode: TileMode.clamp),
-            child: Transform.scale(
-              scale: 1.12,
-              child: Image.asset(AppAssets.authBackground(Theme.of(context).brightness), fit: BoxFit.cover),
-            ),
-          ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: dark
-                    ? [Colors.black.withValues(alpha: 0.55), Colors.black.withValues(alpha: 0.75)]
-                    : [Colors.white.withValues(alpha: 0.35), Colors.white.withValues(alpha: 0.6)],
-              ),
-            ),
-          ),
-          SafeArea(
+      // Solid theme surfaces instead of a translucent card over a photo: text
+      // now sits on the same foreground/surface tokens every other screen uses,
+      // so contrast is guaranteed in both light and dark rather than fighting a
+      // busy background image.
+      body: AmbientBackground(
+        child: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(AppSpacing.screen, AppSpacing.xl3, AppSpacing.screen, AppSpacing.xl),
               child: Column(
@@ -98,12 +81,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       children: [
                         Center(child: _BankMedallion(color: c.primary)),
                         const SizedBox(height: AppSpacing.xl),
-                        Text('Welcome back', textAlign: TextAlign.center, style: context.text.displaySmall?.copyWith(color: c.primary, fontWeight: FontWeight.w800)),
+                        Text(context.tr('Welcome back'), textAlign: TextAlign.center, style: context.text.displaySmall?.copyWith(color: c.primary, fontWeight: FontWeight.w800)),
                         const SizedBox(height: AppSpacing.sm),
-                        Text('Enter your credentials to access Workforce',
+                        Text(context.tr('Enter your credentials to access Workforce'),
                             textAlign: TextAlign.center, style: context.text.bodyMedium?.copyWith(color: c.mutedForeground)),
                         const SizedBox(height: AppSpacing.xl2),
-                        _Label('EMAIL ADDRESS'),
+                        _Label(context.tr('Email address').toUpperCase()),
                         const SizedBox(height: AppSpacing.sm),
                         _GlassField(
                           controller: _email,
@@ -118,7 +101,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const SizedBox(height: AppSpacing.lg),
                         Row(
                           children: [
-                            _Label('PASSWORD'),
+                            _Label(context.tr('Password').toUpperCase()),
                             const Spacer(),
                             GestureDetector(
                               onTap: () => _soon('Password reset'),
@@ -143,7 +126,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                         ),
                         const SizedBox(height: AppSpacing.xl2),
-                        AppButton(label: 'Sign in', icon: Icons.arrow_forward_rounded, loading: _loading, onPressed: _submit),
+                        AppButton(label: context.tr('Sign in'), icon: Icons.arrow_forward_rounded, loading: _loading, onPressed: _submit),
                       ],
                     ),
                   ).animate().fadeIn(duration: 500.ms).moveY(begin: 16, end: 0, curve: Curves.easeOutCubic),
@@ -152,35 +135,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ],
               ),
             ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Frosted-glass container — the banking-grade card treatment.
+/// Solid surface card — legible in both themes because it uses the same
+/// surface/border tokens as the rest of the app rather than translucency.
 class _GlassCard extends StatelessWidget {
   const _GlassCard({required this.child});
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final dark = context.isDark;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.xl2),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.xl2),
-          decoration: BoxDecoration(
-            color: dark ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.62),
-            borderRadius: BorderRadius.circular(AppRadius.xl2),
-            border: Border.all(color: dark ? Colors.white.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.7)),
-          ),
-          child: child,
-        ),
+    final c = context.colors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.xl2),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(AppRadius.xl2),
+        border: Border.all(color: c.border),
+        boxShadow: AppShadows.raised(c.shadow, dark: context.isDark),
       ),
+      child: child,
     );
   }
 }
@@ -242,9 +220,8 @@ class _GlassField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final dark = context.isDark;
-    final fill = dark ? Colors.white.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.55);
-    final border = error != null ? c.danger : (dark ? Colors.white.withValues(alpha: 0.14) : c.border);
+    final fill = c.muted;
+    final border = error != null ? c.danger : c.border;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -284,7 +261,7 @@ class _Footer extends StatelessWidget {
   final bool dark;
   @override
   Widget build(BuildContext context) {
-    final onImg = dark ? Colors.white.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.55);
+    final onImg = context.colors.mutedForeground;
     final style = context.text.bodySmall?.copyWith(color: onImg);
     return Column(
       children: [

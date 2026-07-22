@@ -29,23 +29,14 @@ const TABS: { value: string; label: string }[] = [
   { value: 'rejected', label: 'Rejected' },
 ];
 
-const TYPE_OPTIONS = [
-  { value: 'Annual', label: 'Annual' },
-  { value: 'Sick', label: 'Sick' },
-  { value: 'Casual', label: 'Casual' },
-  { value: 'Unpaid', label: 'Unpaid' },
-];
-
-const TYPE_TONE: Record<string, 'primary' | 'info' | 'accent' | 'neutral'> = {
-  Annual: 'primary', Sick: 'info', Casual: 'accent', Unpaid: 'neutral',
-};
-
-const BALANCES = [
-  { label: 'Annual', used: 12, total: 20, tone: 'primary' as const },
-  { label: 'Sick', used: 4, total: 10, tone: 'success' as const },
-  { label: 'Casual', used: 3, total: 8, tone: 'warning' as const },
-  { label: 'Unpaid', used: 1, total: 5, tone: 'danger' as const },
-];
+// Only Annual and Sick exist by policy; the type list is fetched from the API
+// rather than hardcoded so this page can never drift from what the system
+// actually offers (the previous hardcoded Casual/Unpaid did exactly that).
+type BarTone = 'primary' | 'success' | 'warning' | 'danger';
+const TYPE_TONE: Record<string, BarTone> = { Annual: 'primary', Sick: 'success' };
+function typeTone(name: string): BarTone {
+  return TYPE_TONE[name] ?? 'warning';
+}
 
 export default function LeavePage() {
   const toast = useToast();
@@ -75,6 +66,18 @@ export default function LeavePage() {
 
   // Unfiltered set for headline stats
   const { data: all, loading: statsLoading } = useQuery(() => leaveService.list({ limit: 500 }), []);
+  const { data: leaveTypes } = useQuery(() => leaveService.types(), []);
+
+  const typeOptions = (leaveTypes ?? []).map((t) => ({ value: t.name, label: t.name }));
+
+  // Org-wide per-type summary, derived from actual requests — approved days and
+  // still-pending days across everyone. No invented allowance.
+  const typeSummary = (leaveTypes ?? []).map((t) => {
+    const rows = (all?.data ?? []).filter((r) => r.leaveType === t.name);
+    const approved = rows.filter((r) => r.status === 'approved').reduce((n, r) => n + Number(r.days || 0), 0);
+    const pending = rows.filter((r) => r.status === 'pending').reduce((n, r) => n + Number(r.days || 0), 0);
+    return { name: t.name, approved, pending, tone: typeTone(t.name) };
+  });
   const stats = useMemo(() => {
     const rows = all?.data ?? [];
     const now = new Date();
@@ -114,7 +117,7 @@ export default function LeavePage() {
       ),
     },
     { key: 'departmentName', header: 'Department', render: (r) => <span className="text-muted-foreground">{r.departmentName}</span> },
-    { key: 'leaveType', header: 'Type', render: (r) => <Badge tone={TYPE_TONE[r.leaveType] ?? 'neutral'}>{r.leaveType}</Badge> },
+    { key: 'leaveType', header: 'Type', render: (r) => <Badge tone={r.leaveType === 'Sick' ? 'info' : 'primary'}>{r.leaveType}</Badge> },
     {
       key: 'startDate', header: 'Dates', sortable: true,
       render: (r) => <span className="whitespace-nowrap text-foreground">{formatDate(r.startDate)} – {formatDate(r.endDate)}</span>,
@@ -157,16 +160,25 @@ export default function LeavePage() {
       </div>
 
       <Card>
-        <CardBody className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {BALANCES.map((b) => (
-            <div key={b.label}>
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm font-medium text-foreground">{b.label}</span>
-                <span className="text-xs tabular-nums text-muted-foreground">{b.used}/{b.total} used</span>
-              </div>
-              <Progress value={(b.used / b.total) * 100} tone={b.tone} className="mt-2" />
-            </div>
-          ))}
+        <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {typeSummary.length === 0 ? (
+            <span className="text-sm text-muted-foreground">No leave types configured.</span>
+          ) : (
+            typeSummary.map((b) => {
+              const total = b.approved + b.pending;
+              return (
+                <div key={b.name}>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm font-medium text-foreground">{b.name}</span>
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {b.approved} approved · {b.pending} pending
+                    </span>
+                  </div>
+                  <Progress value={total === 0 ? 0 : (b.approved / total) * 100} tone={b.tone} className="mt-2" />
+                </div>
+              );
+            })
+          )}
         </CardBody>
       </Card>
 
@@ -176,7 +188,7 @@ export default function LeavePage() {
         search={search}
         onSearch={(v) => { setSearch(v); setPage(1); }}
         searchPlaceholder="Search employee, department…"
-        filters={[{ key: 'leaveType', placeholder: 'All leave types', value: typeFilter, options: TYPE_OPTIONS }]}
+        filters={[{ key: 'leaveType', placeholder: 'All leave types', value: typeFilter, options: typeOptions }]}
         onFilterChange={(_, v) => { setTypeFilter(v); setPage(1); }}
         onClear={clear}
       />
@@ -244,7 +256,7 @@ function LeaveDetailModal({
         </div>
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-          <Detail label="Type" value={<Badge tone={TYPE_TONE[request.leaveType] ?? 'neutral'}>{request.leaveType}</Badge>} />
+          <Detail label="Type" value={<Badge tone={request.leaveType === 'Sick' ? 'info' : 'primary'}>{request.leaveType}</Badge>} />
           <Detail label="Duration" value={<span className="text-foreground">{request.days} {request.days === 1 ? 'day' : 'days'}</span>} />
           <Detail label="Start Date" value={<span className="text-foreground">{formatDate(request.startDate)}</span>} />
           <Detail label="End Date" value={<span className="text-foreground">{formatDate(request.endDate)}</span>} />

@@ -46,6 +46,7 @@ export class PayrollService {
     return {
       year,
       month,
+      currency: await this.currency(user.organizationId),
       officeHoursPerDay: round2(officeMinutes / 60),
       workingDaysTotal,
       rows: employees.map((e) => this.summarize(e, byEmp.get(e.id) ?? [], officeMinutes, workingDaysTotal)),
@@ -76,6 +77,7 @@ export class PayrollService {
 
     return {
       ...summary,
+      currency: await this.currency(user.organizationId),
       year,
       month,
       officeHoursPerDay: round2(officeMinutes / 60),
@@ -149,6 +151,15 @@ export class PayrollService {
     }
     const emp = await this.prisma.employee.findFirst({ where: { id: employeeId, departmentId: { in: dataScope.departmentIds } }, select: { id: true } });
     if (!emp) throw new BadRequestException('This employee is not in your team');
+  }
+
+  /** ISO currency for money in this payroll. Stored on the organization. */
+  private async currency(orgId: string): Promise<string> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { currency: true },
+    });
+    return org?.currency ?? 'USD';
   }
 
   private async officeMinutesPerDay(orgId: string): Promise<number> {

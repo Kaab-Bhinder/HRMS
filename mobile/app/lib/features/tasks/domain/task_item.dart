@@ -10,6 +10,7 @@ class TaskItem {
     this.departmentName,
     this.dueDate,
     this.assignees = const [],
+    this.assignedByName,
   });
 
   final String id;
@@ -21,6 +22,10 @@ class TaskItem {
   final String? departmentName;
   final DateTime? dueDate;
   final List<String> assignees;
+
+  /// Who handed the task out. Null on the list endpoint — only the detail
+  /// endpoint resolves it, so the sheet fetches fresh when opened.
+  final String? assignedByName;
 
   bool get isDone => status == 'done';
   bool get isOpen => status != 'done' && status != 'cancelled';

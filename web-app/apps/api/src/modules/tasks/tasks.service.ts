@@ -48,7 +48,21 @@ export class TasksService {
 
   async get(orgId: string, id: string) {
     const task = await this.findOrThrow(orgId, id);
-    return this.serialize(task);
+
+    // Who handed this work out. The assignee needs it so "who do I report back
+    // to" is answerable from the task itself rather than assumed to be their
+    // department head — which is usually true but not always.
+    const assignedById = (task as any).assignments?.map((a: any) => a.assignedById).find(Boolean);
+    let assignedByName: string | null = null;
+    if (assignedById) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: assignedById },
+        select: { fullName: true },
+      });
+      assignedByName = user?.fullName ?? null;
+    }
+
+    return this.serialize({ ...task, assignedByName });
   }
 
   async create(orgId: string, userId: string, dto: CreateTaskDto) {
@@ -352,6 +366,9 @@ export class TasksService {
         id: a.employee.id,
         name: `${a.employee.firstName} ${a.employee.lastName}`,
       })),
+      // Resolved separately in findOne — assignedById is a bare column with no
+      // Prisma relation, so it cannot be `include`d without a schema migration.
+      assignedByName: t.assignedByName ?? null,
       dueDate: t.dueDate,
       completedAt: t.completedAt ?? null,
       createdAt: t.createdAt,

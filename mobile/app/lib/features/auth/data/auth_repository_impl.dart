@@ -67,4 +67,17 @@ class AuthRepositoryImpl implements AuthRepository {
       'newPassword': newPassword,
     });
   }
+
+  @override
+  Future<List<AuthSession>> sessions() async {
+    final data = await _api.get('/auth/sessions');
+    final rows = data is List ? data : const [];
+    return rows.map((e) => AuthSession.fromJson((e as Map).cast<String, dynamic>())).toList();
+  }
+
+  @override
+  Future<void> revokeSession(String id) => _api.delete('/auth/sessions/$id');
+
+  @override
+  Future<void> revokeOtherSessions() => _api.delete('/auth/sessions/others');
 }

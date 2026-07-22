@@ -227,14 +227,36 @@ async function main() {
       const e = pick(pool);
       const startOff = i < 6 ? 3 + rnd(20) : -(10 + rnd(40)); // first 6 upcoming/pending, rest past
       const len = 1 + rnd(4);
+      const status = i < 6 ? 'pending' : 'approved';
       await prisma.leaveRequest.create({
         data: {
           organizationId: orgId, employeeId: e.id, leaveTypeId: annual.id,
           startDate: utcDay(startOff), endDate: utcDay(startOff + len - 1), days: len,
           reason: pick(['Family event', 'Medical', 'Vacation', 'Personal', 'Wedding']),
-          status: i < 6 ? 'pending' : 'approved',
+          status,
           decidedAt: i < 6 ? null : new Date(),
         },
+      });
+
+      // Keep the balance in step with the request. Writing requests straight to
+      // the DB bypasses LeaveService, which is what normally moves days into
+      // `taken`/`pending` — without this the Leave screen shows "6 of 6 days
+      // left" directly above an approved 4-day request, which reads as a bug.
+      await prisma.leaveBalance.upsert({
+        where: {
+          employeeId_leaveTypeId_year: {
+            employeeId: e.id, leaveTypeId: annual.id, year: new Date().getUTCFullYear(),
+          },
+        },
+        create: {
+          organizationId: orgId, employeeId: e.id, leaveTypeId: annual.id,
+          year: new Date().getUTCFullYear(),
+          taken: status === 'approved' ? len : 0,
+          pending: status === 'pending' ? len : 0,
+        },
+        update: status === 'approved'
+            ? { taken: { increment: len } }
+            : { pending: { increment: len } },
       });
     }
   }

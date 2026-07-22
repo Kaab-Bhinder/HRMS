@@ -35,6 +35,14 @@ class AuthInterceptor extends Interceptor {
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
     }
+    // Identifies *this* session to the session endpoints. Web does it with an
+    // httpOnly cookie; mobile has no cookie jar, so without this header the API
+    // cannot tell which device is calling — every session looked foreign and
+    // "sign out other devices" signed the caller out of their own app.
+    final refresh = storage.refreshToken;
+    if (refresh != null && refresh.isNotEmpty) {
+      options.headers['x-refresh-token'] = refresh;
+    }
     handler.next(options);
   }
 

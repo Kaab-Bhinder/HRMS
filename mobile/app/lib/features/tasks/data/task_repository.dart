@@ -11,6 +11,13 @@ class TaskRepository {
     return data.map((e) => _fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  /// Full detail for one task. The list endpoint omits `assignedByName`, which
+  /// the API only resolves per-task, so the detail sheet re-fetches on open.
+  Future<TaskItem> getOne(String id) async {
+    final data = await _api.get('/tasks/$id') as Map<String, dynamic>;
+    return _fromJson(data);
+  }
+
   Future<void> updateStatus(String id, String status) async {
     await _api.patch('/tasks/$id/status', body: {'status': status});
   }
@@ -67,6 +74,7 @@ class TaskRepository {
       departmentName: j['departmentName']?.toString(),
       dueDate: j['dueDate'] == null ? null : DateTime.tryParse(j['dueDate'].toString())?.toLocal(),
       assignees: (j['assignees'] as List?)?.map((a) => (a['name'] ?? '').toString()).toList() ?? const [],
+      assignedByName: j['assignedByName']?.toString(),
     );
   }
 }

@@ -46,6 +46,19 @@ export class AuthController {
     });
   }
 
+  /// The caller's refresh token.
+  ///
+  /// Web keeps it in an httpOnly cookie; mobile has no cookie jar and holds it
+  /// in secure storage, sending it as `x-refresh-token`. Without the mobile
+  /// path, session endpoints cannot tell which session is "this" one — every
+  /// device looked foreign, and "sign out other devices" logged the caller out
+  /// of their own app.
+  private rawRefresh(req: Request): string | undefined {
+    const header = req.headers['x-refresh-token'];
+    const fromHeader = Array.isArray(header) ? header[0] : header;
+    return req.cookies?.[this.cookieName()] ?? fromHeader ?? undefined;
+  }
+
   private meta(req: Request) {
     return { userAgent: req.headers['user-agent'], ipAddress: req.ip };
   }
@@ -88,8 +101,7 @@ export class AuthController {
     // Not @Public: the caller must already be signed in. The current refresh
     // token identifies this session so it survives while every other one is
     // revoked.
-    const currentRefresh = req.cookies?.[this.cookieName()];
-    return this.auth.changePassword(userId, dto.currentPassword, dto.newPassword, currentRefresh);
+    return this.auth.changePassword(userId, dto.currentPassword, dto.newPassword, this.rawRefresh(req));
   }
 
   @Public()
@@ -112,14 +124,14 @@ export class AuthController {
   @Get('sessions')
   @ApiOperation({ summary: 'List the current user’s active sessions (devices)' })
   async listSessions(@CurrentUser('id') userId: string, @Req() req: Request) {
-    const currentFamily = await this.tokens.familyFromToken(req.cookies?.[this.cookieName()]);
+    const currentFamily = await this.tokens.familyFromToken(this.rawRefresh(req));
     return this.sessions.list(userId, currentFamily);
   }
 
   @Delete('sessions/others')
   @ApiOperation({ summary: 'Sign out of every other session, keeping the current one' })
   async revokeOtherSessions(@CurrentUser('id') userId: string, @Req() req: Request) {
-    const currentFamily = await this.tokens.familyFromToken(req.cookies?.[this.cookieName()]);
+    const currentFamily = await this.tokens.familyFromToken(this.rawRefresh(req));
     return this.sessions.revokeAll(userId, currentFamily);
   }
 

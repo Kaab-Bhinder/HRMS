@@ -9,6 +9,7 @@ import '../../core/widgets/ambient_background.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_states.dart';
 import '../../core/widgets/skeleton.dart';
+import '../../core/i18n/app_i18n.dart';
 
 /// One in-app notification.
 class AppNotification {
@@ -77,10 +78,10 @@ class NotificationsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text(context.tr('Notifications')),
         actions: [
           if (unread > 0)
-            TextButton(onPressed: () => _markAll(ref), child: const Text('Mark all read')),
+            TextButton(onPressed: () => _markAll(ref), child: Text(context.tr('Mark all read'))),
         ],
       ),
       body: AmbientBackground(

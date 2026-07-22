@@ -32,7 +32,9 @@ class Payslip {
     required this.daysPresent,
     required this.lateMinutes,
     required this.officeHoursPerDay,
+    required this.workedHours,
     required this.payPerHour,
+    required this.currency,
     required this.days,
   });
 
@@ -43,7 +45,15 @@ class Payslip {
   final int daysPresent;
   final int lateMinutes;
   final double officeHoursPerDay;
+
+  /// Hours actually worked, before the office-hours cap. Shown next to
+  /// payableHours so the cap is visible rather than looking like lost time.
+  final double workedHours;
   final double? payPerHour;
+
+  /// ISO code from the organization (e.g. PKR). The API sends it so the app
+  /// never has to guess — a wrong symbol on a payslip is worse than none.
+  final String currency;
   final List<PayslipDay> days;
 
   bool get hasRate => payPerHour != null;
@@ -57,7 +67,9 @@ class Payslip {
       daysPresent: asInt(j['daysPresent'], 0),
       lateMinutes: asInt(j['lateMinutes'], 0),
       officeHoursPerDay: asDouble(j['officeHoursPerDay'], 8),
+      workedHours: asDouble(j['workedHours'], 0),
       payPerHour: asDoubleOrNull(j['payPerHour']),
+      currency: j['currency']?.toString() ?? '',
       days: (j['days'] as List?)?.map((e) => PayslipDay.fromJson((e as Map).cast<String, dynamic>())).toList().reversed.toList() ?? const [],
     );
   }

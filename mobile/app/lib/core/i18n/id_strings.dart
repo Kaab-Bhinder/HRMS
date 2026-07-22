@@ -1,0 +1,208 @@
+/// Bahasa Indonesia translations, keyed by the English source string.
+///
+/// Same convention as the web dashboard's `id.ts`: a missing key falls back to
+/// English, so partial coverage degrades gracefully. Keep keys byte-identical
+/// to what `context.tr('...')` passes, including punctuation and casing.
+const Map<String, String> idStrings = {
+  // --- Navigation ---
+  'Home': 'Beranda',
+  'Attendance': 'Kehadiran',
+  'Leave': 'Cuti',
+  'Tasks': 'Tugas',
+  'Profile': 'Profil',
+
+  // --- Common ---
+  'Cancel': 'Batal',
+  'Save': 'Simpan',
+  'Confirm': 'Konfirmasi',
+  'Close': 'Tutup',
+  'Retry': 'Coba lagi',
+  'Loading…': 'Memuat…',
+  'See all': 'Lihat semua',
+  'Sign out': 'Keluar',
+  'day': 'hari',
+  'days': 'hari',
+  'min': 'mnt',
+
+  // --- Login ---
+  'Welcome back': 'Selamat datang kembali',
+  'Enter your credentials to access Workforce': 'Masukkan kredensial Anda untuk mengakses Workforce',
+  'Work email': 'Email kerja',
+  'Email address': 'Alamat email',
+  'Password': 'Kata sandi',
+  'Sign in': 'Masuk',
+  'This account is not permitted to access the mobile application.':
+      'Akun ini tidak diizinkan mengakses aplikasi seluler.',
+
+  // --- Home ---
+  'Good morning': 'Selamat pagi',
+  'Good afternoon': 'Selamat siang',
+  'Good evening': 'Selamat malam',
+  "TODAY'S ATTENDANCE": 'KEHADIRAN HARI INI',
+  'Checked in': 'Sudah absen masuk',
+  'Not checked in': 'Belum absen',
+  'On break': 'Istirahat',
+  'Checked out': 'Sudah absen keluar',
+  "You're checked in": 'Anda sudah absen masuk',
+  'Ready to start': 'Siap memulai',
+  'Day complete': 'Hari selesai',
+  'On a break': 'Sedang istirahat',
+  'First in': 'Masuk pertama',
+  'Last out': 'Keluar terakhir',
+  'Check in': 'Absen masuk',
+  'Check out': 'Absen keluar',
+  'Break': 'Istirahat',
+  'This week': 'Minggu ini',
+  'Quick actions': 'Aksi cepat',
+  'Payslip': 'Slip gaji',
+  'Documents': 'Dokumen',
+  'Coming soon': 'Segera hadir',
+  'present this month': 'hadir bulan ini',
+  'annual leave left': 'sisa cuti tahunan',
+  'this month so far': 'bulan ini sejauh ini',
+  'Your team': 'Tim Anda',
+  'Your department': 'Departemen Anda',
+  'Your approver': 'Penyetuju Anda',
+  'Members': 'Anggota',
+  'Approvals': 'Persetujuan',
+  'Active tasks': 'Tugas aktif',
+
+  // --- Check-in sheet ---
+  'Take a quick selfie': 'Ambil swafoto singkat',
+  "A photo is required to confirm it's you.": 'Foto diperlukan untuk memastikan ini Anda.',
+  'Open camera': 'Buka kamera',
+  'Confirm your location': 'Konfirmasi lokasi Anda',
+  'Your GPS position is recorded with this attendance entry.':
+      'Posisi GPS Anda dicatat bersama entri kehadiran ini.',
+  'Use current location': 'Gunakan lokasi saat ini',
+  'Everything looks good': 'Semuanya terlihat baik',
+  "You're ready to check in.": 'Anda siap untuk absen masuk.',
+  "You're outside the office area": 'Anda di luar area kantor',
+  'You can still check in. HR will review this entry.':
+      'Anda tetap bisa absen. HR akan meninjau entri ini.',
+  'Inside office area': 'Di dalam area kantor',
+  'Confirm check in': 'Konfirmasi absen masuk',
+  'A selfie is needed to check in.': 'Swafoto diperlukan untuk absen masuk.',
+  'Checked in — have a great day!': 'Absen masuk — semoga harimu menyenangkan!',
+
+  // --- Attendance ---
+  'My Attendance': 'Kehadiran Saya',
+  'Your check-ins, hours and flags': 'Absensi, jam, dan tanda Anda',
+  'Daily record': 'Catatan harian',
+  'How flags work': 'Cara kerja tanda',
+  'Present': 'Hadir',
+  'Late': 'Terlambat',
+  'Absent': 'Tidak hadir',
+  'Half day': 'Setengah hari',
+  'On leave': 'Cuti',
+  'Off': 'Libur',
+  'No records': 'Tidak ada catatan',
+  'A flagged day is not a penalty. Your attendance was recorded normally — it is simply marked for HR to look at.':
+      'Hari yang ditandai bukan hukuman. Kehadiran Anda tercatat normal — hanya ditandai untuk ditinjau HR.',
+  'Nothing is deducted automatically. Speak to HR if a flag looks wrong.':
+      'Tidak ada potongan otomatis. Hubungi HR jika sebuah tanda tampak keliru.',
+
+  // --- Leave ---
+  'ANNUAL LEAVE': 'CUTI TAHUNAN',
+  'Annual': 'Tahunan',
+  'Sick': 'Sakit',
+  'Apply for leave': 'Ajukan cuti',
+  'Your requests': 'Pengajuan Anda',
+  'Request time off and track approvals': 'Ajukan cuti dan pantau persetujuan',
+  'Taken': 'Terpakai',
+  'Pending': 'Menunggu',
+  'Approved': 'Disetujui',
+  'Rejected': 'Ditolak',
+  'Available': 'Tersedia',
+  'Days are deducted only once your head approves.':
+      'Hari hanya dipotong setelah atasan Anda menyetujui.',
+  'No leave requests': 'Tidak ada pengajuan cuti',
+  'Withdraw': 'Tarik',
+  'Withdraw request?': 'Tarik pengajuan?',
+  'Keep': 'Pertahankan',
+  'Leave request withdrawn.': 'Pengajuan cuti ditarik.',
+
+  // --- Tasks ---
+  'Your work, one step at a time': 'Pekerjaan Anda, selangkah demi selangkah',
+  'ASSIGNED WORK': 'PEKERJAAN DITUGASKAN',
+  'open tasks': 'tugas terbuka',
+  'task open': 'tugas terbuka',
+  'tasks open': 'tugas terbuka',
+  'overdue': 'terlambat',
+  'complete': 'selesai',
+  'All': 'Semua',
+  'Open': 'Terbuka',
+  'Done': 'Selesai',
+  'Active': 'Aktif',
+  'Overdue': 'Terlambat',
+  'No tasks assigned': 'Tidak ada tugas ditugaskan',
+  'Task details': 'Rincian tugas',
+  'Assigned by': 'Ditugaskan oleh',
+  'Start task': 'Mulai tugas',
+  'Submit report': 'Kirim laporan',
+  'What did you do?': 'Apa yang Anda kerjakan?',
+  'Required': 'Wajib',
+  'Photos': 'Foto',
+  'Camera': 'Kamera',
+  'Gallery': 'Galeri',
+  'The work is finished': 'Pekerjaan selesai',
+  'Sends it to your department head to confirm':
+      'Mengirimnya ke kepala departemen Anda untuk konfirmasi',
+  'You cannot mark your own task done. Finished work moves to In Review.':
+      'Anda tidak dapat menyelesaikan tugas Anda sendiri. Pekerjaan selesai masuk ke Tinjauan.',
+  'Send to department head': 'Kirim ke kepala departemen',
+  'Submitted — waiting for your department head to confirm.':
+      'Terkirim — menunggu konfirmasi kepala departemen Anda.',
+
+  // --- Notifications ---
+  'Notifications': 'Notifikasi',
+  'Mark all read': 'Tandai semua dibaca',
+  'Nothing yet': 'Belum ada',
+  'Leave decisions and task assignments will appear here.':
+      'Keputusan cuti dan penugasan tugas akan muncul di sini.',
+
+  // --- Profile ---
+  'Account': 'Akun',
+  'Preferences': 'Preferensi',
+  'About': 'Tentang',
+  'Personal information': 'Informasi pribadi',
+  'Change password': 'Ubah kata sandi',
+  'Active sessions': 'Sesi aktif',
+  'Appearance': 'Tampilan',
+  'Language': 'Bahasa',
+  'Help & support': 'Bantuan & dukungan',
+  'Privacy': 'Privasi',
+  'App version': 'Versi aplikasi',
+  'Following your device': 'Mengikuti perangkat Anda',
+  'Dark': 'Gelap',
+  'Light': 'Terang',
+  'Current password': 'Kata sandi saat ini',
+  'New password': 'Kata sandi baru',
+  'Confirm new password': 'Konfirmasi kata sandi baru',
+  'At least 8 characters': 'Minimal 8 karakter',
+  'Update password': 'Perbarui kata sandi',
+  'You will stay signed in on this device.': 'Anda akan tetap masuk di perangkat ini.',
+  'This device': 'Perangkat ini',
+  'Sign out all other devices': 'Keluarkan semua perangkat lain',
+  'Maintained by HR. Contact them to change anything here.':
+      'Dikelola oleh HR. Hubungi mereka untuk mengubah apa pun di sini.',
+  'Full name': 'Nama lengkap',
+  'Department': 'Departemen',
+  'Reports to': 'Melapor kepada',
+  'Role': 'Peran',
+
+  // --- Payslip ---
+  'EARNED THIS MONTH': 'DIPEROLEH BULAN INI',
+  'EARNED': 'DIPEROLEH',
+  'potential': 'potensi',
+  'of the month recorded': 'dari bulan tercatat',
+  'Pay is based on recorded office hours. Time beyond scheduled hours does not increase payable hours.':
+      'Gaji dihitung dari jam kantor tercatat. Waktu di luar jadwal tidak menambah jam yang dibayar.',
+  'Payable hours': 'Jam dibayar',
+  'Days present': 'Hari hadir',
+  'Hourly rate': 'Tarif per jam',
+  'Late time': 'Waktu terlambat',
+  'Daily breakdown': 'Rincian harian',
+  'Current rate': 'Tarif saat ini',
+  'Not set by HR yet': 'Belum diatur HR',
+};

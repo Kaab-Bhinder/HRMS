@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/i18n/app_i18n.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_shadows.dart';
 import '../attendance/presentation/screens/attendance_records_screen.dart';
@@ -145,7 +146,7 @@ class _NavItem extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            spec.label,
+            context.tr(spec.label),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: context.text.labelSmall?.copyWith(

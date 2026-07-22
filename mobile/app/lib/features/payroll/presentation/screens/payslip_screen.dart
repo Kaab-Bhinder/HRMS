@@ -7,10 +7,11 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/hero_surface.dart';
 import '../../../../core/widgets/app_states.dart';
-import '../../../../core/widgets/progress_ring.dart';
 import '../../../../core/widgets/skeleton.dart';
 import '../providers/payslip_provider.dart';
+import '../../../../core/i18n/app_i18n.dart';
 
 class PayslipScreen extends ConsumerStatefulWidget {
   const PayslipScreen({super.key});
@@ -57,62 +58,123 @@ class _PayslipScreenState extends ConsumerState<PayslipScreen> {
               slip.when(
                 loading: () => const Column(children: [Skeleton(height: 150, radius: AppRadius.xl), SizedBox(height: AppSpacing.md), Skeleton(height: 220, radius: AppRadius.xl)]),
                 error: (e, _) => AppCard(child: ErrorStateView(message: e is ApiException ? e.message : 'Couldn’t load your payslip.', onRetry: () => ref.invalidate(myPayslipProvider(_month)))),
-                data: (s) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AppCard(
-                      padding: const EdgeInsets.all(AppSpacing.xl),
-                      child: Row(
+                data: (s) {
+                  final cur = s.currency.isEmpty ? '' : '${s.currency} ';
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      HeroSurface(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_isCurrentMonth ? 'EARNED THIS MONTH' : 'EARNED',
+                                style: AppTypography.overline(HeroSurface.onHeroMuted)),
+                            const SizedBox(height: AppSpacing.sm),
+                            Text('$cur${money.format(s.earnedPay)}',
+                                style: AppTypography.numeric(34, FontWeight.w700, HeroSurface.onHero)),
+                            const SizedBox(height: 2),
+                            Text('of $cur${money.format(s.potentialPay)} potential',
+                                style: context.text.bodyMedium?.copyWith(color: HeroSurface.onHeroMuted)),
+                            const SizedBox(height: AppSpacing.lg),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(AppRadius.pill),
+                              child: Stack(
+                                children: [
+                                  Container(height: 7, color: Colors.white.withValues(alpha: 0.18)),
+                                  LayoutBuilder(
+                                    builder: (context, box) => Container(
+                                      height: 7,
+                                      width: box.maxWidth * (s.progressPct / 100).clamp(0.0, 1.0),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                                        gradient: const LinearGradient(
+                                            colors: [Color(0xFF8FD8FF), Color(0xFF5BE0A8)]),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            Text('${s.progressPct}% of the month recorded',
+                                style: context.text.labelSmall
+                                    ?.copyWith(color: HeroSurface.onHeroMuted, letterSpacing: 0.1)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+
+                      // The cap is the single most misread rule on this screen:
+                      // extra hours do not increase pay. Saying so here prevents
+                      // "my payslip is wrong" conversations.
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: c.tint(c.info, 0.10),
+                          borderRadius: AppRadius.rLg,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline_rounded, size: 16, color: c.info),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                'Pay is based on recorded office hours. Time beyond scheduled hours '
+                                'does not increase payable hours.',
+                                style: context.text.bodySmall?.copyWith(color: c.foreground),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+
+                      Row(
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(_isCurrentMonth ? 'EARNED SO FAR' : 'EARNED', style: AppTypography.overline(c.mutedForeground)),
-                                const SizedBox(height: 4),
-                                Text(money.format(s.earnedPay), style: AppTypography.numeric(30, FontWeight.w800, c.foreground)),
-                                const SizedBox(height: AppSpacing.sm),
-                                if (s.hasRate)
-                                  Text('${money.format(s.payPerHour)} / hr · ${s.payableHours}h payable', style: context.text.bodySmall?.copyWith(color: c.mutedForeground))
-                                else
-                                  Text('No hourly rate set yet', style: context.text.bodySmall?.copyWith(color: c.warning)),
-                              ],
-                            ),
+                          _Stat(
+                            label: 'Payable hours',
+                            value: '${s.payableHours}h',
+                            hint: 'of ${s.workedHours}h worked',
                           ),
-                          ProgressRing(
-                            value: (s.progressPct / 100).clamp(0.0, 1.0),
-                            size: 96,
-                            stroke: 9,
-                            center: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('${s.progressPct}%', style: AppTypography.numeric(18, FontWeight.w700, c.foreground)),
-                                Text('of month', style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
-                              ],
-                            ),
+                          const SizedBox(width: AppSpacing.md),
+                          _Stat(
+                            label: 'Days present',
+                            value: '${s.daysPresent}',
+                            hint: '${s.officeHoursPerDay}h office day',
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Row(
-                      children: [
-                        _Mini(label: 'Projected', value: money.format(s.potentialPay), tone: c.info),
-                        const SizedBox(width: AppSpacing.md),
-                        _Mini(label: 'Days present', value: '${s.daysPresent}', tone: c.success),
-                        const SizedBox(width: AppSpacing.md),
-                        _Mini(label: 'Late (min)', value: '${s.lateMinutes}', tone: c.warning),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-                    Text('Daily breakdown', style: context.text.titleMedium),
-                    const SizedBox(height: AppSpacing.md),
-                    if (s.days.isEmpty)
-                      const AppCard(child: EmptyState(icon: Icons.receipt_long_rounded, title: 'Nothing yet', message: 'Pay will appear as you record attendance.'))
-                    else
-                      _PayTable(days: s.days, money: money),
-                  ],
-                ),
+                      const SizedBox(height: AppSpacing.md),
+                      Row(
+                        children: [
+                          _Stat(
+                            label: 'Hourly rate',
+                            value: s.hasRate ? '$cur${money.format(s.payPerHour)}' : '—',
+                            hint: s.hasRate ? 'Current rate' : 'Not set by HR yet',
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          _Stat(
+                            label: 'Late time',
+                            value: '${s.lateMinutes} min',
+                            hint: 'This month',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.xl),
+
+                      Text(context.tr('Daily breakdown'), style: context.text.titleLarge),
+                      const SizedBox(height: AppSpacing.md),
+                      if (s.days.isEmpty)
+                        const AppCard(child: EmptyState(
+                            icon: Icons.receipt_long_rounded,
+                            title: 'Nothing yet',
+                            message: 'Pay will appear as you record attendance.'))
+                      else
+                        _PayTable(days: s.days, money: money),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -124,6 +186,36 @@ class _PayslipScreenState extends ConsumerState<PayslipScreen> {
 }
 
 /// Compact tabular daily pay breakdown — Date · Status · Payable · Pay.
+/// One figure in the 2x2 grid.
+class _Stat extends StatelessWidget {
+  const _Stat({required this.label, required this.value, required this.hint});
+  final String label;
+  final String value;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Expanded(
+      child: AppCard(
+        radius: AppRadius.rXl,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
+            const SizedBox(height: 4),
+            Text(value, style: AppTypography.numeric(20, FontWeight.w700, c.foreground)),
+            const SizedBox(height: 2),
+            Text(hint,
+                style: context.text.labelSmall?.copyWith(color: c.mutedForeground, letterSpacing: 0),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PayTable extends StatelessWidget {
   const _PayTable({required this.days, required this.money});
   final List<PayslipDay> days;
@@ -191,24 +283,3 @@ class _PayTable extends StatelessWidget {
   }
 }
 
-class _Mini extends StatelessWidget {
-  const _Mini({required this.label, required this.value, required this.tone});
-  final String label;
-  final String value;
-  final Color tone;
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: AppCard(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.sm),
-        child: Column(
-          children: [
-            Text(value, style: AppTypography.numeric(18, FontWeight.w700, tone)),
-            const SizedBox(height: 2),
-            Text(label, textAlign: TextAlign.center, style: context.text.bodySmall?.copyWith(color: context.colors.mutedForeground)),
-          ],
-        ),
-      ),
-    );
-  }
-}

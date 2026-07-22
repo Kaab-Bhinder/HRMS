@@ -245,7 +245,9 @@ export const holidaysService = {
   remove: (id: string) => api.del<unknown>(`/holidays/${id}`),
 };
 
+export interface LeaveType { id: string; name: string; accrualPerYear?: number | null; }
 export const leaveService = {
+  types: () => api.get<LeaveType[]>('/leave/types'),
   list: (p?: ListParams) =>
     api.get<Paginated<any>>(`/leave/requests${qs(p)}`).then((res) => ({
       ...res,

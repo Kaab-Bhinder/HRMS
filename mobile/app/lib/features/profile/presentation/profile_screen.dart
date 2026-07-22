@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -10,6 +11,12 @@ import '../../../core/widgets/hero_surface.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/network/api_exception.dart';
+import '../../../core/theme/theme_controller.dart';
+import '../../../core/i18n/app_i18n.dart';
+import '../../../core/widgets/skeleton.dart';
+import '../../../core/widgets/status_pill.dart';
+import '../../access/access_providers.dart';
+import '../../auth/domain/repositories/auth_repository.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 
@@ -84,7 +91,16 @@ class ProfileScreen extends ConsumerWidget {
 
           _SectionLabel('ACCOUNT'),
           _Group(children: [
-            _Row(icon: Icons.badge_outlined, label: 'Personal information', onTap: () => soon('Personal information')),
+            _Row(
+              icon: Icons.badge_outlined,
+              label: 'Personal information',
+              onTap: () => showModalBottomSheet<void>(
+                context: context,
+                backgroundColor: Colors.transparent,
+                isScrollControlled: true,
+                builder: (_) => const _PersonalInfoSheet(),
+              ),
+            ),
             _Row(
               icon: Icons.lock_outline_rounded,
               label: 'Change password',
@@ -95,15 +111,24 @@ class ProfileScreen extends ConsumerWidget {
                 builder: (_) => const _ChangePasswordSheet(),
               ),
             ),
-            _Row(icon: Icons.devices_outlined, label: 'Active sessions', onTap: () => soon('Active sessions')),
+            _Row(
+              icon: Icons.devices_outlined,
+              label: 'Active sessions',
+              onTap: () => showModalBottomSheet<void>(
+                context: context,
+                backgroundColor: Colors.transparent,
+                isScrollControlled: true,
+                builder: (_) => const _SessionsSheet(),
+              ),
+            ),
           ]),
           const SizedBox(height: AppSpacing.xl),
 
           _SectionLabel('PREFERENCES'),
           _Group(children: [
             _Row(icon: Icons.notifications_none_rounded, label: 'Notifications', onTap: () => soon('Notification settings')),
-            _Row(icon: Icons.brightness_6_outlined, label: 'Appearance', value: 'System', onTap: () => soon('Appearance')),
-            _Row(icon: Icons.translate_rounded, label: 'Language', value: 'English', onTap: () => soon('Language')),
+            const _AppearanceRow(),
+            const _LanguageRow(),
           ]),
           const SizedBox(height: AppSpacing.xl),
 
@@ -280,7 +305,7 @@ class _ChangePasswordSheetState extends ConsumerState<_ChangePasswordSheet> {
                 decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(999))),
             ),
             const SizedBox(height: AppSpacing.xl),
-            Text('Change password', style: context.text.titleLarge),
+            Text(context.tr('Change password'), style: context.text.titleLarge),
             const SizedBox(height: 2),
             Text('You will stay signed in on this device.',
                 style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
@@ -314,6 +339,377 @@ class _ChangePasswordSheetState extends ConsumerState<_ChangePasswordSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Appearance toggle. Theme is a per-device preference, so this is local state
+/// persisted on the phone — it never touches the API.
+class _AppearanceRow extends ConsumerWidget {
+  const _AppearanceRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final mode = ref.watch(themeControllerProvider);
+    final systemIsDark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+    final isDark = mode == ThemeMode.dark || (mode == ThemeMode.system && systemIsDark);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+      child: Row(
+        children: [
+          Container(
+            height: 34,
+            width: 34,
+            decoration: BoxDecoration(color: c.muted, borderRadius: AppRadius.rMd),
+            child: Icon(isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                size: 18, color: c.foreground),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(context.tr('Appearance'), style: context.text.titleSmall),
+                Text(
+                  mode == ThemeMode.system ? 'Following your device' : (isDark ? 'Dark' : 'Light'),
+                  style: context.text.bodySmall?.copyWith(color: c.mutedForeground),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: isDark,
+            onChanged: (_) =>
+                ref.read(themeControllerProvider.notifier).toggle(systemIsDark: systemIsDark),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Read-only identity. An employee cannot edit these — HR maintains the record
+/// — and the Employee role has no `employees:read`, so this shows exactly what
+/// the account and scope endpoints already return rather than inventing fields.
+class _PersonalInfoSheet extends ConsumerWidget {
+  const _PersonalInfoSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final user = ref.watch(authControllerProvider).user;
+    final scope = ref.watch(meScopeProvider).valueOrNull;
+
+    return _Sheet(
+      title: 'Personal information',
+      subtitle: 'Maintained by HR. Contact them to change anything here.',
+      child: Column(
+        children: [
+          _InfoRow(label: 'Full name', value: user?.fullName ?? '—'),
+          _InfoRow(label: 'Work email', value: user?.email ?? '—'),
+          _InfoRow(label: 'Department', value: scope?.departmentName ?? '—'),
+          _InfoRow(label: 'Reports to', value: scope?.departmentHeadName ?? '—'),
+          _InfoRow(
+            label: 'Role',
+            value: (user?.roles ?? const []).isEmpty
+                ? '—'
+                : user!.roles.map(_titleCase).join(', '),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(color: c.tint(c.info, 0.10), borderRadius: AppRadius.rLg),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline_rounded, size: 16, color: c.info),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text('Ask HR to update your details.',
+                      style: context.text.bodySmall?.copyWith(color: c.foreground)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _titleCase(String slug) => slug
+      .replaceAll(RegExp('[-_]'), ' ')
+      .split(' ')
+      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(label, style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
+          ),
+          Expanded(child: Text(value, style: context.text.titleSmall)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Devices signed in to this account, with the ability to sign the others out.
+class _SessionsSheet extends ConsumerStatefulWidget {
+  const _SessionsSheet();
+
+  @override
+  ConsumerState<_SessionsSheet> createState() => _SessionsSheetState();
+}
+
+class _SessionsSheetState extends ConsumerState<_SessionsSheet> {
+  late Future<List<AuthSession>> _future;
+  String? _busy;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = ref.read(authRepositoryProvider).sessions();
+  }
+
+  void _reload() => setState(() => _future = ref.read(authRepositoryProvider).sessions());
+
+  Future<void> _revoke(AuthSession s) async {
+    setState(() => _busy = s.id);
+    try {
+      await ref.read(authRepositoryProvider).revokeSession(s.id);
+      if (!mounted) return;
+      AppSnackbar.show(context, 'Signed out ${s.device}.', tone: SnackTone.success);
+      _reload();
+    } on ApiException catch (e) {
+      if (mounted) AppSnackbar.show(context, e.message, tone: SnackTone.danger);
+    } finally {
+      if (mounted) setState(() => _busy = null);
+    }
+  }
+
+  Future<void> _revokeOthers() async {
+    setState(() => _busy = 'all');
+    try {
+      await ref.read(authRepositoryProvider).revokeOtherSessions();
+      if (!mounted) return;
+      AppSnackbar.show(context, 'Other devices were signed out.', tone: SnackTone.success);
+      _reload();
+    } on ApiException catch (e) {
+      if (mounted) AppSnackbar.show(context, e.message, tone: SnackTone.danger);
+    } finally {
+      if (mounted) setState(() => _busy = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return _Sheet(
+      title: 'Active sessions',
+      subtitle: 'Devices signed in to your account.',
+      child: FutureBuilder<List<AuthSession>>(
+        future: _future,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+              child: Skeleton(height: 64),
+            );
+          }
+          if (snap.hasError) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Text('Couldn’t load your sessions.',
+                  style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
+            );
+          }
+          final rows = snap.data ?? const <AuthSession>[];
+          final others = rows.where((r) => !r.isCurrent).length;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final s in rows) ...[
+                Row(
+                  children: [
+                    Container(
+                      height: 34,
+                      width: 34,
+                      decoration: BoxDecoration(
+                        color: s.isCurrent ? c.tint(c.success, 0.14) : c.muted,
+                        borderRadius: AppRadius.rMd,
+                      ),
+                      child: Icon(Icons.phone_iphone_rounded,
+                          size: 18, color: s.isCurrent ? c.success : c.mutedForeground),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(s.device,
+                                    style: context.text.titleSmall,
+                                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ),
+                              if (s.isCurrent) ...[
+                                const SizedBox(width: 6),
+                                StatusPill('This device', tone: PillTone.success, dot: false),
+                              ],
+                            ],
+                          ),
+                          Text(
+                            [
+                              if ((s.ipAddress ?? '').isNotEmpty) s.ipAddress!,
+                              if (s.lastActiveAt != null)
+                                'active ${DateFormat('d MMM, h:mm a').format(s.lastActiveAt!)}',
+                            ].join(' · '),
+                            style: context.text.labelSmall?.copyWith(color: c.mutedForeground),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (!s.isCurrent)
+                      TextButton(
+                        onPressed: _busy != null ? null : () => _revoke(s),
+                        child: Text(context.tr('Sign out'),
+                            style: context.text.labelMedium?.copyWith(color: c.danger)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              if (others > 0) ...[
+                const SizedBox(height: AppSpacing.sm),
+                AppButton(
+                  label: 'Sign out all other devices',
+                  variant: AppButtonVariant.secondary,
+                  loading: _busy == 'all',
+                  onPressed: _busy != null ? null : _revokeOthers,
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Shared bottom-sheet frame: grabber, title, subtitle, content.
+class _Sheet extends StatelessWidget {
+  const _Sheet({required this.title, required this.child, this.subtitle});
+  final String title;
+  final String? subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Container(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.xl2)),
+      ),
+      padding: EdgeInsets.only(
+        left: AppSpacing.xl, right: AppSpacing.xl, top: AppSpacing.md,
+        bottom: MediaQuery.of(context).padding.bottom + AppSpacing.xl,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(width: 40, height: 4,
+                decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(999))),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            Text(title, style: context.text.titleLarge),
+            if (subtitle != null) ...[
+              const SizedBox(height: 2),
+              Text(subtitle!, style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+/// Language toggle — English ↔ Bahasa Indonesia, matching the web dashboard.
+/// Per-device, persisted; switching redraws the whole app immediately.
+class _LanguageRow extends ConsumerWidget {
+  const _LanguageRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final lang = ref.watch(localeControllerProvider);
+    final isId = lang == AppLang.id;
+    return InkWell(
+      onTap: () => ref.read(localeControllerProvider.notifier).toggle(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+        child: Row(
+          children: [
+            Container(
+              height: 34,
+              width: 34,
+              decoration: BoxDecoration(color: c.muted, borderRadius: AppRadius.rMd),
+              child: Icon(Icons.translate_rounded, size: 18, color: c.foreground),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(child: Text(context.tr('Language'), style: context.text.titleSmall)),
+            // Segmented EN / ID pill.
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(color: c.muted, borderRadius: BorderRadius.circular(AppRadius.pill)),
+              child: Row(
+                children: [
+                  _seg(context, 'EN', !isId),
+                  _seg(context, 'ID', isId),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _seg(BuildContext context, String label, bool active) {
+    final c = context.colors;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: active ? c.surface : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Text(label,
+          style: context.text.labelMedium?.copyWith(
+              color: active ? c.foreground : c.mutedForeground)),
     );
   }
 }

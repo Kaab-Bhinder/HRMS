@@ -13,7 +13,9 @@ import '../../core/widgets/app_states.dart';
 import '../../core/widgets/hero_surface.dart';
 import '../../core/widgets/skeleton.dart';
 import '../../core/widgets/status_pill.dart';
+import '../../core/theme/app_shadows.dart';
 import 'leave_providers.dart';
+import '../../core/i18n/app_i18n.dart';
 
 /// The employee's leave tab: apply for time off and track whether the request
 /// was approved or rejected by their department head.
@@ -44,16 +46,11 @@ class LeaveScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Leave', style: context.text.headlineSmall),
+                      Text(context.tr('Leave'), style: context.text.headlineSmall),
                       Text('Request time off and track approvals',
                           style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
                     ],
                   ),
-                ),
-                FilledButton.icon(
-                  onPressed: () => _openApplySheet(context, ref),
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('Apply'),
                 ),
               ],
             ),
@@ -63,13 +60,19 @@ class LeaveScreen extends ConsumerWidget {
           // matters most — days left — leads instead of competing with five
           // equal-weight boxes.
           const _LeaveHero(),
+          const SizedBox(height: AppSpacing.lg),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screen),
+            child: _ApplyCta(onTap: () => _openApplySheet(context, ref)),
+          ),
           const SizedBox(height: AppSpacing.xl2),
 
           Padding(
             padding: const EdgeInsets.fromLTRB(AppSpacing.screen, 0, AppSpacing.screen, AppSpacing.md),
             child: Row(
               children: [
-                Expanded(child: Text('Your requests', style: context.text.titleLarge)),
+                Expanded(child: Text(context.tr('Your requests'), style: context.text.titleLarge)),
               ],
             ),
           ),
@@ -129,12 +132,12 @@ class LeaveScreen extends ConsumerWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dctx) => AlertDialog(
-        title: const Text('Withdraw request?'),
+        title: Text(context.tr('Withdraw request?')),
         content: Text('Cancel your ${r.leaveType} leave from '
             '${DateFormat('d MMM').format(r.startDate)} to ${DateFormat('d MMM').format(r.endDate)}?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text('Keep')),
-          FilledButton(onPressed: () => Navigator.pop(dctx, true), child: const Text('Withdraw')),
+          TextButton(onPressed: () => Navigator.pop(dctx, false), child: Text(context.tr('Keep'))),
+          FilledButton(onPressed: () => Navigator.pop(dctx, true), child: Text(context.tr('Withdraw'))),
         ],
       ),
     );
@@ -188,7 +191,7 @@ class _LeaveHero extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    Text('ANNUAL LEAVE', style: AppTypography.overline(HeroSurface.onHeroMuted)),
+                    Text(context.tr('ANNUAL LEAVE'), style: AppTypography.overline(HeroSurface.onHeroMuted)),
                     const Spacer(),
                     for (final b in additional)
                       HeroChip(label: '${b.leaveType} · additional', icon: Icons.healing_rounded),
@@ -217,11 +220,31 @@ class _LeaveHero extends ConsumerWidget {
                     total: annual.allotted ?? 0,
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    annual.pending > 0
-                        ? 'Deducted on approval · ${fmtDays(annual.pending)} awaiting a decision'
-                        : 'Days are deducted only once your head approves',
-                    style: context.text.labelSmall?.copyWith(color: HeroSurface.onHeroMuted, letterSpacing: 0.1),
+                  Row(
+                    children: [
+                      _legend(context, const Color(0xFF5BE0A8), 'Taken', annual.taken),
+                      const SizedBox(width: AppSpacing.lg),
+                      _legend(context, const Color(0xFFF5C56B), 'Pending', annual.pending),
+                      const SizedBox(width: AppSpacing.lg),
+                      _legend(context, Colors.white.withValues(alpha: 0.35), 'Available',
+                          annual.available ?? 0),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.10),
+                      borderRadius: AppRadius.rLg,
+                    ),
+                    child: Text(
+                      annual.pending > 0
+                          ? 'Deducted on approval · ${fmtDays(annual.pending)} awaiting a decision'
+                          : 'Days are deducted only once your head approves.',
+                      style: context.text.bodySmall?.copyWith(color: HeroSurface.onHero),
+                    ),
                   ),
                 ],
                 const SizedBox(height: AppSpacing.xl),
@@ -238,6 +261,17 @@ class _LeaveHero extends ConsumerWidget {
         );
       },
       orElse: () => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _legend(BuildContext context, Color dot, String label, double value) {
+    return Row(
+      children: [
+        Container(height: 7, width: 7, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
+        const SizedBox(width: 5),
+        Text('$label ${fmtDays(value)}',
+            style: context.text.labelSmall?.copyWith(color: HeroSurface.onHeroMuted, letterSpacing: 0)),
+      ],
     );
   }
 
@@ -311,14 +345,34 @@ class _LeaveCard extends StatelessWidget {
         ? request.days.toInt().toString()
         : request.days.toStringAsFixed(1);
 
+    // Sick and Annual get distinct icons so the list scans by type, as in the
+    // design. Only these two types exist by policy.
+    final isSick = request.leaveType.toLowerCase().contains('sick');
+    final tone = isSick ? c.info : c.success;
+
     return AppCard(
+      radius: AppRadius.rXl,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Container(
+                height: 38,
+                width: 38,
+                decoration: BoxDecoration(
+                  color: Color.alphaBlend(tone.withValues(alpha: 0.16), c.surface),
+                  borderRadius: AppRadius.rMd,
+                ),
+                child: Icon(
+                  isSick ? Icons.healing_rounded : Icons.beach_access_rounded,
+                  size: 19,
+                  color: tone,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
-                child: Text('${request.leaveType} · $days ${request.days == 1 ? 'day' : 'days'}',
+                child: Text('${request.leaveType} leave',
                     style: context.text.titleSmall),
               ),
               StatusPill(request.status, tone: LeaveScreen._tone(request.status)),
@@ -327,15 +381,24 @@ class _LeaveCard extends StatelessWidget {
           const SizedBox(height: 6),
           Row(
             children: [
+              const SizedBox(width: 50),
               Icon(Icons.calendar_today_rounded, size: 14, color: c.mutedForeground),
               const SizedBox(width: 6),
-              Text('${fmt.format(request.startDate)}  →  ${fmt.format(request.endDate)}',
-                  style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
+              Text(
+                '${fmt.format(request.startDate)} – ${fmt.format(request.endDate)} · '
+                '$days ${request.days == 1 ? 'day' : 'days'}',
+                style: context.text.bodySmall?.copyWith(color: c.mutedForeground),
+              ),
             ],
           ),
           if ((request.reason ?? '').isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(request.reason!, style: context.text.bodySmall, maxLines: 2, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 50),
+              child: Text(request.reason!,
+                  style: context.text.bodySmall?.copyWith(color: c.mutedForeground),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+            ),
           ],
           if (request.isPending) ...[
             const SizedBox(height: AppSpacing.sm),
@@ -347,7 +410,7 @@ class _LeaveCard extends StatelessWidget {
                   child: Text('Waiting for your department head to review',
                       style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
                 ),
-                TextButton(onPressed: onCancel, child: const Text('Withdraw')),
+                TextButton(onPressed: onCancel, child: Text(context.tr('Withdraw'))),
               ],
             ),
           ],
@@ -428,7 +491,7 @@ class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Apply for leave', style: context.text.titleLarge),
+          Text(context.tr('Apply for leave'), style: context.text.titleLarge),
           const SizedBox(height: AppSpacing.lg),
 
           Text('Leave type', style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
@@ -534,6 +597,49 @@ class _ApplyLeaveSheetState extends ConsumerState<_ApplyLeaveSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Full-width primary action. Applying is the only thing an employee comes to
+/// this screen to *do*, so it gets the weight rather than a header button.
+class _ApplyCta extends StatelessWidget {
+  const _ApplyCta({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.rXl,
+        child: Container(
+          height: 56,
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.rXl,
+            gradient: LinearGradient(
+              colors: [
+                Color.alphaBlend(c.success.withValues(alpha: 0.85), c.surface),
+                Color.alphaBlend(c.success.withValues(alpha: 0.55), c.surface),
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            boxShadow: AppShadows.glow(c.success, opacity: 0.22, blur: 16, y: 6),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_rounded, size: 20, color: c.foreground),
+              const SizedBox(width: AppSpacing.sm),
+              Text(context.tr('Apply for leave'),
+                  style: context.text.titleMedium?.copyWith(color: c.foreground)),
+            ],
+          ),
+        ),
       ),
     );
   }

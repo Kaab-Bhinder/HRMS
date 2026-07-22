@@ -44,9 +44,12 @@ class SoftTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
-          color: c.surface,
+          // Tinted body, per the design: each destination owns a hue so the
+          // grid reads as four places, not one block. Kept low-alpha so four
+          // tints side by side stay calm.
+          color: Color.alphaBlend(tone.withValues(alpha: context.isDark ? 0.14 : 0.10), c.surface),
           borderRadius: AppRadius.rXl,
-          border: Border.all(color: c.border),
+          border: Border.all(color: tone.withValues(alpha: context.isDark ? 0.22 : 0.18)),
           boxShadow: AppShadows.card(c.shadow, dark: context.isDark),
         ),
         child: Column(
@@ -57,7 +60,7 @@ class SoftTile extends StatelessWidget {
               height: 40,
               width: 40,
               decoration: BoxDecoration(
-                color: tone.withValues(alpha: context.isDark ? 0.22 : 0.14),
+                color: Color.alphaBlend(tone.withValues(alpha: context.isDark ? 0.30 : 0.20), c.surface),
                 borderRadius: AppRadius.rMd,
               ),
               child: Icon(icon, size: 20, color: tone),
@@ -65,7 +68,7 @@ class SoftTile extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             Text(
               title,
-              style: context.text.titleSmall,
+              style: context.text.titleSmall?.copyWith(color: tone),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),

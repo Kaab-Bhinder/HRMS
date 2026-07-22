@@ -13,6 +13,7 @@ import '../../../../core/widgets/hero_surface.dart';
 import '../../../../core/widgets/skeleton.dart';
 import '../../../../core/widgets/status_pill.dart';
 import '../providers/records_provider.dart';
+import '../../../../core/i18n/app_i18n.dart';
 
 class AttendanceRecordsScreen extends ConsumerStatefulWidget {
   const AttendanceRecordsScreen({super.key, this.embedded = false});
@@ -55,7 +56,7 @@ class _AttendanceRecordsScreenState extends ConsumerState<AttendanceRecordsScree
             ),
             children: [
               if (widget.embedded) ...[
-                Text('My Attendance', style: context.text.headlineSmall),
+                Text(context.tr('My Attendance'), style: context.text.headlineSmall),
                 Text('Your check-ins, hours and flags',
                     style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
                 const SizedBox(height: AppSpacing.lg),
@@ -70,7 +71,18 @@ class _AttendanceRecordsScreenState extends ConsumerState<AttendanceRecordsScree
                   children: [
                     _MonthHero(slip: s, month: _month),
                     const SizedBox(height: AppSpacing.xl2),
-                    Text('Daily record', style: context.text.titleLarge),
+                    Row(
+                      children: [
+                        Text(context.tr('Daily record'), style: context.text.titleLarge),
+                        const Spacer(),
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _showFlagHelp(context),
+                          child: Text(context.tr('How flags work'),
+                              style: context.text.labelMedium?.copyWith(color: c.primary)),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: AppSpacing.md),
                     if (s.days.isEmpty)
                       const AppCard(child: EmptyState(icon: Icons.event_busy_rounded, title: 'No records', message: 'No attendance was recorded this month.'))
@@ -88,7 +100,7 @@ class _AttendanceRecordsScreenState extends ConsumerState<AttendanceRecordsScree
     // As a tab the shell already provides the frame; standalone (pushed from
     // Home) it needs its own Scaffold and app bar.
     if (widget.embedded) return body;
-    return Scaffold(appBar: AppBar(title: const Text('My Attendance')), body: body);
+    return Scaffold(appBar: AppBar(title: Text(context.tr('My Attendance'))), body: body);
   }
 }
 
@@ -198,18 +210,22 @@ class _MonthHero extends StatelessWidget {
 
   Widget _heroCount(BuildContext context, String label, int value, Color dot) {
     return Expanded(
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Container(
+            height: 7, width: 7,
+            margin: const EdgeInsets.only(top: 7),
+            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(height: 7, width: 7, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
-              const SizedBox(width: 6),
+              Text('$value', style: AppTypography.numeric(19, FontWeight.w700, HeroSurface.onHero)),
               Text(label, style: context.text.bodySmall?.copyWith(color: HeroSurface.onHeroMuted)),
             ],
           ),
-          const SizedBox(height: 2),
-          Text('$value', style: AppTypography.numeric(19, FontWeight.w700, HeroSurface.onHero)),
         ],
       ),
     );
@@ -289,7 +305,16 @@ class _RecordsTable extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(_hours(d.workedMinutes), style: t.bodySmall, textAlign: TextAlign.right),
-              if (d.lateMinutes > 0) Text('${d.lateMinutes}m late', style: t.labelSmall?.copyWith(color: c.warning), textAlign: TextAlign.right),
+              if (d.lateMinutes > 0)
+                Text('${d.lateMinutes}m late',
+                    style: t.labelSmall?.copyWith(color: c.warning), textAlign: TextAlign.right),
+              // The API returns why a day was flagged; showing it saves the
+              // employee guessing, and is the difference between "something is
+              // wrong with my pay" and "my GPS was off that morning".
+              if (d.isFlagged && (d.flagReason ?? '').isNotEmpty)
+                Text(_shortReason(d.flagReason!),
+                    style: t.labelSmall?.copyWith(color: c.danger),
+                    textAlign: TextAlign.right, maxLines: 1, overflow: TextOverflow.ellipsis),
             ],
           ),
           right: true,
@@ -337,4 +362,107 @@ class _RecordsTable extends StatelessWidget {
         _ => '${s[0].toUpperCase()}${s.substring(1)}',
       };
   static String _hours(int m) => m == 0 ? '—' : (m / 60).toStringAsFixed(1);
+
+  /// Condenses a server reason to fit the column.
+  ///
+  /// Reasons vary: some are already terse and specific ("Late 32m"), others are
+  /// full sentences ("Check-in 340m outside the office geofence"). Short ones
+  /// pass through verbatim — replacing "Late 32m" with a generic "Under review"
+  /// would throw away the one fact the employee wants.
+  static String _shortReason(String reason) {
+    final trimmed = reason.trim();
+    if (trimmed.length <= 18) return trimmed;
+    final r = trimmed.toLowerCase();
+    if (r.contains('geofence') || r.contains('outside')) return 'Location review';
+    if (r.contains('mock')) return 'Mock GPS';
+    if (r.contains('skew') || r.contains('clock')) return 'Clock mismatch';
+    if (r.contains('break')) return 'Break overrun';
+    return 'Under review';
+  }
+}
+
+/// Explains what a flag means. Attendance flags affect nothing an employee can
+/// fix themselves — HR reviews them — so the goal is to remove alarm, not to
+/// prompt action.
+void _showFlagHelp(BuildContext context) {
+  final c = context.colors;
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (_) => Container(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.xl2)),
+      ),
+      padding: EdgeInsets.only(
+        left: AppSpacing.xl, right: AppSpacing.xl, top: AppSpacing.md,
+        bottom: MediaQuery.of(context).padding.bottom + AppSpacing.xl,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(width: 40, height: 4,
+              decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(999))),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          Text(context.tr('How flags work'), style: context.text.titleLarge),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'A flagged day is not a penalty. Your attendance was recorded normally — '
+            'it is simply marked for HR to look at.',
+            style: context.text.bodyMedium?.copyWith(color: c.mutedForeground, height: 1.5),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          for (final r in const [
+            ('Location review', 'Your check-in was outside the office area.'),
+            ('Mock GPS', 'The device reported a simulated location.'),
+            ('Clock mismatch', 'Your phone clock differed from the server.'),
+            ('Break overrun', 'Your break ran longer than the allowance.'),
+          ]) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 6, width: 6,
+                  margin: const EdgeInsets.only(top: 7),
+                  decoration: BoxDecoration(color: c.danger, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(r.$1, style: context.text.titleSmall),
+                      Text(r.$2, style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: c.tint(c.info, 0.10),
+              borderRadius: AppRadius.rLg,
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline_rounded, size: 16, color: c.info),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(context.tr('Nothing is deducted automatically. Speak to HR if a flag looks wrong.'),
+                      style: context.text.bodySmall?.copyWith(color: c.foreground)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }

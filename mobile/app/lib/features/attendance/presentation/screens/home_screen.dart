@@ -14,10 +14,9 @@ import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_snackbar.dart';
 import '../../../../core/widgets/app_states.dart';
 import '../../../../core/widgets/hero_surface.dart';
-import '../../../../core/widgets/section_header.dart';
 import '../../../../core/widgets/skeleton.dart';
 import '../../../../core/widgets/soft_tile.dart';
-import '../../../../core/widgets/spark_chart.dart';
+import '../../../../core/widgets/week_bars.dart';
 import '../../../../core/widgets/status_pill.dart';
 import '../../../auth/presentation/providers/auth_controller.dart';
 import '../../../access/access_providers.dart';
@@ -28,12 +27,12 @@ import '../../data/location_service.dart';
 import '../../data/selfie_service.dart';
 import '../../domain/entities/today_status.dart';
 import '../providers/attendance_controller.dart';
+import '../providers/shift_provider.dart';
 import '../widgets/punch_button.dart';
-import '../widgets/office_map.dart';
+import '../widgets/check_in_sheet.dart';
 import '../../../notifications/notifications_screen.dart';
 import 'attendance_records_screen.dart';
-
-const _shiftTargetMinutes = 8 * 60; // assumed 8h day until shift data is wired
+import '../../../../core/i18n/app_i18n.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -47,6 +46,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _breaking = false;
 
   Future<void> _punch() async {
+    // Checking IN is the guided three-step flow: a selfie and a GPS fix are both
+    // recorded against the entry, so the employee sees and confirms each before
+    // anything is committed. Checking OUT needs neither, so it stays one tap.
+    final checkedInNow = ref.read(todayControllerProvider).valueOrNull?.isCheckedIn ?? false;
+    if (!checkedInNow) {
+      await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        isDismissible: false,
+        builder: (_) => const CheckInSheet(),
+      );
+      return;
+    }
+
     setState(() => _punching = true);
     try {
       final checkedIn = await ref.read(todayControllerProvider.notifier).togglePunch();
@@ -117,12 +131,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             todayAsync.when(
               loading: () => const _HeroSkeleton(),
               error: (e, _) => AppCard(child: ErrorStateView(message: e is ApiException ? e.message : 'Couldn’t load today’s attendance.', onRetry: () => ref.read(todayControllerProvider.notifier).refresh())),
-              data: (status) => _HeroCard(status: status, busy: _punching, breaking: _breaking, onPunch: _punch, onBreak: _break)
+              data: (status) => _HeroCard(
+                status: status,
+                target: ref.watch(shiftTargetProvider).valueOrNull ?? ShiftTarget.fallback,
+                busy: _punching, breaking: _breaking, onPunch: _punch, onBreak: _break,
+              )
                   .animate().fadeIn(duration: 420.ms).moveY(begin: 14, end: 0, curve: Curves.easeOutCubic),
             ),
             if (isHead) ...[
               const SizedBox(height: AppSpacing.xl2),
-              Text('Your team', style: context.text.titleLarge).animate(delay: 100.ms).fadeIn(),
+              Text(context.tr('Your team'), style: context.text.titleLarge).animate(delay: 100.ms).fadeIn(),
               const SizedBox(height: AppSpacing.md),
               const _TeamSection(),
             ],
@@ -130,7 +148,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             // leave and the person who assigns their tasks).
             if (scope != null && scope.hasDepartmentHead) ...[
               const SizedBox(height: AppSpacing.xl2),
-              Text('Your department', style: context.text.titleLarge).animate(delay: 100.ms).fadeIn(),
+              Text(context.tr('Your department'), style: context.text.titleLarge).animate(delay: 100.ms).fadeIn(),
               const SizedBox(height: AppSpacing.md),
               _DeptHeadCard(
                 department: scope.departmentName,
@@ -139,21 +157,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ).animate(delay: 140.ms).fadeIn(),
             ],
             const SizedBox(height: AppSpacing.xl2),
-            Text('Where you work', style: context.text.titleLarge).animate(delay: 110.ms).fadeIn(),
-            const SizedBox(height: AppSpacing.md),
-            const OfficeMapCard(),
-            const SizedBox(height: AppSpacing.xl2),
-            SectionHeader(
-              'This week',
-              actionLabel: 'See all',
-              onAction: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AttendanceRecordsScreen()),
-              ),
-            ).animate(delay: 120.ms).fadeIn(),
-            const SizedBox(height: AppSpacing.md),
             const _WeekChartCard(),
             const SizedBox(height: AppSpacing.xl2),
-            Text('Quick actions', style: context.text.titleLarge).animate(delay: 140.ms).fadeIn(),
+            Text(context.tr('Quick actions'), style: context.text.titleLarge).animate(delay: 140.ms).fadeIn(),
             const SizedBox(height: AppSpacing.md),
             const _QuickActions(),
             const SizedBox(height: AppSpacing.xl2),
@@ -225,8 +231,11 @@ class _Header extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('$_greeting,', style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
-              Text(name, style: context.text.titleLarge, maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(DateFormat('EEEE, d MMMM').format(DateTime.now()),
+                  style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
+              const SizedBox(height: 1),
+              Text('${context.tr(_greeting)}, $name',
+                  style: context.text.headlineSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
             ],
           ),
         ),
@@ -306,8 +315,16 @@ class _IconBtn extends StatelessWidget {
 }
 
 class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.status, required this.busy, required this.breaking, required this.onPunch, required this.onBreak});
+  const _HeroCard({
+    required this.status,
+    required this.target,
+    required this.busy,
+    required this.breaking,
+    required this.onPunch,
+    required this.onBreak,
+  });
   final TodayStatus status;
+  final ShiftTarget target;
   final bool busy;
   final bool breaking;
   final VoidCallback onPunch;
@@ -331,7 +348,7 @@ class _HeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final (chipLabel, chipTone) = _chip;
     final fmt = DateFormat('h:mm a');
-    final progress = (status.workedMinutes / _shiftTargetMinutes).clamp(0.0, 1.0);
+    final progress = (status.workedMinutes / target.targetMinutes).clamp(0.0, 1.0);
 
     // The dot color has to read against the gradient, so these are fixed
     // on-hero values rather than the theme's success/warning tokens.
@@ -367,23 +384,34 @@ class _HeroCard extends StatelessWidget {
                   Text(status.workedLabel,
                       style: AppTypography.numeric(40, FontWeight.w700, HeroSurface.onHero)),
                   const SizedBox(width: AppSpacing.sm),
-                  Text('of 8h',
+                  Text('of ${target.label}',
                       style: context.text.bodyMedium?.copyWith(color: HeroSurface.onHeroMuted)),
                 ],
               ),
               const SizedBox(height: AppSpacing.lg),
-              _HeroProgress(value: progress),
-              const SizedBox(height: AppSpacing.lg),
               Row(
                 children: [
-                  _heroStat(context, Icons.login_rounded, 'In',
-                      status.firstInAt == null ? '—' : fmt.format(status.firstInAt!)),
-                  const SizedBox(width: AppSpacing.xl),
-                  _heroStat(context, Icons.logout_rounded, 'Out',
-                      status.lastOutAt == null ? '—' : fmt.format(status.lastOutAt!)),
-                  const Spacer(),
-                  Text(DateFormat('EEE, d MMM').format(DateTime.now()),
-                      style: context.text.bodySmall?.copyWith(color: HeroSurface.onHeroMuted)),
+                  Expanded(child: _HeroProgress(value: progress)),
+                  const SizedBox(width: AppSpacing.md),
+                  Text('${(progress * 100).round()}%',
+                      style: context.text.labelMedium?.copyWith(color: HeroSurface.onHero)),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Divider(height: 1, color: Colors.white.withValues(alpha: 0.14)),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Expanded(
+                    child: _heroStat(context, 'First in',
+                        status.firstInAt == null ? '—' : fmt.format(status.firstInAt!)),
+                  ),
+                  Container(width: 1, height: 32, color: Colors.white.withValues(alpha: 0.14)),
+                  const SizedBox(width: AppSpacing.lg),
+                  Expanded(
+                    child: _heroStat(context, 'Last out',
+                        status.lastOutAt == null ? '—' : fmt.format(status.lastOutAt!)),
+                  ),
                 ],
               ),
             ],
@@ -392,22 +420,31 @@ class _HeroCard extends StatelessWidget {
         // The primary action sits below the hero rather than inside it, so it
         // reads as a control and not as part of the readout.
         const SizedBox(height: AppSpacing.lg),
-        PunchButton(isCheckedIn: status.isCheckedIn, busy: busy, onTap: onPunch),
-        if (status.isCheckedIn) ...[
-          const SizedBox(height: AppSpacing.md),
-          _BreakButton(onBreak: status.isOnBreak, busy: breaking, breakLabel: status.breakLabel, onTap: onBreak),
-        ],
+        Row(
+          children: [
+            Expanded(child: PunchButton(isCheckedIn: status.isCheckedIn, busy: busy, onTap: onPunch)),
+            if (status.isCheckedIn) ...[
+              const SizedBox(width: AppSpacing.md),
+              _BreakButton(
+                onBreak: status.isOnBreak,
+                busy: breaking,
+                breakLabel: status.breakLabel,
+                onTap: onBreak,
+              ),
+            ],
+          ],
+        ),
       ],
     );
   }
 
-  Widget _heroStat(BuildContext context, IconData icon, String label, String value) {
-    return Row(
+  Widget _heroStat(BuildContext context, String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 15, color: HeroSurface.onHeroMuted),
-        const SizedBox(width: 6),
-        Text('$label ', style: context.text.bodySmall?.copyWith(color: HeroSurface.onHeroMuted)),
-        Text(value, style: context.text.titleSmall?.copyWith(color: HeroSurface.onHero)),
+        Text(label, style: context.text.bodySmall?.copyWith(color: HeroSurface.onHeroMuted)),
+        const SizedBox(height: 2),
+        Text(value, style: context.text.titleMedium?.copyWith(color: HeroSurface.onHero)),
       ],
     );
   }
@@ -562,6 +599,11 @@ class _QuickActions extends ConsumerWidget {
 /// Reuses this month's slip rather than adding an endpoint. A week that spans a
 /// month boundary therefore only shows the days inside the current month — the
 /// chart is a trend cue, and the Attendance tab is the full record.
+/// Hours worked over the last seven days, as bars.
+///
+/// Reuses this month's slip rather than adding an endpoint, so a week spanning
+/// a month boundary shows only the days inside the current month — a trend cue,
+/// with the Attendance tab holding the full record.
 class _WeekChartCard extends ConsumerWidget {
   const _WeekChartCard();
 
@@ -572,24 +614,27 @@ class _WeekChartCard extends ConsumerWidget {
     final slip = ref.watch(mySlipProvider(DateTime(now.year, now.month)));
 
     return AppCard(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.md),
       radius: AppRadius.rXl,
       child: slip.when(
-        loading: () => const Skeleton(height: 178),
+        loading: () => const Skeleton(height: 176),
         error: (_, _) => SizedBox(
-          height: 178,
+          height: 176,
           child: Center(
             child: Text('Couldn’t load this week.',
                 style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
           ),
         ),
         data: (s) {
-          // `days` arrives newest-first; take the recent week and flip it so the
-          // chart reads left-to-right in time order.
+          // `days` arrives newest-first; flip so the week reads left-to-right.
           final recent = s.days.take(7).toList().reversed.toList();
-          final points = [
+          final today = DateTime(now.year, now.month, now.day);
+          final bars = [
             for (final d in recent)
-              SparkPoint(DateFormat('E').format(d.date).substring(0, 1), d.workedMinutes / 60),
+              DayBar(
+                label: DateFormat('E').format(d.date).substring(0, 3),
+                hours: d.workedMinutes / 60,
+                isToday: DateTime(d.date.year, d.date.month, d.date.day) == today,
+              ),
           ];
           final total = recent.fold<int>(0, (sum, d) => sum + d.workedMinutes);
 
@@ -597,16 +642,29 @@ class _WeekChartCard extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Text(_hm(total), style: AppTypography.numeric(24, FontWeight.w700, c.foreground)),
+                  Text(context.tr('This week'), style: context.text.titleLarge),
                   const SizedBox(width: AppSpacing.sm),
-                  Text('worked', style: context.text.bodySmall?.copyWith(color: c.mutedForeground)),
+                  Text(_hm(total),
+                      style: context.text.titleSmall?.copyWith(color: c.mutedForeground)),
+                  const Spacer(),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const AttendanceRecordsScreen()),
+                    ),
+                    child: Row(
+                      children: [
+                        Text('See all',
+                            style: context.text.labelMedium?.copyWith(color: c.primary)),
+                        Icon(Icons.chevron_right_rounded, size: 16, color: c.primary),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.md),
-              SparkChart(points: points, format: (v) => _hm((v * 60).round())),
+              const SizedBox(height: AppSpacing.lg),
+              WeekBars(days: bars),
             ],
           );
         },
