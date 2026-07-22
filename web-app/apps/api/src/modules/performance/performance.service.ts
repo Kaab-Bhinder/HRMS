@@ -74,7 +74,8 @@ export class PerformanceService {
       }),
       this.prisma.performanceReview.count({ where }),
     ]);
-    return paginated(rows.map((r) => this.serializeReview(r)), total, q.page, q.limit);
+    const reviewerNames = await this.resolveReviewerNames(rows);
+    return paginated(rows.map((r) => this.serializeReview(r, reviewerNames)), total, q.page, q.limit);
   }
 
   async getReview(orgId: string, id: string) {
@@ -209,7 +210,19 @@ export class PerformanceService {
     };
   }
 
-  private serializeReview(r: any) {
+  /** reviewerId is a bare column (no Prisma relation), so names are resolved
+   *  in a batch and passed in rather than included on the row. */
+  private async resolveReviewerNames(rows: any[]): Promise<Map<string, string>> {
+    const ids = [...new Set(rows.map((r) => r.reviewerId).filter(Boolean))] as string[];
+    if (!ids.length) return new Map();
+    const emps = await this.prisma.employee.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    return new Map(emps.map((e) => [e.id, `${e.firstName} ${e.lastName}`]));
+  }
+
+  private serializeReview(r: any, reviewerNames?: Map<string, string>) {
     return {
       id: r.id,
       employeeId: r.employeeId,
@@ -217,7 +230,7 @@ export class PerformanceService {
       avatarUrl: null,
       departmentName: r.employee?.department?.name ?? null,
       cycle: r.cycle?.name ?? null,
-      reviewerName: null,
+      reviewerName: r.reviewerId ? (reviewerNames?.get(r.reviewerId) ?? null) : null,
       status: r.status,
       overallScore: r.overallScore !== null && r.overallScore !== undefined ? Number(r.overallScore) : null,
       updatedAt: r.updatedAt,

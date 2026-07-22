@@ -83,12 +83,14 @@ export default function PerformancePage() {
     { key: 'cycle', header: 'Cycle', render: (r) => <span className="text-muted-foreground">{r.cycle}</span> },
     {
       key: 'reviewerName', header: 'Reviewer',
-      render: (r) => (
+      render: (r) => (r.reviewerName ? (
         <div className="flex items-center gap-2">
           <Avatar name={r.reviewerName} size="xs" />
           <span className="truncate text-foreground">{r.reviewerName}</span>
         </div>
-      ),
+      ) : (
+        <span className="text-muted-foreground">Unassigned</span>
+      )),
     },
     { key: 'status', header: 'Status', sortable: true, render: (r) => <StatusBadge value={r.status} /> },
     {

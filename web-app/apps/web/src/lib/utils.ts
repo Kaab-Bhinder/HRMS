@@ -3,17 +3,21 @@ export function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
 }
 
-export function initials(name: string): string {
+export function initials(name: string | null | undefined): string {
+  // Null-safe: a null/blank name (e.g. an unassigned reviewer) must never crash
+  // the Avatar and take down the whole page — return a neutral placeholder.
+  if (!name || typeof name !== 'string' || !name.trim()) return '·';
   return name
     .trim()
     .split(/\s+/)
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase() ?? '')
-    .join('');
+    .join('') || '·';
 }
 
 /** Deterministic color index for avatars/badges from a string. */
-export function hashIndex(str: string, mod: number): number {
+export function hashIndex(str: string | null | undefined, mod: number): number {
+  if (!str || typeof str !== 'string') return 0;
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
   return h % mod;

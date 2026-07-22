@@ -17,6 +17,7 @@ import { EmptyState } from '../../components/feedback/States';
 import { reportsService, REPORT_BACKEND_MODULES, type SavedReport } from '../../services';
 import { useQuery } from '../../hooks/useQuery';
 import { useToast } from '../../store/toast';
+import { useI18n } from '../../store/i18n';
 import { usePermission } from '../../store/auth';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { relativeTime, pluralize } from '../../lib/format';
@@ -82,6 +83,7 @@ const SCHEDULE_OPTIONS = ['None', 'Daily', 'Weekly', 'Monthly'];
 
 export default function ReportsPage() {
   const toast = useToast();
+  const { t } = useI18n();
   const canCreate = usePermission('reports:create');
 
   const [tab, setTab] = useState('catalog');
@@ -172,7 +174,7 @@ export default function ReportsPage() {
                       <Icon />
                     </span>
                     <h2 className="text-sm font-semibold text-foreground">{g.module}</h2>
-                    <span className="text-xs text-muted-foreground">{pluralize(g.reports.length, 'report')}</span>
+                    <span className="text-xs text-muted-foreground">{`${g.reports.length} ${t('reports')}`}</span>
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {g.reports.map((r) => (

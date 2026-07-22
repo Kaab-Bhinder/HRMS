@@ -712,4 +712,9 @@ export const ID: Record<string, string> = {
   'On-track vs at-risk objectives across the organization.': 'Sasaran sesuai jalur vs berisiko di seluruh organisasi.',
   'Review completion and average scores by reviewer.': 'Penyelesaian tinjauan dan skor rata-rata per penilai.',
   'Low face-match scores and manual overrides requiring review.': 'Skor kecocokan wajah rendah dan penggantian manual yang perlu ditinjau.',
+  'Check-in/out times, late marks and flagged records for a given day.': 'Waktu masuk/keluar, tanda terlambat, dan catatan tertandai untuk hari tertentu.',
+  'Per-employee present, absent and overtime totals across the month.': 'Total hadir, tidak hadir, dan lembur per karyawan sepanjang bulan.',
+  'Master roster with department, designation and contact details.': 'Daftar induk dengan departemen, jabatan, dan detail kontak.',
+  'report': 'laporan',
+  'reports': 'laporan',
 };

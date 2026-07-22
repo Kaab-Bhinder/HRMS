@@ -288,6 +288,54 @@ async function main() {
     }
   }
 
+  // 9) Performance — a review cycle, reviews (reviewer = dept head) and goals,
+  //    so the Performance tab is populated rather than showing empty states.
+  await prisma.performanceReview.deleteMany({ where: { organizationId: orgId } });
+  await prisma.goal.deleteMany({ where: { organizationId: orgId } });
+  await prisma.reviewCycle.deleteMany({ where: { organizationId: orgId } });
+  const cycle = await prisma.reviewCycle.create({
+    data: { organizationId: orgId, name: 'H1 2026 Appraisal', isActive: true,
+      startDate: new Date('2026-01-01'), endDate: new Date('2026-06-30') },
+  });
+  const reviewPool = await prisma.employee.findMany({
+    where: { organizationId: orgId, deletedAt: null, status: { in: ['active', 'on_leave'] } },
+    select: { id: true, department: { select: { headEmployeeId: true } } }, take: 40,
+  });
+  const RSTATUS = ['submitted', 'submitted', 'submitted', 'in_progress', 'acknowledged', 'closed'];
+  const RSUMM = [
+    'Consistently strong delivery; exceeded targets this cycle.',
+    'Solid performer, reliable on core duties. Growth in ownership.',
+    'Meets expectations. Focus area: stakeholder communication.',
+    'High potential; take on more cross-team initiatives next cycle.',
+  ];
+  for (const e of reviewPool) {
+    const status = pick(RSTATUS);
+    const scored = status === 'submitted' || status === 'acknowledged' || status === 'closed';
+    await prisma.performanceReview.create({
+      data: { organizationId: orgId, cycleId: cycle.id, employeeId: e.id,
+        reviewerId: e.department?.headEmployeeId ?? null, status,
+        overallScore: scored ? Number((3 + Math.random() * 2).toFixed(2)) : null,
+        summary: pick(RSUMM), submittedAt: scored ? new Date() : null },
+    });
+  }
+  const GOALS = [
+    ['Reduce customer onboarding time', 'days', 5, 3, 'on_track'],
+    ['Increase branch deposit growth', '%', 12, 8, 'on_track'],
+    ['Close quarterly compliance gaps', 'items', 10, 10, 'completed'],
+    ['Improve CSAT score', 'score', 90, 82, 'at_risk'],
+    ['Cut loan processing errors', '%', 2, 4, 'off_track'],
+    ['Complete AML training rollout', '%', 100, 65, 'on_track'],
+    ['Migrate legacy ledgers', 'systems', 3, 1, 'on_track'],
+    ['Grow SME loan book', 'PKR M', 50, 31, 'on_track'],
+  ];
+  for (const [title, metric, target, current, status] of GOALS) {
+    await prisma.goal.create({
+      data: { organizationId: orgId, departmentId: pick(departments).id, title, metric,
+        targetValue: target, currentValue: current, weight: 10 + rnd(20), status,
+        dueDate: new Date('2026-09-30') },
+    });
+  }
+
   const counts = {
     employees: await prisma.employee.count({ where: { organizationId: orgId, deletedAt: null } }),
     attendance: await prisma.attendanceDay.count({ where: { organizationId: orgId } }),
