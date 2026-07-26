@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsIn, IsNumber, IsObject, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested,
 } from 'class-validator';
-import { EmploymentType, EmployeeStatus, Gender } from '@prisma/client';
+import { EmploymentType, EmployeeStatus, Gender, CompensationType } from '@prisma/client';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 export const PASSWORD_STRATEGIES = ['generate', 'invite'] as const;
@@ -29,7 +29,13 @@ export class CreateEmployeeDto {
   @ApiPropertyOptional({ enum: EmployeeStatus }) @IsOptional() @IsEnum(EmployeeStatus) status?: EmployeeStatus;
   @ApiPropertyOptional() @IsOptional() @IsDateString() dateOfJoining?: string;
 
-  @ApiPropertyOptional({ description: 'Hourly pay rate used for payroll.' })
+  @ApiPropertyOptional({ enum: CompensationType, description: 'monthly → paid basicSalary; hourly → payPerHour × attendance. Defaults to the org default.' })
+  @IsOptional() @IsEnum(CompensationType) compensationType?: CompensationType;
+
+  @ApiPropertyOptional({ description: 'Fixed monthly salary, used when compensationType = monthly.' })
+  @IsOptional() @IsNumber() @Min(0) @Max(100000000) @Type(() => Number) basicSalary?: number;
+
+  @ApiPropertyOptional({ description: 'Hourly pay rate used when compensationType = hourly.' })
   @IsOptional() @IsNumber() @Min(0) @Max(1000000) @Type(() => Number) payPerHour?: number;
 
   @ApiPropertyOptional({ type: 'object', additionalProperties: true })

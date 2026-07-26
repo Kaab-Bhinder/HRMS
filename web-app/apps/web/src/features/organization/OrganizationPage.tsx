@@ -23,13 +23,21 @@ type GeneralSettings = {
   name: string;
   legalName: string;
   timezone: string;
+  currency: string;
+  defaultCompensationType: 'monthly' | 'hourly';
 };
 
 const SEED_GENERAL: GeneralSettings = {
   name: '',
   legalName: '',
   timezone: DEFAULT_TIMEZONE,
+  currency: 'USD',
+  defaultCompensationType: 'hourly',
 };
+
+// Common ISO currencies; the client's is IDR. Kept short — the field is a
+// default, editable per need, and the value is a free ISO code either way.
+const CURRENCIES = ['IDR', 'USD', 'PKR', 'EUR', 'GBP', 'SGD', 'MYR', 'AUD', 'INR', 'AED'];
 
 // Branding was removed rather than wired: the logo was never rendered anywhere
 // and the brand colour was labelled "cosmetic preview" because nothing applied
@@ -69,6 +77,8 @@ function GeneralTab() {
       name: org.name ?? '',
       legalName: org.legalName ?? '',
       timezone: org.timezone ?? SEED_GENERAL.timezone,
+      currency: org.currency ?? SEED_GENERAL.currency,
+      defaultCompensationType: org.defaultCompensationType ?? SEED_GENERAL.defaultCompensationType,
     });
   }, [org]);
 
@@ -117,9 +127,22 @@ function GeneralTab() {
               ))}
             </Select>
           </Row>
+          <Row label="Currency">
+            <Select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
+              {(CURRENCIES.includes(form.currency) ? CURRENCIES : [form.currency, ...CURRENCIES]).map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </Select>
+          </Row>
+          <Row label="Default pay model">
+            <Select value={form.defaultCompensationType} onChange={(e) => set('defaultCompensationType', e.target.value as GeneralSettings['defaultCompensationType'])}>
+              <option value="monthly">Monthly salary</option>
+              <option value="hourly">Hourly (pay per hour)</option>
+            </Select>
+          </Row>
         </div>
         <p className="text-xs text-muted-foreground">
-          Timezone drives the working day, late arrivals and auto-checkout across web and mobile.
+          Timezone drives the working day, late arrivals and auto-checkout. Currency formats all payroll figures. The default pay model is what new employees inherit — you can still override it per employee.
         </p>
         <div className="flex justify-end border-t border-border pt-4">
           <Button onClick={save} loading={saving} disabled={loading}>Save changes</Button>

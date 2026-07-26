@@ -73,19 +73,27 @@ export interface LiveSession {
   last: { lat: number; lng: number; at: string; battery: number | null } | null;
 }
 
+export type CompensationType = 'monthly' | 'hourly';
 export interface PayrollRow {
   employeeId: string; employeeName: string; employeeCode: string; departmentName: string | null;
+  compensationType: CompensationType;
   payPerHour: number | null; payableHours: number; workedHours: number; lateMinutes: number;
-  daysPresent: number; daysAbsent: number; daysFlagged: number; earnedPay: number; potentialPay: number; progressPct: number;
+  daysPresent: number; daysAbsent: number; daysFlagged: number; earnedPay: number; potentialPay: number;
+  // monthly
+  basicSalary: number | null; unpaidLeaveDays: number;
+  // unified across both types
+  grossPay: number; deductions: number; netPay: number; progressPct: number;
+  finalized: boolean; finalizedAt: string | null;
 }
 export interface PayrollRegister {
-  year: number; month: number; officeHoursPerDay: number; workingDaysTotal: number; rows: PayrollRow[];
+  year: number; month: number; currency: string; officeHoursPerDay: number; workingDaysTotal: number; rows: PayrollRow[];
 }
+export interface FinalizeResult { year: number; month: number; finalized: number; alreadyFinalized: number; total: number }
 export interface PayslipDay {
   workDate: string; status: string; workedMinutes: number; payableMinutes: number; lateMinutes: number; isFlagged: boolean; pay: number;
 }
 export interface Payslip extends PayrollRow {
-  year: number; month: number; officeHoursPerDay: number; workingDaysTotal: number; designationName: string | null; days: PayslipDay[];
+  year: number; month: number; currency: string; officeHoursPerDay: number; workingDaysTotal: number; designationName: string | null; days: PayslipDay[];
 }
 
 export const sessionsService = {
@@ -200,6 +208,7 @@ export const payrollService = {
   register: (year: number, month: number) => api.get<PayrollRegister>(`/payroll/register?year=${year}&month=${month}`),
   payslip: (employeeId: string, year: number, month: number) =>
     api.get<Payslip>(`/payroll/payslip?employeeId=${employeeId}&year=${year}&month=${month}`),
+  finalize: (year: number, month: number) => api.post<FinalizeResult>('/payroll/finalize', { year, month }),
 };
 
 /** Report Builder export. Backend supports these dataset modules; the catalog's
@@ -295,6 +304,11 @@ export const performanceService = {
   cycles: () => api.get<ReviewCycle[]>('/performance/cycles'),
   createCycle: (payload: { name: string; startDate: string; endDate: string; isActive?: boolean }) =>
     api.post<ReviewCycle>('/performance/cycles', payload),
+  createReview: (payload: { employeeId: string; cycleId?: string; overallScore: number; summary?: string; status?: string }) =>
+    api.post<PerformanceReview>('/performance/reviews', payload),
+  updateReview: (id: string, payload: { overallScore?: number; summary?: string; status?: string }) =>
+    api.patch<PerformanceReview>(`/performance/reviews/${id}`, payload),
+  getReview: (id: string) => api.get<PerformanceReview>(`/performance/reviews/${id}`),
 };
 
 export const notificationsService = {
@@ -378,11 +392,12 @@ export interface OrganizationProfile {
   timezone?: string | null;
   locale?: string | null;
   currency?: string | null;
+  defaultCompensationType?: CompensationType;
   logoUrl?: string | null;
   settings?: Record<string, unknown> | null;
 }
 
-const ORG_COLUMN_FIELDS = ['name', 'legalName', 'timezone', 'locale', 'currency', 'logoUrl'];
+const ORG_COLUMN_FIELDS = ['name', 'legalName', 'timezone', 'locale', 'currency', 'defaultCompensationType', 'logoUrl'];
 const ORG_SETTING_FIELDS = ['registrationNo', 'fiscalYearStart'];
 
 export const organizationService = {

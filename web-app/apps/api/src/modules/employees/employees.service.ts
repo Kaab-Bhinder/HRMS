@@ -155,6 +155,13 @@ export class EmployeesService {
       if (dept?.headEmployeeId) managerId = dept.headEmployeeId;
     }
 
+    // New hires inherit the org's default pay model unless one is set explicitly.
+    let compensationType = dto.compensationType;
+    if (!compensationType) {
+      const org = await tx.organization.findUnique({ where: { id: orgId }, select: { defaultCompensationType: true } });
+      compensationType = org?.defaultCompensationType ?? 'hourly';
+    }
+
     const employeeCode = dto.employeeCode ?? (await this.nextCode(tx, orgId));
     const created = await tx.employee.create({
       data: {
@@ -176,6 +183,8 @@ export class EmployeesService {
         employmentType: dto.employmentType,
         status: dto.status,
         dateOfJoining: dto.dateOfJoining ? new Date(dto.dateOfJoining) : undefined,
+        compensationType,
+        basicSalary: dto.basicSalary,
         payPerHour: dto.payPerHour,
         customFields: customFields as Prisma.InputJsonValue,
       },
@@ -237,6 +246,8 @@ export class EmployeesService {
         employmentType: dto.employmentType,
         status: dto.status,
         dateOfJoining: dto.dateOfJoining ? new Date(dto.dateOfJoining) : undefined,
+        compensationType: dto.compensationType,
+        basicSalary: dto.basicSalary,
         payPerHour: dto.payPerHour,
         ...(customFields !== undefined ? { customFields } : {}),
       },
@@ -331,6 +342,8 @@ export class EmployeesService {
       employmentType: e.employmentType,
       status: e.status,
       dateOfJoining: e.dateOfJoining,
+      compensationType: e.compensationType,
+      basicSalary: e.basicSalary != null ? Number(e.basicSalary) : null,
       payPerHour: e.payPerHour != null ? Number(e.payPerHour) : null,
       customFields: e.customFields ?? {},
       // linked login account (every employee has one from day one)

@@ -1,5 +1,6 @@
 import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsNumber, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNumber, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { CompensationType } from '@prisma/client';
 
 export class UpdateOrganizationDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) name?: string;
@@ -7,6 +8,8 @@ export class UpdateOrganizationDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(64) timezone?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(16) locale?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(3) currency?: string;
+  @ApiPropertyOptional({ enum: CompensationType, description: 'Default pay model new employees inherit.' })
+  @IsOptional() @IsEnum(CompensationType) defaultCompensationType?: CompensationType;
   @ApiPropertyOptional() @IsOptional() @IsString() logoUrl?: string;
   @ApiPropertyOptional({ type: 'object', additionalProperties: true }) @IsOptional() @IsObject() settings?: Record<string, unknown>;
 }

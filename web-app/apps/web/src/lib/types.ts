@@ -39,6 +39,8 @@ export interface Employee {
   employmentType: EmploymentType;
   status: EmployeeStatus;
   dateOfJoining: string;
+  compensationType?: 'monthly' | 'hourly';
+  basicSalary?: number | null;
   payPerHour?: number | null;
   customFields: Record<string, unknown>;
   // linked login account (every employee has one from day one)
@@ -244,6 +246,7 @@ export interface PerformanceReview {
   reviewerName: string;
   status: 'draft' | 'in_progress' | 'submitted' | 'acknowledged' | 'closed';
   overallScore?: number;
+  summary?: string | null;
   updatedAt: string;
 }
 

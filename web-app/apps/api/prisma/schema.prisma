@@ -19,19 +19,22 @@ enum UserStatus {
 }
 
 model Organization {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @db.VarChar(200)
-  legalName String?  @map("legal_name") @db.VarChar(255)
-  slug      String   @unique
-  logoUrl   String?  @map("logo_url")
-  timezone  String   @default("UTC") @db.VarChar(64)
-  locale    String   @default("en") @db.VarChar(16)
-  currency  String   @default("USD") @db.Char(3)
-  settings  Json     @default("{}")
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
+  id                      String           @id @default(uuid()) @db.Uuid
+  name                    String           @db.VarChar(200)
+  legalName               String?          @map("legal_name") @db.VarChar(255)
+  slug                    String           @unique
+  logoUrl                 String?          @map("logo_url")
+  timezone                String           @default("UTC") @db.VarChar(64)
+  locale                  String           @default("en") @db.VarChar(16)
+  currency                String           @default("USD") @db.Char(3)
+  // Org-wide default pay model, chosen at setup. New employees inherit it as
+  // their compensationType; it's a default, not a hard org lock.
+  defaultCompensationType CompensationType @default(hourly) @map("default_compensation_type")
+  settings                Json             @default("{}")
+  isActive                Boolean          @default(true) @map("is_active")
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
+  deletedAt               DateTime?        @map("deleted_at")
 
   users        User[]
   roles        Role[]
@@ -76,19 +79,19 @@ model User {
 }
 
 model Role {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @map("organization_id") @db.Uuid
-  name           String   @db.VarChar(80)
-  slug           String   @db.VarChar(80)
-  description    String?
-  isSystem       Boolean  @default(false) @map("is_system")
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  name            String    @db.VarChar(80)
+  slug            String    @db.VarChar(80)
+  description     String?
+  isSystem        Boolean   @default(false) @map("is_system")
   // Platform access is a separate axis from permissions (an auth-time gate, not
   // an in-app grant). A user's allowed platforms = union of their roles' flags.
-  canAccessWeb    Boolean @default(false) @map("can_access_web")
-  canAccessMobile Boolean @default(false) @map("can_access_mobile")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  deletedAt      DateTime? @map("deleted_at")
+  canAccessWeb    Boolean   @default(false) @map("can_access_web")
+  canAccessMobile Boolean   @default(false) @map("can_access_mobile")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
 
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   users        UserRole[]
@@ -183,6 +186,11 @@ enum Gender {
   undisclosed
 }
 
+enum CompensationType {
+  monthly
+  hourly
+}
+
 enum CustomFieldType {
   text
   textarea
@@ -211,18 +219,18 @@ enum CustomFieldEntity {
 }
 
 model Location {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @map("organization_id") @db.Uuid
-  name           String   @db.VarChar(150)
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String    @db.VarChar(150)
   address        String?
-  latitude       Decimal? @db.Decimal(9, 6)
-  longitude      Decimal? @db.Decimal(9, 6)
-  radiusMeters   Int?     @map("radius_meters")
-  timezone       String?  @db.VarChar(64)
-  isActive       Boolean  @default(true) @map("is_active")
-  isDefault      Boolean  @default(false) @map("is_default")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  latitude       Decimal?  @db.Decimal(9, 6)
+  longitude      Decimal?  @db.Decimal(9, 6)
+  radiusMeters   Int?      @map("radius_meters")
+  timezone       String?   @db.VarChar(64)
+  isActive       Boolean   @default(true) @map("is_active")
+  isDefault      Boolean   @default(false) @map("is_default")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -233,20 +241,20 @@ model Location {
 }
 
 model Department {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @map("organization_id") @db.Uuid
-  parentId       String?  @map("parent_id") @db.Uuid
-  name           String   @db.VarChar(150)
-  code           String?  @db.VarChar(40)
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  parentId       String?   @map("parent_id") @db.Uuid
+  name           String    @db.VarChar(150)
+  code           String?   @db.VarChar(40)
   description    String?
-  headEmployeeId String?  @map("head_employee_id") @db.Uuid
-  costCenter     String?  @map("cost_center") @db.VarChar(60)
-  customFields   Json     @default("{}") @map("custom_fields")
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  createdById    String?  @map("created_by") @db.Uuid
-  updatedById    String?  @map("updated_by") @db.Uuid
+  headEmployeeId String?   @map("head_employee_id") @db.Uuid
+  costCenter     String?   @map("cost_center") @db.VarChar(60)
+  customFields   Json      @default("{}") @map("custom_fields")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  createdById    String?   @map("created_by") @db.Uuid
+  updatedById    String?   @map("updated_by") @db.Uuid
   deletedAt      DateTime? @map("deleted_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -262,13 +270,13 @@ model Department {
 }
 
 model Designation {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @map("organization_id") @db.Uuid
-  title          String   @db.VarChar(150)
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  title          String    @db.VarChar(150)
   level          Int?
   description    String?
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -279,44 +287,51 @@ model Designation {
 }
 
 model Employee {
-  id             String         @id @default(uuid()) @db.Uuid
-  organizationId String         @map("organization_id") @db.Uuid
-  userId         String?        @unique @map("user_id") @db.Uuid
-  employeeCode   String         @map("employee_code") @db.VarChar(40)
-  firstName      String         @map("first_name") @db.VarChar(80)
-  lastName       String         @map("last_name") @db.VarChar(80)
-  displayName    String?        @map("display_name") @db.VarChar(160)
-  workEmail      String?        @map("work_email") @db.VarChar(255)
-  personalEmail  String?        @map("personal_email") @db.VarChar(255)
-  phone          String?        @db.VarChar(30)
-  gender         Gender?
-  dateOfBirth    DateTime?      @map("date_of_birth") @db.Date
-  departmentId   String?        @map("department_id") @db.Uuid
-  designationId  String?        @map("designation_id") @db.Uuid
-  locationId     String?        @map("location_id") @db.Uuid
-  managerId      String?        @map("manager_id") @db.Uuid
-  employmentType EmploymentType @default(full_time) @map("employment_type")
-  status         EmployeeStatus @default(probation)
-  dateOfJoining  DateTime?      @map("date_of_joining") @db.Date
-  probationEnd   DateTime?      @map("probation_end") @db.Date
-  dateOfExit     DateTime?      @map("date_of_exit") @db.Date
-  payPerHour     Decimal?       @map("pay_per_hour") @db.Decimal(10, 2)
-  customFields   Json           @default("{}") @map("custom_fields")
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
-  createdById    String?        @map("created_by") @db.Uuid
-  updatedById    String?        @map("updated_by") @db.Uuid
-  deletedAt      DateTime?      @map("deleted_at")
+  id               String           @id @default(uuid()) @db.Uuid
+  organizationId   String           @map("organization_id") @db.Uuid
+  userId           String?          @unique @map("user_id") @db.Uuid
+  employeeCode     String           @map("employee_code") @db.VarChar(40)
+  firstName        String           @map("first_name") @db.VarChar(80)
+  lastName         String           @map("last_name") @db.VarChar(80)
+  displayName      String?          @map("display_name") @db.VarChar(160)
+  workEmail        String?          @map("work_email") @db.VarChar(255)
+  personalEmail    String?          @map("personal_email") @db.VarChar(255)
+  phone            String?          @db.VarChar(30)
+  gender           Gender?
+  dateOfBirth      DateTime?        @map("date_of_birth") @db.Date
+  departmentId     String?          @map("department_id") @db.Uuid
+  designationId    String?          @map("designation_id") @db.Uuid
+  locationId       String?          @map("location_id") @db.Uuid
+  managerId        String?          @map("manager_id") @db.Uuid
+  employmentType   EmploymentType   @default(full_time) @map("employment_type")
+  status           EmployeeStatus   @default(probation)
+  dateOfJoining    DateTime?        @map("date_of_joining") @db.Date
+  probationEnd     DateTime?        @map("probation_end") @db.Date
+  dateOfExit       DateTime?        @map("date_of_exit") @db.Date
+  // Compensation. `compensationType` decides which amount is authoritative:
+  //   monthly → basicSalary is paid; hourly → payPerHour × attendance.
+  // It defaults to the org's default at creation but can be overridden per
+  // employee. Changing it only affects future (unfinalized) payroll runs —
+  // finalized months are frozen as Payslip snapshots, so history never moves.
+  compensationType CompensationType @default(hourly) @map("compensation_type")
+  basicSalary      Decimal?         @map("basic_salary") @db.Decimal(14, 2)
+  payPerHour       Decimal?         @map("pay_per_hour") @db.Decimal(10, 2)
+  customFields     Json             @default("{}") @map("custom_fields")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  createdById      String?          @map("created_by") @db.Uuid
+  updatedById      String?          @map("updated_by") @db.Uuid
+  deletedAt        DateTime?        @map("deleted_at")
 
-  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
-  department   Department?          @relation("DeptMembers", fields: [departmentId], references: [id], onDelete: SetNull)
-  designation  Designation?         @relation(fields: [designationId], references: [id], onDelete: SetNull)
-  location     Location?            @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  manager      Employee?            @relation("EmpManager", fields: [managerId], references: [id], onDelete: SetNull)
-  reports      Employee[]           @relation("EmpManager")
-  headOf       Department[]         @relation("DeptHead")
-  history      EmploymentHistory[]
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user               User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  department         Department?         @relation("DeptMembers", fields: [departmentId], references: [id], onDelete: SetNull)
+  designation        Designation?        @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  location           Location?           @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  manager            Employee?           @relation("EmpManager", fields: [managerId], references: [id], onDelete: SetNull)
+  reports            Employee[]          @relation("EmpManager")
+  headOf             Department[]        @relation("DeptHead")
+  history            EmploymentHistory[]
   employeeShifts     EmployeeShift[]
   attendanceDays     AttendanceDay[]
   attendanceSessions AttendanceSession[]
@@ -326,12 +341,44 @@ model Employee {
   taskAssignments    TaskAssignment[]
   performanceReviews PerformanceReview[]
   goals              Goal[]
+  payslips           Payslip[]
 
   @@unique([organizationId, employeeCode])
   @@index([organizationId, status])
   @@index([departmentId])
   @@index([managerId])
   @@map("employees")
+}
+
+/// Immutable snapshot of one employee's pay for one finalized month. Written
+/// when payroll is finalized; never recomputed. This is what keeps past months
+/// stable when an employee's salary or compensation type later changes.
+/// `breakdown` stores the full computed figures (basic, deductions, days, rate)
+/// as JSON so a payslip can be re-rendered exactly as it was finalized.
+model Payslip {
+  id                String           @id @default(uuid()) @db.Uuid
+  organizationId    String           @map("organization_id") @db.Uuid
+  employeeId        String           @map("employee_id") @db.Uuid
+  year              Int              @db.SmallInt
+  month             Int              @db.SmallInt
+  compensationType  CompensationType @map("compensation_type")
+  currency          String           @db.Char(3)
+  grossAmount       Decimal          @map("gross_amount") @db.Decimal(14, 2)
+  deductions        Decimal          @default(0) @db.Decimal(14, 2)
+  netAmount         Decimal          @map("net_amount") @db.Decimal(14, 2)
+  workingDays       Int              @map("working_days") @db.SmallInt
+  paidDays          Decimal          @default(0) @map("paid_days") @db.Decimal(5, 2)
+  unpaidLeaveDays   Decimal          @default(0) @map("unpaid_leave_days") @db.Decimal(5, 2)
+  breakdown         Json             @default("{}")
+  finalizedByUserId String?          @map("finalized_by_user") @db.Uuid
+  finalizedByName   String?          @map("finalized_by_name") @db.VarChar(150)
+  finalizedAt       DateTime         @default(now()) @map("finalized_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, year, month])
+  @@index([organizationId, year, month])
+  @@map("payslips")
 }
 
 model EmploymentHistory {
@@ -387,21 +434,21 @@ model CustomFieldDefinition {
 }
 
 model FileObject {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @map("organization_id") @db.Uuid
-  ownerType      String   @map("owner_type") @db.VarChar(40)
-  ownerId        String   @map("owner_id") @db.Uuid
-  category       String?  @db.VarChar(60)
-  fileName       String   @map("file_name") @db.VarChar(255)
-  mimeType       String   @map("mime_type") @db.VarChar(120)
-  sizeBytes      BigInt   @map("size_bytes")
-  storageKey     String   @map("storage_key")
-  checksumSha256 String?  @map("checksum_sha256") @db.Char(64)
-  isScanned      Boolean  @default(false) @map("is_scanned")
-  scanResult     String?  @map("scan_result") @db.VarChar(20)
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  ownerType      String    @map("owner_type") @db.VarChar(40)
+  ownerId        String    @map("owner_id") @db.Uuid
+  category       String?   @db.VarChar(60)
+  fileName       String    @map("file_name") @db.VarChar(255)
+  mimeType       String    @map("mime_type") @db.VarChar(120)
+  sizeBytes      BigInt    @map("size_bytes")
+  storageKey     String    @map("storage_key")
+  checksumSha256 String?   @map("checksum_sha256") @db.Char(64)
+  isScanned      Boolean   @default(false) @map("is_scanned")
+  scanResult     String?   @map("scan_result") @db.VarChar(20)
   expiresOn      DateTime? @map("expires_on") @db.Date
-  uploadedById   String?  @map("uploaded_by") @db.Uuid
-  createdAt      DateTime @default(now()) @map("created_at")
+  uploadedById   String?   @map("uploaded_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at")
   deletedAt      DateTime? @map("deleted_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -510,7 +557,7 @@ model Shift {
   organizationId String    @map("organization_id") @db.Uuid
   name           String    @db.VarChar(100)
   type           ShiftType @default(fixed)
-  startTime      String    @map("start_time") @db.VarChar(5)  // "HH:mm"
+  startTime      String    @map("start_time") @db.VarChar(5) // "HH:mm"
   endTime        String    @map("end_time") @db.VarChar(5)
   graceMinutes   Int       @default(0) @map("grace_minutes")
   breakMinutes   Int       @default(0) @map("break_minutes")
@@ -546,25 +593,25 @@ model EmployeeShift {
 }
 
 model AttendancePolicy {
-  id                  String    @id @default(uuid()) @db.Uuid
-  organizationId      String    @map("organization_id") @db.Uuid
-  name                String    @db.VarChar(120)
-  isDefault           Boolean   @default(false) @map("is_default")
-  locationId          String?   @map("location_id") @db.Uuid
-  graceMinutes        Int       @default(0) @map("grace_minutes")
-  lateAfterMinutes    Int?      @map("late_after_minutes")
-  earlyBeforeMinutes  Int?      @map("early_before_minutes")
-  halfDayMinutes      Int?      @map("half_day_minutes")
-  fullDayMinutes      Int?      @map("full_day_minutes")
-  overtimeAfterMinutes Int?     @map("overtime_after_minutes")
-  enforceGeofence     Boolean   @default(true) @map("enforce_geofence")
-  allowRemote         Boolean   @default(false) @map("allow_remote")
-  allowedMethods      String[]  @default([]) @map("allowed_methods")
-  weeklyOffDays       Int[]     @default([0, 6]) @map("weekly_off_days")
-  trackingIntervalSec Int       @default(120) @map("tracking_interval_sec")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
-  deletedAt           DateTime? @map("deleted_at")
+  id                   String    @id @default(uuid()) @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
+  name                 String    @db.VarChar(120)
+  isDefault            Boolean   @default(false) @map("is_default")
+  locationId           String?   @map("location_id") @db.Uuid
+  graceMinutes         Int       @default(0) @map("grace_minutes")
+  lateAfterMinutes     Int?      @map("late_after_minutes")
+  earlyBeforeMinutes   Int?      @map("early_before_minutes")
+  halfDayMinutes       Int?      @map("half_day_minutes")
+  fullDayMinutes       Int?      @map("full_day_minutes")
+  overtimeAfterMinutes Int?      @map("overtime_after_minutes")
+  enforceGeofence      Boolean   @default(true) @map("enforce_geofence")
+  allowRemote          Boolean   @default(false) @map("allow_remote")
+  allowedMethods       String[]  @default([]) @map("allowed_methods")
+  weeklyOffDays        Int[]     @default([0, 6]) @map("weekly_off_days")
+  trackingIntervalSec  Int       @default(120) @map("tracking_interval_sec")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  deletedAt            DateTime? @map("deleted_at")
 
   @@index([organizationId])
   @@map("attendance_policies")
@@ -585,26 +632,26 @@ model Holiday {
 
 // --- Attendance capture (two-layer: raw punches + derived day) ---
 model AttendancePunch {
-  id             String           @id @default(uuid()) @db.Uuid
-  organizationId String           @map("organization_id") @db.Uuid
-  employeeId     String           @map("employee_id") @db.Uuid
-  sessionId      String?          @map("session_id") @db.Uuid
-  type           PunchType
-  method         AttendanceMethod
-  occurredAt     DateTime         @map("occurred_at")
-  locationId     String?          @map("location_id") @db.Uuid
-  latitude       Decimal?         @db.Decimal(9, 6)
-  longitude      Decimal?         @db.Decimal(9, 6)
-  accuracyMeters Int?             @map("accuracy_meters")
-  faceCaptureId  String?          @map("face_capture_id") @db.Uuid
-  deviceId       String?          @map("device_id") @db.Uuid
-  deviceLogId    String?          @map("device_log_id") @db.VarChar(80)
-  isOffline      Boolean          @default(false) @map("is_offline")
-  clientCreatedAt DateTime?       @map("client_created_at")
-  syncedAt       DateTime?        @map("synced_at")
-  rawPayload     Json?            @map("raw_payload")
-  createdById    String?          @map("created_by") @db.Uuid
-  createdAt      DateTime         @default(now()) @map("created_at")
+  id              String           @id @default(uuid()) @db.Uuid
+  organizationId  String           @map("organization_id") @db.Uuid
+  employeeId      String           @map("employee_id") @db.Uuid
+  sessionId       String?          @map("session_id") @db.Uuid
+  type            PunchType
+  method          AttendanceMethod
+  occurredAt      DateTime         @map("occurred_at")
+  locationId      String?          @map("location_id") @db.Uuid
+  latitude        Decimal?         @db.Decimal(9, 6)
+  longitude       Decimal?         @db.Decimal(9, 6)
+  accuracyMeters  Int?             @map("accuracy_meters")
+  faceCaptureId   String?          @map("face_capture_id") @db.Uuid
+  deviceId        String?          @map("device_id") @db.Uuid
+  deviceLogId     String?          @map("device_log_id") @db.VarChar(80)
+  isOffline       Boolean          @default(false) @map("is_offline")
+  clientCreatedAt DateTime?        @map("client_created_at")
+  syncedAt        DateTime?        @map("synced_at")
+  rawPayload      Json?            @map("raw_payload")
+  createdById     String?          @map("created_by") @db.Uuid
+  createdAt       DateTime         @default(now()) @map("created_at")
 
   session AttendanceSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
@@ -615,27 +662,27 @@ model AttendancePunch {
 }
 
 model AttendanceDay {
-  id              String              @id @default(uuid()) @db.Uuid
-  organizationId  String              @map("organization_id") @db.Uuid
-  employeeId      String              @map("employee_id") @db.Uuid
-  workDate        DateTime            @map("work_date") @db.Date
-  shiftId         String?             @map("shift_id") @db.Uuid
-  policyId        String?             @map("policy_id") @db.Uuid
-  firstInAt       DateTime?           @map("first_in_at")
-  lastOutAt       DateTime?           @map("last_out_at")
-  status          AttendanceDayStatus @default(absent)
-  workedMinutes   Int                 @default(0) @map("worked_minutes")
-  breakMinutes    Int                 @default(0) @map("break_minutes")
-  overtimeMinutes Int                 @default(0) @map("overtime_minutes")
-  lateMinutes     Int                 @default(0) @map("late_minutes")
-  earlyLeaveMinutes Int               @default(0) @map("early_leave_minutes")
-  isRegularized   Boolean             @default(false) @map("is_regularized")
-  isFlagged       Boolean             @default(false) @map("is_flagged")
-  flagReason      String?             @map("flag_reason")
-  primaryMethod   AttendanceMethod?   @map("primary_method")
-  note            String?
-  createdAt       DateTime            @default(now()) @map("created_at")
-  updatedAt       DateTime            @updatedAt @map("updated_at")
+  id                String              @id @default(uuid()) @db.Uuid
+  organizationId    String              @map("organization_id") @db.Uuid
+  employeeId        String              @map("employee_id") @db.Uuid
+  workDate          DateTime            @map("work_date") @db.Date
+  shiftId           String?             @map("shift_id") @db.Uuid
+  policyId          String?             @map("policy_id") @db.Uuid
+  firstInAt         DateTime?           @map("first_in_at")
+  lastOutAt         DateTime?           @map("last_out_at")
+  status            AttendanceDayStatus @default(absent)
+  workedMinutes     Int                 @default(0) @map("worked_minutes")
+  breakMinutes      Int                 @default(0) @map("break_minutes")
+  overtimeMinutes   Int                 @default(0) @map("overtime_minutes")
+  lateMinutes       Int                 @default(0) @map("late_minutes")
+  earlyLeaveMinutes Int                 @default(0) @map("early_leave_minutes")
+  isRegularized     Boolean             @default(false) @map("is_regularized")
+  isFlagged         Boolean             @default(false) @map("is_flagged")
+  flagReason        String?             @map("flag_reason")
+  primaryMethod     AttendanceMethod?   @map("primary_method")
+  note              String?
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
@@ -713,13 +760,13 @@ model BiometricDevice {
   organizationId String               @map("organization_id") @db.Uuid
   locationId     String?              @map("location_id") @db.Uuid
   name           String               @db.VarChar(120)
-  vendor         String               @db.VarChar(60)  // ZKTeco, eSSL, Suprema, … (free-form, adapter key)
+  vendor         String               @db.VarChar(60) // ZKTeco, eSSL, Suprema, … (free-form, adapter key)
   model          String?              @db.VarChar(80)
   serialNumber   String?              @map("serial_number") @db.VarChar(120)
   connectionType DeviceConnectionType @map("connection_type")
   host           String?              @db.VarChar(120)
   port           Int?
-  credentials    Json?                // encrypted at app layer
+  credentials    Json? // encrypted at app layer
   config         Json?
   status         String               @default("offline") @db.VarChar(20)
   lastSyncAt     DateTime?            @map("last_sync_at")
@@ -945,13 +992,13 @@ model TaskAssignment {
 }
 
 model TaskComment {
-  id             String    @id @default(uuid()) @db.Uuid
-  taskId         String    @map("task_id") @db.Uuid
-  authorEmployeeId String?  @map("author_employee_id") @db.Uuid
-  body           String
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-  deletedAt      DateTime? @map("deleted_at")
+  id               String    @id @default(uuid()) @db.Uuid
+  taskId           String    @map("task_id") @db.Uuid
+  authorEmployeeId String?   @map("author_employee_id") @db.Uuid
+  body             String
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
@@ -1079,17 +1126,17 @@ enum AuditAction {
 
 // --- Notifications (multi-channel) ---
 model NotificationTemplate {
-  id             String              @id @default(uuid()) @db.Uuid
-  organizationId String              @map("organization_id") @db.Uuid
-  eventKey       String              @map("event_key") @db.VarChar(80)
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  eventKey       String               @map("event_key") @db.VarChar(80)
   channel        NotificationChannel
-  locale         String              @default("en") @db.VarChar(8) // language-neutral backend; content keyed by locale
-  subject        String?             @db.VarChar(200)
+  locale         String               @default("en") @db.VarChar(8) // language-neutral backend; content keyed by locale
+  subject        String?              @db.VarChar(200)
   body           String
   priority       NotificationPriority @default(normal)
-  isActive       Boolean             @default(true) @map("is_active")
-  createdAt      DateTime            @default(now()) @map("created_at")
-  updatedAt      DateTime            @updatedAt @map("updated_at")
+  isActive       Boolean              @default(true) @map("is_active")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
 
   @@unique([organizationId, eventKey, channel, locale])
   @@map("notification_templates")
@@ -1221,19 +1268,19 @@ model SavedReport {
 
 // --- Audit & Activity ---
 model AuditLog {
-  id            String      @id @default(uuid()) @db.Uuid
-  organizationId String?    @map("organization_id") @db.Uuid
-  actorUserId   String?     @map("actor_user_id") @db.Uuid
-  actorName     String?     @map("actor_name") @db.VarChar(150)
-  action        AuditAction
-  entityType    String      @map("entity_type") @db.VarChar(60)
-  entityId      String?     @map("entity_id") @db.VarChar(80)
-  beforeData    Json?       @map("before_data")
-  afterData     Json?       @map("after_data")
-  ipAddress     String?     @map("ip_address") @db.VarChar(64)
-  userAgent     String?     @map("user_agent")
-  requestId     String?     @map("request_id") @db.VarChar(80)
-  createdAt     DateTime    @default(now()) @map("created_at")
+  id             String      @id @default(uuid()) @db.Uuid
+  organizationId String?     @map("organization_id") @db.Uuid
+  actorUserId    String?     @map("actor_user_id") @db.Uuid
+  actorName      String?     @map("actor_name") @db.VarChar(150)
+  action         AuditAction
+  entityType     String      @map("entity_type") @db.VarChar(60)
+  entityId       String?     @map("entity_id") @db.VarChar(80)
+  beforeData     Json?       @map("before_data")
+  afterData      Json?       @map("after_data")
+  ipAddress      String?     @map("ip_address") @db.VarChar(64)
+  userAgent      String?     @map("user_agent")
+  requestId      String?     @map("request_id") @db.VarChar(80)
+  createdAt      DateTime    @default(now()) @map("created_at")
 
   @@index([organizationId, createdAt])
   @@index([entityType, entityId])

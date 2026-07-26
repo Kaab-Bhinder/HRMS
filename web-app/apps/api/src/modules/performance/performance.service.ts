@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { paginated } from '../../common/dto/pagination.dto';
@@ -88,6 +88,19 @@ export class PerformanceService {
   }
 
   async createReview(orgId: string, dto: CreateReviewDto) {
+    // One review per employee per cycle: scoring is a single verdict for the
+    // period, not a running log. A second attempt should edit the first, so we
+    // reject the duplicate with a clear message rather than silently creating
+    // two scores that the dashboard would then average together.
+    if (dto.cycleId) {
+      const dupe = await this.prisma.performanceReview.findFirst({
+        where: { organizationId: orgId, employeeId: dto.employeeId, cycleId: dto.cycleId, deletedAt: null },
+        select: { id: true },
+      });
+      if (dupe) {
+        throw new BadRequestException('This employee already has a review in this cycle. Open it to edit the score.');
+      }
+    }
     const review = await this.prisma.performanceReview.create({
       data: {
         organizationId: orgId,
@@ -233,6 +246,7 @@ export class PerformanceService {
       reviewerName: r.reviewerId ? (reviewerNames?.get(r.reviewerId) ?? null) : null,
       status: r.status,
       overallScore: r.overallScore !== null && r.overallScore !== undefined ? Number(r.overallScore) : null,
+      summary: r.summary ?? null,
       updatedAt: r.updatedAt,
     };
   }

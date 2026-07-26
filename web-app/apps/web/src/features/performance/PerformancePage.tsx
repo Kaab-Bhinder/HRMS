@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Play, ClipboardCheck, Star, Target, AlertTriangle, MoreHorizontal, Eye, CalendarClock,
+  Play, Plus, ClipboardCheck, Star, Target, AlertTriangle, MoreHorizontal, Eye, CalendarClock,
 } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { FilterBar } from '../../components/FilterBar';
@@ -14,12 +14,12 @@ import { Tabs } from '../../components/ui/Tabs';
 import { Progress } from '../../components/ui/Misc';
 import { Dropdown, DropdownItem } from '../../components/ui/Dropdown';
 import { Modal } from '../../components/ui/Modal';
-import { Input, Label } from '../../components/ui/Input';
+import { Input, Textarea, Label } from '../../components/ui/Input';
 import { useToast } from '../../store/toast';
 import { usePermission } from '../../store/auth';
 import { EmptyState, Skeleton } from '../../components/feedback/States';
 import { useQuery } from '../../hooks/useQuery';
-import { performanceService } from '../../services';
+import { performanceService, employeesService } from '../../services';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { formatDate, relativeTime } from '../../lib/format';
 import type { PerformanceReview, Goal } from '../../lib/types';
@@ -46,6 +46,8 @@ export default function PerformancePage() {
   const canManage = usePermission('performance:create');
   const [tab, setTab] = useState<'reviews' | 'goals'>('reviews');
   const [cycleOpen, setCycleOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [viewReview, setViewReview] = useState<PerformanceReview | null>(null);
 
   const [search, setSearch] = useState('');
   const debounced = useDebouncedValue(search, 300);
@@ -117,7 +119,7 @@ export default function PerformancePage() {
       key: 'actions', header: '', align: 'right',
       render: (r) => (
         <Dropdown trigger={<Button variant="ghost" size="icon" aria-label="Actions"><MoreHorizontal className="h-4 w-4" /></Button>}>
-          <DropdownItem icon={<Eye />} onClick={() => { void r; }}>View review</DropdownItem>
+          <DropdownItem icon={<Eye />} onClick={() => setViewReview(r)}>View review</DropdownItem>
         </Dropdown>
       ),
     },
@@ -128,7 +130,12 @@ export default function PerformancePage() {
       <PageHeader
         title="Performance"
         description="Track review cycles, appraisal scores and goal progress across teams."
-        actions={canManage && <Button size="sm" onClick={() => setCycleOpen(true)}><Play className="h-4 w-4" /> Start Review Cycle</Button>}
+        actions={canManage && (
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setCycleOpen(true)}><Play className="h-4 w-4" /> Start Review Cycle</Button>
+            <Button size="sm" onClick={() => setReviewOpen(true)}><Plus className="h-4 w-4" /> New Review</Button>
+          </div>
+        )}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -175,6 +182,8 @@ export default function PerformancePage() {
       )}
 
       <StartCycleModal open={cycleOpen} onClose={() => setCycleOpen(false)} onCreated={() => { setCycleOpen(false); refetch(); }} />
+      <ReviewModal open={reviewOpen} onClose={() => setReviewOpen(false)} onSaved={() => { setReviewOpen(false); refetch(); }} />
+      <ViewReviewModal review={viewReview} onClose={() => setViewReview(null)} onSaved={() => { setViewReview(null); refetch(); }} />
     </div>
   );
 }
@@ -298,6 +307,144 @@ function StartCycleModal({ open, onClose, onCreated }: { open: boolean; onClose:
             <Label htmlFor="cycle-end" required>End date</Label>
             <Input id="cycle-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/** Rate an employee for the active cycle. Employee list is role-scoped by the
+ *  API (a head sees only their team). The active cycle is auto-attached, so the
+ *  reviewer never picks a cycle — they just score. */
+function ReviewModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const { data: cycles } = useQuery(() => performanceService.cycles(), []);
+  const { data: emps } = useQuery(() => employeesService.list({ limit: 500 }), []);
+  const [employeeId, setEmployeeId] = useState('');
+  const [score, setScore] = useState(4);
+  const [summary, setSummary] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const activeCycle = (cycles ?? []).find((c) => c.isActive) ?? (cycles ?? [])[0];
+
+  const save = async () => {
+    if (!employeeId) { toast.error('Pick an employee', 'Choose who you are reviewing.'); return; }
+    if (!activeCycle) { toast.error('No active cycle', 'Start a review cycle first.'); return; }
+    setSaving(true);
+    try {
+      await performanceService.createReview({
+        employeeId, cycleId: activeCycle.id, overallScore: score,
+        summary: summary.trim() || undefined, status: 'submitted',
+      });
+      toast.success('Review submitted', 'The score has been recorded.');
+      onSaved();
+      setEmployeeId(''); setScore(4); setSummary('');
+    } catch (e) {
+      toast.error('Could not submit review', (e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="New review"
+      description={activeCycle ? `Scoring for “${activeCycle.name}”.` : 'Start a review cycle first.'}
+      footer={<>
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button onClick={save} loading={saving} disabled={!activeCycle}>Submit review</Button>
+      </>}
+    >
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="rev-emp" required>Employee</Label>
+          <select
+            id="rev-emp"
+            value={employeeId}
+            onChange={(e) => setEmployeeId(e.target.value)}
+            className="w-full rounded-md border border-input bg-surface px-3 py-2 text-sm text-foreground focus-ring"
+          >
+            <option value="">Select an employee…</option>
+            {(emps?.data ?? []).map((e: any) => (
+              <option key={e.id} value={e.id}>{e.firstName} {e.lastName}{e.departmentName ? ` — ${e.departmentName}` : ''}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label htmlFor="rev-score" required>Score (1–5)</Label>
+          <div className="flex items-center gap-3">
+            <input
+              id="rev-score" type="range" min={1} max={5} step={0.5}
+              value={score} onChange={(e) => setScore(Number(e.target.value))}
+              className="flex-1 accent-primary"
+            />
+            <span className="w-10 text-right text-lg font-semibold tabular-nums text-foreground">{score.toFixed(1)}</span>
+          </div>
+        </div>
+        <div>
+          <Label htmlFor="rev-summary">Summary</Label>
+          <Textarea id="rev-summary" rows={4} value={summary} onChange={(e) => setSummary(e.target.value)}
+            placeholder="Strengths, areas to develop, notable outcomes this cycle…" />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/** Read the score and summary for one review; edit if permitted. */
+function ViewReviewModal({ review, onClose, onSaved }: { review: PerformanceReview | null; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const canManage = usePermission('performance:update');
+  const [score, setScore] = useState(0);
+  const [summary, setSummary] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (review) { setScore(Number(review.overallScore ?? 0)); setSummary(review.summary ?? ''); }
+  }, [review]);
+
+  if (!review) return null;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await performanceService.updateReview(review.id, { overallScore: score, summary: summary.trim() || undefined });
+      toast.success('Review updated', `${review.employeeName}'s score saved.`);
+      onSaved();
+    } catch (e) {
+      toast.error('Could not update', (e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={!!review}
+      onClose={onClose}
+      title={`Review — ${review.employeeName}`}
+      description={review.cycle ? `Cycle: ${review.cycle}` : undefined}
+      footer={<>
+        <Button variant="outline" onClick={onClose}>Close</Button>
+        {canManage && <Button onClick={save} loading={saving}>Save changes</Button>}
+      </>}
+    >
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="vr-score">Score (1–5)</Label>
+          <div className="flex items-center gap-3">
+            <input id="vr-score" type="range" min={1} max={5} step={0.5} value={score}
+              disabled={!canManage} onChange={(e) => setScore(Number(e.target.value))}
+              className="flex-1 accent-primary disabled:opacity-60" />
+            <span className="w-10 text-right text-lg font-semibold tabular-nums text-foreground">{score.toFixed(1)}</span>
+          </div>
+        </div>
+        <div>
+          <Label htmlFor="vr-summary">Summary</Label>
+          <Textarea id="vr-summary" rows={4} value={summary} disabled={!canManage}
+            onChange={(e) => setSummary(e.target.value)} placeholder="No summary recorded." />
         </div>
       </div>
     </Modal>

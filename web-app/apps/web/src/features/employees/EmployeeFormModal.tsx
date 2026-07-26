@@ -6,14 +6,15 @@ import { Input, Select, Label } from '../../components/ui/Input';
 import { DynamicCustomField, validateCustomFields } from '../../components/forms/DynamicCustomField';
 import { Skeleton } from '../../components/feedback/States';
 import { useQuery } from '../../hooks/useQuery';
-import { customFieldsService, departmentsService, designationsService, employeesService, rolesService } from '../../services';
+import { customFieldsService, departmentsService, designationsService, employeesService, organizationService, rolesService } from '../../services';
 import { useToast } from '../../store/toast';
 import type { Employee, Role } from '../../lib/types';
 
 const EMPTY = {
   firstName: '', lastName: '', workEmail: '', phone: '', gender: 'male',
   departmentId: '', designationId: '', employmentType: 'full_time', status: 'probation',
-  dateOfJoining: new Date().toISOString().slice(0, 10), payPerHour: '',
+  dateOfJoining: new Date().toISOString().slice(0, 10),
+  compensationType: 'hourly', basicSalary: '', payPerHour: '',
 };
 
 interface CreatedAccount { name: string; email: string; role: string; password: string | null; }
@@ -25,6 +26,7 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
   const { data: depts } = useQuery(() => departmentsService.tree(), []);
   const { data: desigs } = useQuery(() => designationsService.list(), []);
   const { data: roles } = useQuery(() => rolesService.list(), []);
+  const { data: org } = useQuery(() => organizationService.current(), []);
 
   const [form, setForm] = useState<Record<string, string>>(EMPTY);
   const [custom, setCustom] = useState<Record<string, unknown>>({});
@@ -44,15 +46,18 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
         firstName: employee.firstName, lastName: employee.lastName, workEmail: employee.workEmail,
         phone: employee.phone, gender: employee.gender ?? 'male', departmentId: employee.departmentId,
         designationId: employee.designationId, employmentType: employee.employmentType, status: employee.status,
-        dateOfJoining: employee.dateOfJoining.slice(0, 10), payPerHour: employee.payPerHour != null ? String(employee.payPerHour) : '',
-      } : { ...EMPTY, departmentId: depts?.[0]?.id ?? '', designationId: desigs?.[0]?.id ?? '' });
+        dateOfJoining: employee.dateOfJoining.slice(0, 10),
+        compensationType: employee.compensationType ?? 'hourly',
+        basicSalary: employee.basicSalary != null ? String(employee.basicSalary) : '',
+        payPerHour: employee.payPerHour != null ? String(employee.payPerHour) : '',
+      } : { ...EMPTY, compensationType: org?.defaultCompensationType ?? 'hourly', departmentId: depts?.[0]?.id ?? '', designationId: desigs?.[0]?.id ?? '' });
       setCustom(employee ? { ...employee.customFields } : {});
       setErrors({});
       setAccountRoleId('');
       setPasswordStrategy('generate');
       setCreated(null);
     }
-  }, [open, employee, depts, desigs]);
+  }, [open, employee, depts, desigs, org]);
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const setCf = (k: string, v: unknown) => setCustom((c) => ({ ...c, [k]: v }));
@@ -86,9 +91,12 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
     for (const k of ['departmentId', 'designationId', 'managerId', 'locationId']) {
       if (!payload[k]) delete payload[k];
     }
-    // Pay per hour: numeric, or omit when blank.
-    if (form.payPerHour === '' || form.payPerHour == null) delete payload.payPerHour;
-    else payload.payPerHour = Number(form.payPerHour);
+    // Compensation: send only the field that matches the chosen type, and null
+    // out the other so switching type doesn't leave a stale amount behind.
+    const monthly = form.compensationType === 'monthly';
+    payload.compensationType = form.compensationType;
+    payload.basicSalary = monthly && form.basicSalary !== '' ? Number(form.basicSalary) : null;
+    payload.payPerHour = !monthly && form.payPerHour !== '' ? Number(form.payPerHour) : null;
     try {
       if (isEdit) {
         await employeesService.update(employee!.id, payload as Partial<Employee>);
@@ -191,9 +199,21 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
                 <option value="on_leave">On Leave</option><option value="suspended">Suspended</option>
               </Select>
             </Field>
-            <Field label="Pay per hour">
-              <Input type="number" min={0} step="any" value={form.payPerHour} onChange={(e) => set('payPerHour', e.target.value)} placeholder="e.g. 500 — for payroll" />
+            <Field label="Compensation type">
+              <Select value={form.compensationType} onChange={(e) => set('compensationType', e.target.value)}>
+                <option value="monthly">Monthly salary</option>
+                <option value="hourly">Hourly (pay per hour)</option>
+              </Select>
             </Field>
+            {form.compensationType === 'monthly' ? (
+              <Field label={`Basic salary${org?.currency ? ` (${org.currency}/month)` : ' (per month)'}`}>
+                <Input type="number" min={0} step="any" value={form.basicSalary} onChange={(e) => set('basicSalary', e.target.value)} placeholder="e.g. 12000000 — fixed monthly" />
+              </Field>
+            ) : (
+              <Field label={`Pay per hour${org?.currency ? ` (${org.currency})` : ''}`}>
+                <Input type="number" min={0} step="any" value={form.payPerHour} onChange={(e) => set('payPerHour', e.target.value)} placeholder="e.g. 500 — for payroll" />
+              </Field>
+            )}
           </div>
         </section>
 

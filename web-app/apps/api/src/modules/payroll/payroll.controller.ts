@@ -1,8 +1,15 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { IsInt, Max, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PayrollService } from './payroll.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
+
+class FinalizePayrollDto {
+  @Type(() => Number) @IsInt() @Min(2000) @Max(2100) year!: number;
+  @Type(() => Number) @IsInt() @Min(1) @Max(12) month!: number;
+}
 
 @ApiTags('Payroll')
 @ApiBearerAuth()
@@ -12,7 +19,7 @@ export class PayrollController {
 
   /** Payroll register for a month — one row per in-scope employee. */
   @Get('register')
-  @RequirePermissions('attendance:read')
+  @RequirePermissions('payroll:read')
   @ApiOperation({ summary: 'Monthly payroll register (scoped: org / team)' })
   register(@CurrentUser() user: AuthUser, @Query('year') year?: string, @Query('month') month?: string) {
     const { y, m } = resolveMonth(year, month);
@@ -21,6 +28,7 @@ export class PayrollController {
 
   /** Detailed payslip for one employee — self-service friendly (scope-guarded). */
   @Get('payslip')
+  @RequirePermissions('payroll:read')
   @ApiOperation({ summary: 'Detailed monthly payslip for an employee (self / team / org)' })
   payslip(
     @CurrentUser() user: AuthUser,
@@ -30,6 +38,15 @@ export class PayrollController {
   ) {
     const { y, m } = resolveMonth(year, month);
     return this.payroll.payslip(user, employeeId, y, m);
+  }
+
+  /** Finalize a month — snapshots each in-scope employee's pay into an immutable
+   *  payslip. Idempotent; already-finalized employees are left untouched. */
+  @Post('finalize')
+  @RequirePermissions('payroll:create')
+  @ApiOperation({ summary: 'Finalize (lock) payroll for a month' })
+  finalize(@CurrentUser() user: AuthUser, @Body() dto: FinalizePayrollDto) {
+    return this.payroll.finalize(user, dto.year, dto.month);
   }
 }
 
