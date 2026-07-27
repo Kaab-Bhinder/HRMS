@@ -13,6 +13,7 @@ import {
   ATTENDANCE_PROVIDER_REGISTRY, CaptureContext, EffectivePolicy, ProviderRegistry,
 } from './providers/attendance-provider.interface';
 import { ManualEntryDto, PunchDto, QueryAttendanceDto, RegularizationDto } from './dto/attendance.dto';
+import { canSeePay } from '../../common/utils/pay-visibility.util';
 
 const MOBILE_METHODS: AttendanceMethod[] = ['mobile_gps', 'mobile_face'];
 
@@ -297,7 +298,8 @@ export class AttendanceService {
         employeeCode: emp.employeeCode,
         departmentName: emp.department?.name ?? null,
         designationName: emp.designation?.title ?? null,
-        payPerHour: emp.payPerHour ? Number(emp.payPerHour) : null,
+        // Pay rides on payroll:read, not attendance access (see pay-visibility.util).
+        payPerHour: canSeePay(user) && emp.payPerHour ? Number(emp.payPerHour) : null,
       },
       from: from.toISOString().slice(0, 10),
       to: to.toISOString().slice(0, 10),

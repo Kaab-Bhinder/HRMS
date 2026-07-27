@@ -8,6 +8,7 @@ import { Skeleton } from '../../components/feedback/States';
 import { useQuery } from '../../hooks/useQuery';
 import { customFieldsService, departmentsService, designationsService, employeesService, organizationService, rolesService } from '../../services';
 import { useToast } from '../../store/toast';
+import { usePermission } from '../../store/auth';
 import type { Employee, Role } from '../../lib/types';
 
 const EMPTY = {
@@ -27,6 +28,9 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
   const { data: desigs } = useQuery(() => designationsService.list(), []);
   const { data: roles } = useQuery(() => rolesService.list(), []);
   const { data: org } = useQuery(() => organizationService.current(), []);
+  // Pay fields ride on payroll:read — without it the API masks them anyway, so
+  // showing the inputs would render blanks and saving would try to write pay.
+  const canSeePay = usePermission('payroll:read');
 
   const [form, setForm] = useState<Record<string, string>>(EMPTY);
   const [custom, setCustom] = useState<Record<string, unknown>>({});
@@ -93,10 +97,18 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
     }
     // Compensation: send only the field that matches the chosen type, and null
     // out the other so switching type doesn't leave a stale amount behind.
-    const monthly = form.compensationType === 'monthly';
-    payload.compensationType = form.compensationType;
-    payload.basicSalary = monthly && form.basicSalary !== '' ? Number(form.basicSalary) : null;
-    payload.payPerHour = !monthly && form.payPerHour !== '' ? Number(form.payPerHour) : null;
+    // Without payroll:read the fields never loaded (masked by the API), so
+    // sending them would wipe real values — drop them from the payload instead.
+    if (canSeePay) {
+      const monthly = form.compensationType === 'monthly';
+      payload.compensationType = form.compensationType;
+      payload.basicSalary = monthly && form.basicSalary !== '' ? Number(form.basicSalary) : null;
+      payload.payPerHour = !monthly && form.payPerHour !== '' ? Number(form.payPerHour) : null;
+    } else {
+      delete payload.compensationType;
+      delete payload.basicSalary;
+      delete payload.payPerHour;
+    }
     try {
       if (isEdit) {
         await employeesService.update(employee!.id, payload as Partial<Employee>);
@@ -199,20 +211,24 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
                 <option value="on_leave">On Leave</option><option value="suspended">Suspended</option>
               </Select>
             </Field>
-            <Field label="Compensation type">
-              <Select value={form.compensationType} onChange={(e) => set('compensationType', e.target.value)}>
-                <option value="monthly">Monthly salary</option>
-                <option value="hourly">Hourly (pay per hour)</option>
-              </Select>
-            </Field>
-            {form.compensationType === 'monthly' ? (
-              <Field label={`Basic salary${org?.currency ? ` (${org.currency}/month)` : ' (per month)'}`}>
-                <Input type="number" min={0} step="any" value={form.basicSalary} onChange={(e) => set('basicSalary', e.target.value)} placeholder="e.g. 12000000 — fixed monthly" />
-              </Field>
-            ) : (
-              <Field label={`Pay per hour${org?.currency ? ` (${org.currency})` : ''}`}>
-                <Input type="number" min={0} step="any" value={form.payPerHour} onChange={(e) => set('payPerHour', e.target.value)} placeholder="e.g. 500 — for payroll" />
-              </Field>
+            {canSeePay && (
+              <>
+                <Field label="Compensation type">
+                  <Select value={form.compensationType} onChange={(e) => set('compensationType', e.target.value)}>
+                    <option value="monthly">Monthly salary</option>
+                    <option value="hourly">Hourly (pay per hour)</option>
+                  </Select>
+                </Field>
+                {form.compensationType === 'monthly' ? (
+                  <Field label={`Basic salary${org?.currency ? ` (${org.currency}/month)` : ' (per month)'}`}>
+                    <Input type="number" min={0} step="any" value={form.basicSalary} onChange={(e) => set('basicSalary', e.target.value)} placeholder="e.g. 12000000 — fixed monthly" />
+                  </Field>
+                ) : (
+                  <Field label={`Pay per hour${org?.currency ? ` (${org.currency})` : ''}`}>
+                    <Input type="number" min={0} step="any" value={form.payPerHour} onChange={(e) => set('payPerHour', e.target.value)} placeholder="e.g. 500 — for payroll" />
+                  </Field>
+                )}
+              </>
             )}
           </div>
         </section>

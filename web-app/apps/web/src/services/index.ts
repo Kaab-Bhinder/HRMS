@@ -17,7 +17,7 @@ function pick<T extends Record<string, any>>(obj: T, keys: string[]): Record<str
   return out;
 }
 
-const EMP_FIELDS = ['firstName', 'lastName', 'employeeCode', 'workEmail', 'personalEmail', 'phone', 'gender', 'departmentId', 'designationId', 'locationId', 'managerId', 'employmentType', 'status', 'dateOfJoining', 'payPerHour', 'customFields'];
+const EMP_FIELDS = ['firstName', 'lastName', 'employeeCode', 'workEmail', 'personalEmail', 'phone', 'gender', 'departmentId', 'designationId', 'locationId', 'managerId', 'employmentType', 'status', 'dateOfJoining', 'compensationType', 'basicSalary', 'payPerHour', 'customFields'];
 // account fields are only meaningful on create (a linked login is provisioned then)
 const EMP_CREATE_FIELDS = [...EMP_FIELDS, 'createAccount', 'accountRoleId', 'accountPasswordStrategy'];
 const DEPT_FIELDS = ['name', 'code', 'description', 'parentId', 'headEmployeeId', 'costCenter', 'isActive'];
@@ -385,6 +385,47 @@ export const rolesService = {
  * Callers pass them as flat fields and this service folds them in, so the form
  * doesn't have to know where each value ends up.
  */
+// --- Clients (companies served by a department; records only, no logins) ---
+export type ClientStatus = 'prospect' | 'active' | 'inactive';
+export interface Client {
+  id: string;
+  name: string;
+  code: string | null;
+  contactPerson: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  status: ClientStatus;
+  notes: string | null;
+  departmentId: string | null;
+  departmentName: string | null;
+  headName: string | null;
+  teamSize: number;
+  createdAt: string;
+}
+export interface ClientPerformance {
+  client: Client;
+  team: {
+    departmentId: string;
+    departmentName: string | null;
+    headName: string | null;
+    memberCount: number;
+    members: { id: string; name: string; employeeCode: string; designation: string | null; status: string }[];
+    attendance: { presentDays: number; lateDays: number; absentDays: number; onLeaveDays: number; recordedDays: number; presentRate: number | null };
+    tasks: { open: number; inProgress: number; blocked: number; done: number; overdue: number };
+    recentReports: { id: string; title: string; periodLabel: string | null; status: string; submittedAt: string; submitterName: string }[];
+  } | null;
+}
+
+const CLIENT_FIELDS = ['name', 'code', 'contactPerson', 'contactEmail', 'contactPhone', 'status', 'notes', 'departmentId'];
+
+export const clientsService = {
+  list: () => api.get<Client[]>('/clients'),
+  performance: (id: string) => api.get<ClientPerformance>(`/clients/${id}/performance`),
+  create: (payload: Partial<Client>) => api.post<Client>('/clients', pick(payload, CLIENT_FIELDS)),
+  update: (id: string, payload: Partial<Client>) => api.patch<Client>(`/clients/${id}`, pick(payload, CLIENT_FIELDS)),
+  remove: (id: string) => api.del<{ success: boolean }>(`/clients/${id}`),
+};
+
 export interface OrganizationProfile {
   id: string;
   name: string;

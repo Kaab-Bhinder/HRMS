@@ -4,6 +4,7 @@ import { EmployeesService } from './employees.service';
 import { BulkImportDto, CreateEmployeeDto, QueryEmployeesDto, UpdateEmployeeDto } from './dto/employee.dto';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
+import { canSeePay, stripPayFields } from '../../common/utils/pay-visibility.util';
 
 @ApiTags('Employees')
 @ApiBearerAuth()
@@ -20,21 +21,26 @@ export class EmployeesController {
 
   @Post()
   @RequirePermissions('employees:create')
-  create(@CurrentUser('organizationId') orgId: string, @CurrentUser('id') userId: string, @Body() dto: CreateEmployeeDto) {
-    return this.service.create(orgId, userId, dto);
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateEmployeeDto) {
+    // Editing employees and setting pay are separate privileges: without
+    // payroll:read the pay fields are silently dropped, mirroring how the
+    // serializer hides them on the way out.
+    const showPay = canSeePay(user);
+    return this.service.create(user.organizationId, user.id, showPay ? dto : stripPayFields(dto), showPay);
   }
 
   @Post('import')
   @RequirePermissions('employees:create')
   @ApiOperation({ summary: 'Bulk import employees (per-row validation, partial success)' })
-  bulkImport(@CurrentUser('organizationId') orgId: string, @CurrentUser('id') userId: string, @Body() dto: BulkImportDto) {
-    return this.service.bulkImport(orgId, userId, dto.rows);
+  bulkImport(@CurrentUser() user: AuthUser, @Body() dto: BulkImportDto) {
+    const rows = canSeePay(user) ? dto.rows : dto.rows.map((r) => stripPayFields(r));
+    return this.service.bulkImport(user.organizationId, user.id, rows);
   }
 
   @Get(':id')
   @RequirePermissions('employees:read')
-  get(@CurrentUser('organizationId') orgId: string, @Param('id') id: string) {
-    return this.service.get(orgId, id);
+  get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.service.get(user.organizationId, id, canSeePay(user));
   }
 
   @Get(':id/history')
@@ -45,8 +51,9 @@ export class EmployeesController {
 
   @Patch(':id')
   @RequirePermissions('employees:update')
-  update(@CurrentUser('organizationId') orgId: string, @CurrentUser('id') userId: string, @Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
-    return this.service.update(orgId, userId, id, dto);
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
+    const showPay = canSeePay(user);
+    return this.service.update(user.organizationId, user.id, id, showPay ? dto : stripPayFields(dto), showPay);
   }
 
   @Post(':id/restore')

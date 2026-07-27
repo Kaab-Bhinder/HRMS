@@ -44,6 +44,7 @@ model Organization {
   employees    Employee[]
   customFields CustomFieldDefinition[]
   files        FileObject[]
+  clients      Client[]
 
   @@map("organizations")
 }
@@ -263,10 +264,48 @@ model Department {
   head         Employee?    @relation("DeptHead", fields: [headEmployeeId], references: [id], onDelete: SetNull)
   members      Employee[]   @relation("DeptMembers")
   tasks        Task[]
+  clients      Client[]     @relation("ClientDept")
 
   @@index([organizationId])
   @@index([parentId])
   @@map("departments")
+}
+
+enum ClientStatus {
+  prospect
+  active
+  inactive
+}
+
+/// A company the organization serves. Clients get NO login and no platform
+/// access — this is an admin-side record. Each client is served by one
+/// department (its head is the de-facto account lead); several clients may
+/// share a department, and internal departments simply have no client.
+/// Admin visibility (attendance, tasks, roster "for this client") is derived
+/// live from the linked department — nothing is duplicated onto the client.
+model Client {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  name           String       @db.VarChar(200)
+  code           String?      @db.VarChar(40)
+  contactPerson  String?      @map("contact_person") @db.VarChar(150)
+  contactEmail   String?      @map("contact_email") @db.VarChar(255)
+  contactPhone   String?      @map("contact_phone") @db.VarChar(30)
+  status         ClientStatus @default(active)
+  notes          String?
+  departmentId   String?      @map("department_id") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  createdById    String?      @map("created_by") @db.Uuid
+  updatedById    String?      @map("updated_by") @db.Uuid
+  deletedAt      DateTime?    @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  department   Department?  @relation("ClientDept", fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([departmentId])
+  @@map("clients")
 }
 
 model Designation {

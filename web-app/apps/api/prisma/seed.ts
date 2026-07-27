@@ -9,7 +9,7 @@ const RESOURCES = [
   'employees', 'departments', 'designations', 'roles', 'permissions', 'users',
   'tasks', 'attendance', 'leave', 'performance', 'reports', 'analytics',
   'audit', 'settings', 'notifications', 'custom_fields', 'organizations', 'files',
-  'shifts', 'biometric', 'face', 'payroll',
+  'shifts', 'biometric', 'face', 'payroll', 'clients',
 ];
 const ACTIONS = ['read', 'create', 'update', 'delete'];
 // Special (non-CRUD) permissions.
@@ -63,7 +63,11 @@ async function main() {
     // files:* is safe to grant broadly because FilesService.assertOwnerAccess
     // narrows unprivileged users to their own tasks, their own employee record
     // and their own reports — the permission alone is not org-wide access.
-    { name: 'Employee', description: 'Self-service access', keys: ['attendance:read', 'leave:read', 'leave:create', 'tasks:read', 'tasks:update', 'files:read', 'files:create', 'payroll:read'], web: false, mobile: true },
+    // No payroll:read here — that permission means "may see OTHER people's pay"
+    // (register, team payslips). One's own payslip is scope-guarded, not
+    // permission-gated, so self-service keeps working without it. Granting it
+    // here would leak team salaries to anyone who also holds Department Head.
+    { name: 'Employee', description: 'Self-service access', keys: ['attendance:read', 'leave:read', 'leave:create', 'tasks:read', 'tasks:update', 'files:read', 'files:create'], web: false, mobile: true },
   ];
 
   let superAdminRoleId = '';

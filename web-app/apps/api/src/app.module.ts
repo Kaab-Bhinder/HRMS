@@ -12,6 +12,7 @@ import { HealthModule } from './modules/health/health.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
 import { DesignationsModule } from './modules/designations/designations.module';
+import { ClientsModule } from './modules/clients/clients.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { UsersModule } from './modules/users/users.module';
@@ -60,6 +61,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     OrganizationsModule,
     DepartmentsModule,
     DesignationsModule,
+    ClientsModule,
     RolesModule,
     PermissionsModule,
     UsersModule,

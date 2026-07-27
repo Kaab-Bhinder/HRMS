@@ -3,6 +3,7 @@ import { Prisma, CompensationType } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { ScopeService } from '../access/scope.service';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
+import { canSeePay } from '../../common/utils/pay-visibility.util';
 
 /**
  * Payroll for two compensation models, computed live from attendance & leave:
@@ -241,11 +242,18 @@ export class PayrollService {
   }
 
   /** When a month is finalized, the snapshot is authoritative — return its
-   *  frozen figures instead of the live recomputation. */
+   *  frozen figures instead of the live recomputation. The descriptive fields
+   *  (type, salary, rate) come from the snapshot's breakdown too, so a
+   *  finalized month renders exactly as it was finalized even if the employee
+   *  was since switched between monthly and hourly. */
   private overlayFinalized(row: ReturnType<PayrollService['summarize']>, snap?: FinalizedSnap) {
     if (!snap) return row;
+    const frozen = (snap.breakdown ?? {}) as Partial<ReturnType<PayrollService['summarize']>>;
     return {
       ...row,
+      compensationType: snap.compensationType,
+      basicSalary: 'basicSalary' in frozen ? (frozen.basicSalary ?? null) : row.basicSalary,
+      payPerHour: 'payPerHour' in frozen ? (frozen.payPerHour ?? null) : row.payPerHour,
       grossPay: Number(snap.grossAmount),
       deductions: Number(snap.deductions),
       netPay: Number(snap.netAmount),
@@ -260,7 +268,7 @@ export class PayrollService {
     if (empIds.length === 0) return map;
     const rows = await this.prisma.payslip.findMany({
       where: { organizationId: orgId, year, month, employeeId: { in: empIds } },
-      select: { employeeId: true, grossAmount: true, deductions: true, netAmount: true, unpaidLeaveDays: true, finalizedAt: true },
+      select: { employeeId: true, compensationType: true, grossAmount: true, deductions: true, netAmount: true, unpaidLeaveDays: true, breakdown: true, finalizedAt: true },
     });
     for (const r of rows) map.set(r.employeeId, r);
     return map;
@@ -300,13 +308,17 @@ export class PayrollService {
     return map;
   }
 
+  /** Own payslip: always allowed. Anyone else's: requires payroll:read AND the
+   *  target inside the caller's data scope. This keeps self-service payslips
+   *  permission-free while salaries of others stay behind the payroll gate —
+   *  a head who also holds the Employee role still can't open team payslips. */
   private async assertCanSee(user: AuthUser, employeeId: string) {
+    const own = await this.prisma.employee.findFirst({ where: { id: employeeId, userId: user.id }, select: { id: true } });
+    if (own) return;
+    if (!canSeePay(user)) throw new ForbiddenException('You can only view your own payslip');
     const dataScope = await this.scope.resolve(user);
     if (dataScope.kind === 'org') return;
-    if (dataScope.kind === 'self') {
-      if (dataScope.employeeId !== employeeId) throw new ForbiddenException('You can only view your own payslip');
-      return;
-    }
+    if (dataScope.kind === 'self') throw new ForbiddenException('You can only view your own payslip');
     const emp = await this.prisma.employee.findFirst({ where: { id: employeeId, departmentId: { in: dataScope.departmentIds } }, select: { id: true } });
     if (!emp) throw new ForbiddenException('This employee is not in your team');
   }
@@ -370,10 +382,12 @@ type EmpRow = {
 };
 type DayRow = { status: string; workedMinutes: number; lateMinutes: number; isFlagged: boolean };
 type FinalizedSnap = {
+  compensationType: CompensationType;
   grossAmount: Prisma.Decimal;
   deductions: Prisma.Decimal;
   netAmount: Prisma.Decimal;
   unpaidLeaveDays: Prisma.Decimal;
+  breakdown: Prisma.JsonValue;
   finalizedAt: Date;
 };
 

@@ -205,4 +205,26 @@ const Map<String, String> idStrings = {
   'Daily breakdown': 'Rincian harian',
   'Current rate': 'Tarif saat ini',
   'Not set by HR yet': 'Belum diatur HR',
+
+  // --- Payslip (monthly salary) ---
+  'SALARY THIS MONTH': 'GAJI BULAN INI',
+  'NET PAY': 'GAJI BERSIH',
+  'Finalized': 'Difinalisasi',
+  'Basic': 'Gaji pokok',
+  'unpaid leave': 'cuti tanpa gaji',
+  'Full basic salary — no deductions': 'Gaji pokok penuh — tanpa potongan',
+  'Payday is here': 'Hari gajian telah tiba',
+  'day to payday': 'hari menuju gajian',
+  'days to payday': 'hari menuju gajian',
+  'Your salary is fixed for the month. Only approved unpaid leave reduces it.':
+      'Gaji Anda tetap untuk bulan ini. Hanya cuti tanpa gaji yang disetujui yang menguranginya.',
+  'Basic salary': 'Gaji pokok',
+  'per month': 'per bulan',
+  'Deductions': 'Potongan',
+  'days unpaid leave': 'hari cuti tanpa gaji',
+  'No unpaid leave': 'Tidak ada cuti tanpa gaji',
+  'of': 'dari',
+  'working days': 'hari kerja',
+  'This month': 'Bulan ini',
+  'Attendance this month': 'Kehadiran bulan ini',
 };

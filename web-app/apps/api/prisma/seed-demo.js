@@ -336,12 +336,29 @@ async function main() {
     });
   }
 
+  // --- Clients: companies served by a department (records only, no logins) ---
+  const demoClients = [
+    { name: 'PT Nusantara Retail', code: 'NUSA', contactPerson: 'Rina Wijaya', contactEmail: 'rina@nusantararetail.co.id', status: 'active' },
+    { name: 'Bank Sejahtera Syariah', code: 'BSS', contactPerson: 'Ahmad Fauzi', contactEmail: 'a.fauzi@sejahtera.co.id', status: 'active' },
+    { name: 'Garuda Logistics', code: 'GRDL', contactPerson: 'Dewi Lestari', contactEmail: 'dewi@garudalogistics.id', status: 'active' },
+    { name: 'Mitra Sentosa Group', code: 'MSG', contactPerson: 'Budi Hartono', contactEmail: 'budi@mitrasentosa.id', status: 'prospect' },
+  ];
+  for (let i = 0; i < demoClients.length; i++) {
+    const c = demoClients[i];
+    const existing = await prisma.client.findFirst({ where: { organizationId: orgId, name: c.name, deletedAt: null } });
+    if (existing) continue;
+    await prisma.client.create({
+      data: { organizationId: orgId, departmentId: departments[i % departments.length]?.id, ...c },
+    });
+  }
+
   const counts = {
     employees: await prisma.employee.count({ where: { organizationId: orgId, deletedAt: null } }),
     attendance: await prisma.attendanceDay.count({ where: { organizationId: orgId } }),
     tasks: await prisma.task.count({ where: { organizationId: orgId } }),
     leave: await prisma.leaveRequest.count({ where: { organizationId: orgId } }),
     departments: await prisma.department.count({ where: { organizationId: orgId, deletedAt: null } }),
+    clients: await prisma.client.count({ where: { organizationId: orgId, deletedAt: null } }),
   };
   console.log('Demo seed complete:', JSON.stringify(counts));
   await prisma.$disconnect();

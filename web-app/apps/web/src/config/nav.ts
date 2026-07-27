@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, UserCog, Building2, BriefcaseBusiness, ShieldCheck, ListChecks, CalendarClock,
   CalendarDays, TrendingUp, BarChart3, FileText, ClipboardList, Bell, ScrollText, Settings,
-  Building, SlidersHorizontal, Wallet, MapPinned, type LucideIcon,
+  Building, SlidersHorizontal, Wallet, MapPinned, Handshake, type LucideIcon,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -29,6 +29,7 @@ export const NAV: NavSection[] = [
       { label: 'Designations', to: '/designations', icon: BriefcaseBusiness, permission: 'designations:read' },
       { label: 'Roles & Permissions', to: '/roles', icon: ShieldCheck, permission: 'roles:read' },
       { label: 'Users', to: '/users', icon: UserCog, permission: 'users:read' },
+      { label: 'Clients', to: '/clients', icon: Handshake, permission: 'clients:read' },
     ],
   },
   {
@@ -36,7 +37,7 @@ export const NAV: NavSection[] = [
     items: [
       { label: 'Tasks', to: '/tasks', icon: ListChecks, permission: 'tasks:read' },
       { label: 'Attendance', to: '/attendance', icon: CalendarClock, permission: 'attendance:read' },
-      { label: 'Payroll', to: '/payroll', icon: Wallet, permission: 'attendance:read' },
+      { label: 'Payroll', to: '/payroll', icon: Wallet, permission: 'payroll:read' },
       { label: 'Leave', to: '/leave', icon: CalendarDays, permission: 'leave:read' },
       { label: 'Performance', to: '/performance', icon: TrendingUp, permission: 'performance:read' },
     ],

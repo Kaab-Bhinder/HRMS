@@ -26,10 +26,11 @@ export class PayrollController {
     return this.payroll.register(user, y, m);
   }
 
-  /** Detailed payslip for one employee — self-service friendly (scope-guarded). */
+  /** Detailed payslip for one employee. Deliberately NOT permission-gated:
+   *  one's own payslip is self-service (mobile), enforced by the scope check in
+   *  the service — payroll:read is only required to open someone else's. */
   @Get('payslip')
-  @RequirePermissions('payroll:read')
-  @ApiOperation({ summary: 'Detailed monthly payslip for an employee (self / team / org)' })
+  @ApiOperation({ summary: 'Detailed monthly payslip (own: always · others: payroll:read)' })
   payslip(
     @CurrentUser() user: AuthUser,
     @Query('employeeId') employeeId: string,

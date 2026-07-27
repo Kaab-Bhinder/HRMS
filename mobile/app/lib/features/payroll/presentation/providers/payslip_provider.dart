@@ -25,6 +25,7 @@ class PayslipDay {
 
 class Payslip {
   const Payslip({
+    required this.compensationType,
     required this.earnedPay,
     required this.potentialPay,
     required this.payableHours,
@@ -34,10 +35,20 @@ class Payslip {
     required this.officeHoursPerDay,
     required this.workedHours,
     required this.payPerHour,
+    required this.basicSalary,
+    required this.grossPay,
+    required this.deductions,
+    required this.netPay,
+    required this.unpaidLeaveDays,
+    required this.workingDaysTotal,
+    required this.finalized,
     required this.currency,
     required this.days,
   });
 
+  /// 'monthly' (fixed salary, unpaid leave deducts) or 'hourly' (attendance ×
+  /// rate). Decides which layout the screen renders.
+  final String compensationType;
   final double earnedPay;
   final double potentialPay;
   final double payableHours;
@@ -51,15 +62,31 @@ class Payslip {
   final double workedHours;
   final double? payPerHour;
 
-  /// ISO code from the organization (e.g. PKR). The API sends it so the app
+  // Monthly-salary figures. basicSalary is null when HR hasn't set one (or for
+  // hourly employees); netPay/deductions are always present — for hourly they
+  // mirror earnedPay/0 so the caller can read one field regardless of type.
+  final double? basicSalary;
+  final double grossPay;
+  final double deductions;
+  final double netPay;
+  final double unpaidLeaveDays;
+  final int workingDaysTotal;
+
+  /// True once HR finalized this month — the figures are locked history.
+  final bool finalized;
+
+  /// ISO code from the organization (e.g. IDR). The API sends it so the app
   /// never has to guess — a wrong symbol on a payslip is worse than none.
   final String currency;
   final List<PayslipDay> days;
 
+  bool get isMonthly => compensationType == 'monthly';
   bool get hasRate => payPerHour != null;
+  bool get hasSalary => basicSalary != null;
 
   static Payslip fromJson(Map<String, dynamic> j) {
     return Payslip(
+      compensationType: j['compensationType']?.toString() ?? 'hourly',
       earnedPay: asDouble(j['earnedPay'], 0),
       potentialPay: asDouble(j['potentialPay'], 0),
       payableHours: asDouble(j['payableHours'], 0),
@@ -69,6 +96,13 @@ class Payslip {
       officeHoursPerDay: asDouble(j['officeHoursPerDay'], 8),
       workedHours: asDouble(j['workedHours'], 0),
       payPerHour: asDoubleOrNull(j['payPerHour']),
+      basicSalary: asDoubleOrNull(j['basicSalary']),
+      grossPay: asDouble(j['grossPay'], 0),
+      deductions: asDouble(j['deductions'], 0),
+      netPay: asDouble(j['netPay'], 0),
+      unpaidLeaveDays: asDouble(j['unpaidLeaveDays'], 0),
+      workingDaysTotal: asInt(j['workingDaysTotal'], 0),
+      finalized: j['finalized'] as bool? ?? false,
       currency: j['currency']?.toString() ?? '',
       days: (j['days'] as List?)?.map((e) => PayslipDay.fromJson((e as Map).cast<String, dynamic>())).toList().reversed.toList() ?? const [],
     );

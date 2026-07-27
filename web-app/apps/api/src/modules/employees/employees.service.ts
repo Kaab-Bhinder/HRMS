@@ -7,6 +7,7 @@ import { ScopeService } from '../access/scope.service';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { paginated } from '../../common/dto/pagination.dto';
 import { generatePassword } from '../../common/utils/password.util';
+import { canSeePay } from '../../common/utils/pay-visibility.util';
 import { CreateEmployeeDto, QueryEmployeesDto, UpdateEmployeeDto } from './dto/employee.dto';
 
 const SORTABLE: Record<string, string> = {
@@ -67,22 +68,22 @@ export class EmployeesService {
       }),
       this.prisma.employee.count({ where }),
     ]);
-    return paginated(rows.map((r) => this.serialize(r)), total, q.page, q.limit);
+    return paginated(rows.map((r) => this.serialize(r, canSeePay(user))), total, q.page, q.limit);
   }
 
-  async get(orgId: string, id: string) {
+  async get(orgId: string, id: string, showPay = true) {
     const emp = await this.prisma.employee.findFirst({ where: { id, organizationId: orgId, deletedAt: null }, include: this.include() });
     if (!emp) throw new NotFoundException('Employee not found');
-    return this.serialize(emp);
+    return this.serialize(emp, showPay);
   }
 
   /** Creates an employee and, in the same transaction, a linked login User.
    *  Every employee gets an account from day one (they'll use the mobile app). */
-  async create(orgId: string, actorId: string, dto: CreateEmployeeDto) {
+  async create(orgId: string, actorId: string, dto: CreateEmployeeDto, showPay = true) {
     const { customFields, plan, generatedPassword } = await this.prepareCreate(orgId, dto);
     const emp = await this.prisma.$transaction((tx) => this.insertEmployeeTx(tx, orgId, actorId, dto, customFields, plan));
     // The generated password is returned once so HR can hand it over; never stored in plaintext.
-    return { ...this.serialize(emp), generatedPassword };
+    return { ...this.serialize(emp, showPay), generatedPassword };
   }
 
   /** All pre-transaction work (custom-field validation + account prep). Lets
@@ -209,7 +210,7 @@ export class EmployeesService {
     return fallback.id;
   }
 
-  async update(orgId: string, userId: string, id: string, dto: UpdateEmployeeDto) {
+  async update(orgId: string, userId: string, id: string, dto: UpdateEmployeeDto, showPay = true) {
     const existing = await this.prisma.employee.findFirst({ where: { id, organizationId: orgId, deletedAt: null } });
     if (!existing) throw new NotFoundException('Employee not found');
 
@@ -253,7 +254,7 @@ export class EmployeesService {
       },
       include: this.include(),
     });
-    return this.serialize(emp);
+    return this.serialize(emp, showPay);
   }
 
   /** Soft-deletes the employee and, if they have a linked login, disables that
@@ -321,7 +322,7 @@ export class EmployeesService {
     return `EMP-${1001 + count}`;
   }
 
-  private serialize(e: any) {
+  private serialize(e: any, showPay = true) {
     return {
       id: e.id,
       employeeCode: e.employeeCode,
@@ -343,8 +344,14 @@ export class EmployeesService {
       status: e.status,
       dateOfJoining: e.dateOfJoining,
       compensationType: e.compensationType,
-      basicSalary: e.basicSalary != null ? Number(e.basicSalary) : null,
-      payPerHour: e.payPerHour != null ? Number(e.payPerHour) : null,
+      // Pay amounts only for payroll:read holders — the keys are omitted, not
+      // nulled, so "no salary set" and "not allowed to see it" stay distinct.
+      ...(showPay
+        ? {
+            basicSalary: e.basicSalary != null ? Number(e.basicSalary) : null,
+            payPerHour: e.payPerHour != null ? Number(e.payPerHour) : null,
+          }
+        : {}),
       customFields: e.customFields ?? {},
       // linked login account (every employee has one from day one)
       userId: e.userId ?? null,
