@@ -336,7 +336,7 @@ export class PayrollService {
   }
 
   private async officeMinutesPerDay(orgId: string): Promise<number> {
-    const shift = await this.prisma.shift.findFirst({ where: { organizationId: orgId, deletedAt: null }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] });
+    const shift = await this.prisma.shift.findFirst({ where: { organizationId: orgId, deletedAt: null, locationId: null }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] });
     if (!shift) return 480;
     if (shift.workMinutes && shift.workMinutes > 0) return shift.workMinutes;
     const [sh, sm] = shift.startTime.split(':').map(Number);
@@ -347,7 +347,7 @@ export class PayrollService {
   }
 
   private async weeklyOffDays(orgId: string): Promise<number[]> {
-    const policy = await this.prisma.attendancePolicy.findFirst({ where: { organizationId: orgId, deletedAt: null }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] });
+    const policy = await this.prisma.attendancePolicy.findFirst({ where: { organizationId: orgId, deletedAt: null, locationId: null }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] });
     return policy?.weeklyOffDays ?? [0, 6];
   }
 

@@ -61,6 +61,22 @@ export interface AttendanceSlipDay {
   workedMinutes: number; lateMinutes: number; breakMinutes: number; overtimeMinutes: number;
   isFlagged: boolean; flagReason: string | null; selfieCaptureId: string | null;
 }
+/** A work site with its effective attendance settings — inherited or custom. */
+export interface SiteSettings {
+  locationId: string;
+  name: string;
+  address: string | null;
+  clientName: string | null;
+  isActive: boolean;
+  hasGeofence: boolean;
+  radiusMeters: number | null;
+  hasOverride: boolean;
+  effective: {
+    officeHours: { startTime: string; endTime: string; graceMinutes: number; breakMinutes: number };
+    policy: { lateAfterMinutes: number; halfDayMinutes: number; enforceGeofence: boolean; allowRemote: boolean; weeklyOffDays: number[] };
+  };
+}
+
 /** One row per employee: their month's attendance scorecard. */
 export interface AttendanceEmployeeSummaryRow {
   employeeId: string; employeeName: string; employeeCode: string;
@@ -200,6 +216,14 @@ export const attendanceService = {
     }),
   slip: (employeeId: string, from: string, to: string) =>
     api.get<AttendanceSlip>(`/attendance/slip?employeeId=${employeeId}&from=${from}&to=${to}`),
+  siteSettings: () => api.get<SiteSettings[]>('/attendance/settings/sites'),
+  upsertSiteSettings: (locationId: string, payload: { officeHours?: Partial<SiteSettings['effective']['officeHours']>; policy?: Partial<SiteSettings['effective']['policy']> }) =>
+    api.put<SiteSettings[]>(`/attendance/settings/sites/${locationId}`, payload),
+  removeSiteSettings: (locationId: string) => api.del<SiteSettings[]>(`/attendance/settings/sites/${locationId}`),
+  trend: (p: { days: number; departmentId?: string }) => {
+    const qp = new URLSearchParams(Object.entries(p).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])).toString();
+    return api.get<{ date: string; present: number; absent: number; late: number }[]>(`/attendance/trend?${qp}`);
+  },
   employeeSummary: (p: { year: number; month: number; departmentId?: string; search?: string }) => {
     const qp = new URLSearchParams(Object.entries(p).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])).toString();
     return api.get<{ year: number; month: number; rows: AttendanceEmployeeSummaryRow[] }>(`/attendance/employee-summary?${qp}`);

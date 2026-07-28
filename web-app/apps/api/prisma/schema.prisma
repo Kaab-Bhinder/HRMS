@@ -686,6 +686,10 @@ model Shift {
   workMinutes    Int?      @map("work_minutes")
   isNight        Boolean   @default(false) @map("is_night")
   isDefault      Boolean   @default(false) @map("is_default")
+  // Site-specific office hours: a shift tagged to a location overrides the
+  // default shift for days worked at that site (employee-assigned shifts
+  // still win — most specific first). Mirrors AttendancePolicy.locationId.
+  locationId     String?   @map("location_id") @db.Uuid
   breaks         Json?
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")

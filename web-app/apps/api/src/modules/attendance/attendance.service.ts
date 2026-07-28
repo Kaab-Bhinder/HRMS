@@ -253,6 +253,47 @@ export class AttendanceService {
     };
   }
 
+  /**
+   * Daily present/late/absent counts over a window, scoped to the caller and
+   * optionally to one department — feeds the attendance page chart, which
+   * follows the page's filters instead of always showing the whole org.
+   */
+  async trend(user: AuthUser, days = 14, departmentId?: string) {
+    const window = Math.min(90, Math.max(7, days));
+    const orgId = user.organizationId;
+    const dataScope = await this.scope.resolve(user);
+    const end = new Date();
+    end.setUTCHours(0, 0, 0, 0);
+    const start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - (window - 1));
+
+    const rows = await this.prisma.attendanceDay.groupBy({
+      by: ['workDate', 'status'],
+      where: {
+        organizationId: orgId,
+        workDate: { gte: start, lte: end },
+        AND: [this.scope.byEmployee(dataScope), ...(departmentId ? [{ employee: { departmentId } }] : [])],
+      },
+      _count: { _all: true },
+    });
+
+    const mmdd = (d: Date) => `${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+    const byDate = new Map<string, { present: number; absent: number; late: number }>();
+    for (let i = 0; i < window; i++) {
+      const d = new Date(start);
+      d.setUTCDate(d.getUTCDate() + i);
+      byDate.set(mmdd(d), { present: 0, absent: 0, late: 0 });
+    }
+    for (const r of rows) {
+      const bucket = byDate.get(mmdd(r.workDate));
+      if (!bucket) continue;
+      if (r.status === 'present') bucket.present += r._count._all;
+      else if (r.status === 'absent') bucket.absent += r._count._all;
+      else if (r.status === 'late') bucket.late += r._count._all;
+    }
+    return [...byDate.entries()].map(([date, v]) => ({ date, ...v }));
+  }
+
   async summary(user: AuthUser, dateStr?: string) {
     const date = dateStr ? new Date(dateStr) : new Date();
     date.setUTCHours(0, 0, 0, 0);

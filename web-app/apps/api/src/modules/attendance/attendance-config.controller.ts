@@ -6,7 +6,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AttendanceSettingsService } from './attendance-settings.service';
-import { UpdateAttendanceSettingsDto } from './dto/attendance-settings.dto';
+import { UpdateAttendanceSettingsDto, UpdateSiteSettingsDto } from './dto/attendance-settings.dto';
 
 class ShiftDto {
   @IsString() @MaxLength(100) name!: string;
@@ -52,6 +52,21 @@ export class AttendanceConfigController {
   @Put('attendance/settings') @RequirePermissions('attendance:update')
   updateSettings(@CurrentUser('organizationId') orgId: string, @Body() dto: UpdateAttendanceSettingsDto) {
     return this.settings.update(orgId, dto);
+  }
+
+  // Per-site overrides: a site inherits the defaults until it gets its own
+  // location-tagged hours/rules — then days worked there score by those.
+  @Get('attendance/settings/sites') @RequirePermissions('attendance:read')
+  listSiteSettings(@CurrentUser('organizationId') orgId: string) {
+    return this.settings.listSiteSettings(orgId);
+  }
+  @Put('attendance/settings/sites/:locationId') @RequirePermissions('attendance:update')
+  upsertSiteSettings(@CurrentUser('organizationId') orgId: string, @Param('locationId') locationId: string, @Body() dto: UpdateSiteSettingsDto) {
+    return this.settings.upsertSiteSettings(orgId, locationId, dto);
+  }
+  @Delete('attendance/settings/sites/:locationId') @RequirePermissions('attendance:update')
+  removeSiteSettings(@CurrentUser('organizationId') orgId: string, @Param('locationId') locationId: string) {
+    return this.settings.removeSiteSettings(orgId, locationId);
   }
 
   // Shifts

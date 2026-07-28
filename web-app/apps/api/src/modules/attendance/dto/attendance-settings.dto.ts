@@ -33,6 +33,22 @@ class LeaveDto {
   @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(365) annualLeaveDays?: number;
 }
 
+/** Per-site override: only the fields a site may customize. Scope and
+ *  tracking cadence stay org-wide (they're assignment semantics, not site
+ *  working conditions). */
+class SitePolicyDto {
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(240) lateAfterMinutes?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(720) halfDayMinutes?: number;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() enforceGeofence?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() allowRemote?: boolean;
+  @ApiPropertyOptional({ description: '0=Sun … 6=Sat' }) @IsOptional() @IsArray() @IsInt({ each: true }) weeklyOffDays?: number[];
+}
+
+export class UpdateSiteSettingsDto {
+  @ApiPropertyOptional({ type: OfficeHoursDto }) @IsOptional() @ValidateNested() @Type(() => OfficeHoursDto) officeHours?: OfficeHoursDto;
+  @ApiPropertyOptional({ type: SitePolicyDto }) @IsOptional() @ValidateNested() @Type(() => SitePolicyDto) policy?: SitePolicyDto;
+}
+
 export class UpdateAttendanceSettingsDto {
   @ApiPropertyOptional({ example: 'Asia/Karachi' }) @IsOptional() @IsString() timezone?: string;
   @ApiPropertyOptional({ type: OfficeHoursDto }) @IsOptional() @ValidateNested() @Type(() => OfficeHoursDto) officeHours?: OfficeHoursDto;

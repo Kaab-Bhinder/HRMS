@@ -8,14 +8,13 @@ import { DataTable, type Column } from '../../components/tables/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Badge';
-import { StatusBadge } from '../../components/StatusBadge';
 import { StatCard } from '../../components/charts/StatCard';
 import { AttendanceAreaChart } from '../../components/charts/Charts';
 import { Skeleton } from '../../components/feedback/States';
-import { Input } from '../../components/ui/Input';
+import { Input, Select } from '../../components/ui/Input';
 import { useQuery } from '../../hooks/useQuery';
 import { exportCsv, datedFilename, type CsvColumn } from '../../lib/csv';
-import { attendanceService, analyticsService, departmentsService, clientsService, type AttendanceEmployeeSummaryRow } from '../../services';
+import { attendanceService, departmentsService, clientsService, type AttendanceEmployeeSummaryRow } from '../../services';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { usePermission } from '../../store/auth';
 import { useToast } from '../../store/toast';
@@ -61,7 +60,6 @@ export default function AttendancePage() {
   const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: 'employeeName', order: 'asc' });
 
   const { data: summary, loading: summaryLoading } = useQuery(() => attendanceService.summary(), []);
-  const { data: overview, loading: chartLoading } = useQuery(() => analyticsService.overview(), []);
   const { data: depts } = useQuery(() => departmentsService.tree(), []);
   const { data: clients } = useQuery(() => (canSeeClients ? clientsService.list() : Promise.resolve(null)), [canSeeClients]);
 
@@ -74,6 +72,14 @@ export default function AttendancePage() {
     }
     return filters.departmentId !== 'all' ? filters.departmentId : undefined;
   }, [filters, clients]);
+
+  // The trend chart follows the page: pick a range, and it narrows with the
+  // department/client filter instead of always showing the whole org.
+  const [trendDays, setTrendDays] = useState(14);
+  const { data: trend, loading: chartLoading } = useQuery(
+    () => attendanceService.trend({ days: trendDays, departmentId: effectiveDeptId }),
+    [trendDays, effectiveDeptId],
+  );
 
   const { data, loading, error, refetch } = useQuery(
     () => attendanceService.employeeSummary({ year, month: mon, departmentId: effectiveDeptId, search: debounced || undefined }),
@@ -188,9 +194,24 @@ export default function AttendancePage() {
       </div>
 
       <Card>
-        <CardHeader title="Attendance Trend" description="Present, late and absent over the last 14 days" action={<StatusBadge value="present" dot />} />
+        <CardHeader
+          title="Attendance Trend"
+          description={
+            effectiveDeptId
+              ? `${(depts ?? []).find((d) => d.id === effectiveDeptId)?.name ?? 'Filtered team'} — following the filter below`
+              : 'Whole organization — narrows when you filter by department or client'
+          }
+          action={
+            <Select value={String(trendDays)} onChange={(e) => setTrendDays(Number(e.target.value))} className="w-36">
+              <option value="7">Last 7 days</option>
+              <option value="14">Last 14 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </Select>
+          }
+        />
         <CardBody>
-          {chartLoading ? <Skeleton className="h-[260px] w-full" /> : <AttendanceAreaChart data={overview!.attendanceTrend} />}
+          {chartLoading || !trend ? <Skeleton className="h-[260px] w-full" /> : <AttendanceAreaChart data={trend} />}
         </CardBody>
       </Card>
 

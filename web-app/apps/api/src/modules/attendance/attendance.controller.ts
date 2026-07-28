@@ -118,6 +118,13 @@ export class AttendanceController {
     return this.attendance.summary(user, date);
   }
 
+  @Get('trend')
+  @RequirePermissions('attendance:read')
+  @ApiOperation({ summary: 'Daily present/late/absent counts over a window (7–90 days), scoped + dept-filterable' })
+  trend(@CurrentUser() user: AuthUser, @Query('days') days?: string, @Query('departmentId') departmentId?: string) {
+    return this.attendance.trend(user, days ? parseInt(days, 10) : 14, departmentId);
+  }
+
   @Get('employee-summary')
   @RequirePermissions('attendance:read')
   @ApiOperation({ summary: 'Month scorecard: one row per in-scope employee with day counts' })

@@ -1003,6 +1003,31 @@ export const ID: Record<string, string> = {
   'Every issue and return is recorded — this trail backs offboarding clearance.': 'Setiap penyerahan dan pengembalian tercatat — jejak ini mendukung proses karyawan keluar.',
   'Remove asset?': 'Hapus aset?',
 
+  // --- Per-site rules (Attendance Settings) ---
+  'Work sites & their rules': 'Lokasi kerja & aturannya',
+  'Each site inherits the defaults unless you give it custom settings': 'Setiap lokasi mewarisi aturan bawaan kecuali Anda memberi pengaturan khusus',
+  'Uses defaults': 'Pakai bawaan',
+  'Custom': 'Khusus',
+  'Customize': 'Sesuaikan',
+  'Edit rules': 'Ubah aturan',
+  'Use defaults': 'Pakai bawaan',
+  'Use default settings?': 'Pakai pengaturan bawaan?',
+  'Save site rules': 'Simpan aturan lokasi',
+  'Grace (min)': 'Toleransi (mnt)',
+  'Break (min)': 'Istirahat (mnt)',
+  'Days worked at a customized site are scored by that site’s hours and rules — lateness, half-days, weekly offs and geofence leniency. Everything else inherits the defaults above. Coordinates and radii live in Organization → Locations.':
+    'Hari kerja di lokasi yang disesuaikan dinilai dengan jam dan aturan lokasi itu — keterlambatan, setengah hari, hari libur mingguan, dan kelonggaran geofence. Selain itu mewarisi bawaan di atas. Koordinat dan radius diatur di Organisasi → Lokasi.',
+
+  // --- Work sites summary (Attendance Settings) ---
+  'Work sites & geofences': 'Lokasi kerja & geofence',
+  'Where employees may check in': 'Tempat karyawan boleh check-in',
+  'Manage sites': 'Kelola lokasi',
+  'No address': 'Tanpa alamat',
+  'No work sites yet — add your office under Organization → Locations to enable geofenced check-in.':
+    'Belum ada lokasi kerja — tambahkan kantor Anda di Organisasi → Lokasi untuk mengaktifkan check-in ber-geofence.',
+  'Check-ins are validated against these geofences per the check-in scope above. Add, move or resize sites (with the map) in Organization → Locations.':
+    'Check-in divalidasi terhadap geofence ini sesuai cakupan check-in di atas. Tambah, pindahkan, atau ubah ukuran lokasi (dengan peta) di Organisasi → Lokasi.',
+
   // --- Attendance scorecard + employee detail ---
   'Monthly scorecard per employee — click a row for their day-by-day log.':
     'Kartu skor bulanan per karyawan — klik baris untuk log harian mereka.',

@@ -113,10 +113,129 @@ export class AttendanceSettingsService {
     return this.get(orgId);
   }
 
+  // --- per-site overrides -------------------------------------------------
+  // A work site either INHERITS the defaults above or carries its own
+  // location-tagged Shift (hours) + AttendancePolicy (rules). The attendance
+  // engine already prefers location-tagged rows when scoring a day worked at
+  // that site, so these methods are pure configuration CRUD.
+
+  /** Every active site with its effective settings and whether they're custom. */
+  async listSiteSettings(orgId: string) {
+    const [sites, shifts, policies, defShift, defPolicy] = await Promise.all([
+      this.prisma.location.findMany({
+        where: { organizationId: orgId, deletedAt: null },
+        orderBy: { name: 'asc' },
+        include: { client: { select: { name: true } } },
+      }),
+      this.prisma.shift.findMany({ where: { organizationId: orgId, deletedAt: null, locationId: { not: null } } }),
+      this.prisma.attendancePolicy.findMany({ where: { organizationId: orgId, deletedAt: null, locationId: { not: null } } }),
+      this.defaultShift(orgId),
+      this.defaultPolicy(orgId),
+    ]);
+    const shiftBy = new Map(shifts.map((s) => [s.locationId!, s]));
+    const policyBy = new Map(policies.map((p) => [p.locationId!, p]));
+
+    return sites.map((loc) => {
+      const shift = shiftBy.get(loc.id);
+      const policy = policyBy.get(loc.id);
+      const effShift = shift ?? defShift;
+      const effPolicy = policy ?? defPolicy;
+      return {
+        locationId: loc.id,
+        name: loc.name,
+        address: loc.address ?? null,
+        clientName: loc.client?.name ?? null,
+        isActive: loc.isActive,
+        hasGeofence: loc.latitude != null && loc.longitude != null && !!loc.radiusMeters,
+        radiusMeters: loc.radiusMeters ?? null,
+        hasOverride: !!shift || !!policy,
+        effective: {
+          officeHours: {
+            startTime: effShift.startTime,
+            endTime: effShift.endTime,
+            graceMinutes: effShift.graceMinutes,
+            breakMinutes: effShift.breakMinutes,
+          },
+          policy: {
+            lateAfterMinutes: effPolicy.lateAfterMinutes ?? 15,
+            halfDayMinutes: effPolicy.halfDayMinutes ?? 240,
+            enforceGeofence: effPolicy.enforceGeofence,
+            allowRemote: effPolicy.allowRemote,
+            weeklyOffDays: effPolicy.weeklyOffDays,
+          },
+        },
+      };
+    });
+  }
+
+  /** Create/update a site's own hours + rules (untick "use defaults"). */
+  async upsertSiteSettings(orgId: string, locationId: string, dto: SiteSettingsInput) {
+    const loc = await this.prisma.location.findFirst({ where: { id: locationId, organizationId: orgId, deletedAt: null } });
+    if (!loc) throw new BadRequestException('Work site not found');
+
+    if (dto.officeHours) {
+      const existing = await this.prisma.shift.findFirst({ where: { organizationId: orgId, locationId, deletedAt: null } });
+      const base = existing ?? (await this.defaultShift(orgId));
+      const start = dto.officeHours.startTime ?? base.startTime;
+      const end = dto.officeHours.endTime ?? base.endTime;
+      const brk = dto.officeHours.breakMinutes ?? base.breakMinutes;
+      const data = {
+        startTime: start,
+        endTime: end,
+        graceMinutes: dto.officeHours.graceMinutes ?? base.graceMinutes,
+        breakMinutes: brk,
+        workMinutes: workMinutes(start, end, brk),
+      };
+      if (existing) await this.prisma.shift.update({ where: { id: existing.id }, data });
+      else {
+        await this.prisma.shift.create({
+          data: { organizationId: orgId, locationId, name: `${loc.name} hours`, type: ShiftType.fixed, isDefault: false, ...data },
+        });
+      }
+    }
+
+    if (dto.policy) {
+      const existing = await this.prisma.attendancePolicy.findFirst({ where: { organizationId: orgId, locationId, deletedAt: null } });
+      const base = existing ?? (await this.defaultPolicy(orgId));
+      const data = {
+        lateAfterMinutes: dto.policy.lateAfterMinutes ?? base.lateAfterMinutes,
+        halfDayMinutes: dto.policy.halfDayMinutes ?? base.halfDayMinutes,
+        enforceGeofence: dto.policy.enforceGeofence ?? base.enforceGeofence,
+        allowRemote: dto.policy.allowRemote ?? base.allowRemote,
+        weeklyOffDays: dto.policy.weeklyOffDays ?? base.weeklyOffDays,
+      };
+      if (existing) await this.prisma.attendancePolicy.update({ where: { id: existing.id }, data });
+      else {
+        await this.prisma.attendancePolicy.create({
+          data: {
+            organizationId: orgId,
+            locationId,
+            name: `${loc.name} policy`,
+            isDefault: false,
+            graceMinutes: base.graceMinutes,
+            trackingIntervalSec: base.trackingIntervalSec,
+            checkInScope: base.checkInScope,
+            ...data,
+          },
+        });
+      }
+    }
+
+    return this.listSiteSettings(orgId);
+  }
+
+  /** Back to inheritance (re-tick "use defaults"): drop the site's own rows. */
+  async removeSiteSettings(orgId: string, locationId: string) {
+    const now = new Date();
+    await this.prisma.shift.updateMany({ where: { organizationId: orgId, locationId, deletedAt: null }, data: { deletedAt: now } });
+    await this.prisma.attendancePolicy.updateMany({ where: { organizationId: orgId, locationId, deletedAt: null }, data: { deletedAt: now } });
+    return this.listSiteSettings(orgId);
+  }
+
   // --- find-or-create defaults ---
 
   private async defaultShift(orgId: string) {
-    const existing = await this.prisma.shift.findFirst({ where: { organizationId: orgId, deletedAt: null }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] });
+    const existing = await this.prisma.shift.findFirst({ where: { organizationId: orgId, deletedAt: null, locationId: null }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] });
     if (existing) return existing;
     return this.prisma.shift.create({
       data: { organizationId: orgId, name: 'Office Hours', type: ShiftType.fixed, startTime: '09:00', endTime: '17:00', graceMinutes: 10, breakMinutes: 60, workMinutes: 420, isDefault: true },
@@ -124,7 +243,7 @@ export class AttendanceSettingsService {
   }
 
   private async defaultPolicy(orgId: string) {
-    const existing = await this.prisma.attendancePolicy.findFirst({ where: { organizationId: orgId, deletedAt: null }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] });
+    const existing = await this.prisma.attendancePolicy.findFirst({ where: { organizationId: orgId, deletedAt: null, locationId: null }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] });
     if (existing) return existing;
     return this.prisma.attendancePolicy.create({
       data: { organizationId: orgId, name: 'Default Policy', isDefault: true, graceMinutes: 10, lateAfterMinutes: 15, halfDayMinutes: 240, enforceGeofence: true, allowRemote: false, weeklyOffDays: [0, 6], trackingIntervalSec: 120 },
@@ -154,6 +273,11 @@ function workMinutes(start: string, end: string, breakMin: number): number {
   let mins = eh * 60 + em - (sh * 60 + sm);
   if (mins < 0) mins += 24 * 60;
   return Math.max(0, mins - (breakMin ?? 0));
+}
+
+export interface SiteSettingsInput {
+  officeHours?: { startTime?: string; endTime?: string; graceMinutes?: number; breakMinutes?: number };
+  policy?: { lateAfterMinutes?: number; halfDayMinutes?: number; enforceGeofence?: boolean; allowRemote?: boolean; weeklyOffDays?: number[] };
 }
 
 export interface AttendanceSettingsInput {

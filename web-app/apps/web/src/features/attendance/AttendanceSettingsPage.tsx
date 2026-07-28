@@ -6,10 +6,12 @@ import { Input, Select, Label } from '../../components/ui/Input';
 import { Switch } from '../../components/ui/Switch';
 import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/feedback/States';
+import { useNavigate } from 'react-router-dom';
 import { HolidayCalendar } from './HolidayCalendar';
-import { LocationPickerMap } from '../../components/maps/LocationPickerMap';
+import { Badge } from '../../components/ui/Badge';
 import { useQuery } from '../../hooks/useQuery';
-import { attendanceService, type AttendanceSettings } from '../../services';
+import { attendanceService, type AttendanceSettings, type SiteSettings } from '../../services';
+import { Modal, ConfirmDialog } from '../../components/ui/Modal';
 import { useToast } from '../../store/toast';
 import { cn } from '../../lib/utils';
 import { timezoneGroups } from '../../lib/timezones';
@@ -29,9 +31,13 @@ function nowInZone(tz: string): string {
 
 export default function AttendanceSettingsPage() {
   const toast = useToast();
+  const navigate = useNavigate();
   const { data, loading, refetch } = useQuery(() => attendanceService.settings(), []);
+  const { data: siteSettings, refetch: refetchSites } = useQuery(() => attendanceService.siteSettings(), []);
   const [form, setForm] = useState<AttendanceSettings | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editingSite, setEditingSite] = useState<SiteSettings | null>(null);
+  const [resetSite, setResetSite] = useState<SiteSettings | null>(null);
 
   useEffect(() => { if (data) setForm(structuredClone(data)); }, [data]);
 
@@ -59,7 +65,9 @@ export default function AttendanceSettingsPage() {
   const save = async () => {
     setSaving(true);
     try {
-      await attendanceService.updateSettings(form);
+      // Sites are managed in Organization → Locations now — never send the
+      // legacy office block from here, so this page can't fight that one.
+      await attendanceService.updateSettings({ ...form, office: undefined });
       toast.success('Settings saved', 'Attendance policy updated for the whole organization.');
       refetch();
     } catch (e) {
@@ -159,45 +167,57 @@ export default function AttendanceSettingsPage() {
           </CardBody>
         </Card>
 
-        {/* Office location */}
+        {/* Work sites: each either INHERITS the default settings above or
+            carries its own hours/rules. Coordinates & geofences themselves are
+            managed in Organization → Locations (the map picker) — here you
+            decide which RULES apply at each site. */}
         <Card>
-          <CardHeader title={<span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-primary" /> Office location & geofence</span>} description="Employees must check in within this radius" />
-          <CardBody className="space-y-4">
-            <div>
-              <Label htmlFor="offName">Office name</Label>
-              <Input id="offName" value={form.office.name} onChange={(e) => set('office', 'name', e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="offAddr">Address</Label>
-              <Input id="offAddr" value={form.office.address ?? ''} onChange={(e) => set('office', 'address', e.target.value)} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="lat">Latitude</Label>
-                <Input id="lat" type="number" step="any" value={form.office.latitude ?? ''} onChange={(e) => set('office', 'latitude', e.target.value === '' ? null : Number(e.target.value))} />
-              </div>
-              <div>
-                <Label htmlFor="lng">Longitude</Label>
-                <Input id="lng" type="number" step="any" value={form.office.longitude ?? ''} onChange={(e) => set('office', 'longitude', e.target.value === '' ? null : Number(e.target.value))} />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="radius">Geofence radius (meters)</Label>
-              <Input id="radius" type="number" min={20} value={form.office.radiusMeters} onChange={(e) => set('office', 'radiusMeters', num(e.target.value))} />
-            </div>
-            <LocationPickerMap
-              latitude={form.office.latitude}
-              longitude={form.office.longitude}
-              radiusMeters={form.office.radiusMeters}
-              onPick={(lat, lng) => {
-                set('office', 'latitude', lat);
-                set('office', 'longitude', lng);
-              }}
-              height={280}
-            />
+          <CardHeader
+            title={<span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-primary" /> Work sites & their rules</span>}
+            description="Each site inherits the defaults unless you give it custom settings"
+            action={<Button variant="outline" size="sm" onClick={() => navigate('/organization')}><MapPin className="h-4 w-4" /> Manage sites</Button>}
+          />
+          <CardBody className="space-y-3">
+            {(siteSettings ?? []).length === 0 ? (
+              <p className="rounded-md bg-warning/10 p-3 text-sm text-warning">
+                No work sites yet — add your office under Organization → Locations to enable geofenced check-in.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {(siteSettings ?? []).map((s) => (
+                  <li key={s.locationId} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-sm font-medium text-foreground">{s.name}</span>
+                        {s.clientName && <Badge tone="info">Client: {s.clientName}</Badge>}
+                        {!s.isActive && <Badge tone="neutral">Inactive</Badge>}
+                        {!s.hasGeofence && <Badge tone="warning">No geofence</Badge>}
+                        {s.hasOverride ? <Badge tone="accent">Custom</Badge> : <Badge tone="neutral">Uses defaults</Badge>}
+                      </div>
+                      <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
+                        {s.effective.officeHours.startTime}–{s.effective.officeHours.endTime}
+                        {' · '}late after {s.effective.policy.lateAfterMinutes}m
+                        {' · '}off: {s.effective.policy.weeklyOffDays.map((d) => DAYS[d]).join(' ')}
+                        {s.effective.policy.allowRemote ? ' · remote OK' : ''}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {s.hasOverride ? (
+                        <>
+                          <Button variant="outline" size="sm" onClick={() => setEditingSite(s)}>Edit rules</Button>
+                          <Button variant="ghost" size="sm" onClick={() => setResetSite(s)}>Use defaults</Button>
+                        </>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={() => setEditingSite(s)}>Customize</Button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="flex items-start gap-2 rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
               <Info className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>Click the map or drag the pin — the coordinates fill in automatically. The shaded circle is the geofence: employees must check in inside it. Adjust the radius to grow or shrink the boundary live.</span>
+              <span>Days worked at a customized site are scored by that site's hours and rules — lateness, half-days, weekly offs and geofence leniency. Everything else inherits the defaults above. Coordinates and radii live in Organization → Locations.</span>
             </div>
           </CardBody>
         </Card>
@@ -239,7 +259,146 @@ export default function AttendanceSettingsPage() {
       <div className="flex justify-end">
         <Button onClick={save} loading={saving}><Save className="h-4 w-4" /> Save changes</Button>
       </div>
+
+      <SiteRulesModal site={editingSite} onClose={() => setEditingSite(null)} onSaved={refetchSites} />
+      <ConfirmDialog
+        open={!!resetSite}
+        onClose={() => setResetSite(null)}
+        onConfirm={async () => {
+          if (!resetSite) return;
+          try {
+            await attendanceService.removeSiteSettings(resetSite.locationId);
+            toast.success('Back to defaults', `${resetSite.name} now inherits the default settings.`);
+            setResetSite(null);
+            refetchSites();
+          } catch (e) {
+            toast.error('Could not reset', (e as Error).message);
+          }
+        }}
+        title="Use default settings?"
+        message={resetSite ? `${resetSite.name} will drop its custom hours and rules and inherit the defaults again.` : ''}
+        confirmLabel="Use defaults"
+      />
     </div>
+  );
+}
+
+/**
+ * Per-site rules editor — opens prefilled with the site's EFFECTIVE settings
+ * (its own if custom, else the defaults), so the admin only changes what
+ * differs. Saving creates/updates the site's own hours + rules.
+ */
+function SiteRulesModal({ site, onClose, onSaved }: { site: SiteSettings | null; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const [f, setF] = useState({ startTime: '09:00', endTime: '17:00', graceMinutes: 10, breakMinutes: 60, lateAfterMinutes: 15, halfDayMinutes: 240, allowRemote: false, enforceGeofence: true, weeklyOffDays: [0, 6] as number[] });
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (site) {
+      setF({
+        startTime: site.effective.officeHours.startTime,
+        endTime: site.effective.officeHours.endTime,
+        graceMinutes: site.effective.officeHours.graceMinutes,
+        breakMinutes: site.effective.officeHours.breakMinutes,
+        lateAfterMinutes: site.effective.policy.lateAfterMinutes,
+        halfDayMinutes: site.effective.policy.halfDayMinutes,
+        allowRemote: site.effective.policy.allowRemote,
+        enforceGeofence: site.effective.policy.enforceGeofence,
+        weeklyOffDays: [...site.effective.policy.weeklyOffDays],
+      });
+    }
+  }, [site]);
+
+  if (!site) return null;
+  const set = (k: string, v: unknown) => setF((s) => ({ ...s, [k]: v }));
+  const toggleDay = (i: number) => set('weeklyOffDays', f.weeklyOffDays.includes(i) ? f.weeklyOffDays.filter((d) => d !== i) : [...f.weeklyOffDays, i].sort());
+
+  const saveSite = async () => {
+    setBusy(true);
+    try {
+      await attendanceService.upsertSiteSettings(site.locationId, {
+        officeHours: { startTime: f.startTime, endTime: f.endTime, graceMinutes: f.graceMinutes, breakMinutes: f.breakMinutes },
+        policy: { lateAfterMinutes: f.lateAfterMinutes, halfDayMinutes: f.halfDayMinutes, allowRemote: f.allowRemote, enforceGeofence: f.enforceGeofence, weeklyOffDays: f.weeklyOffDays },
+      });
+      toast.success('Site rules saved', `${site.name} now has custom settings.`);
+      onSaved();
+      onClose();
+    } catch (e) {
+      toast.error('Could not save', (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Custom rules — ${site.name}`}
+      size="md"
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={saveSite} loading={busy}>Save site rules</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {site.clientName && (
+          <p className="rounded-md bg-info/10 p-2.5 text-xs text-info">Client site — {site.clientName}. Days worked here will be scored by these rules.</p>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Start time</Label>
+            <Input type="time" value={f.startTime} onChange={(e) => set('startTime', e.target.value)} />
+          </div>
+          <div>
+            <Label>End time</Label>
+            <Input type="time" value={f.endTime} onChange={(e) => set('endTime', e.target.value)} />
+          </div>
+          <div>
+            <Label>Grace (min)</Label>
+            <Input type="number" min={0} value={f.graceMinutes} onChange={(e) => set('graceMinutes', Number(e.target.value) || 0)} />
+          </div>
+          <div>
+            <Label>Break (min)</Label>
+            <Input type="number" min={0} value={f.breakMinutes} onChange={(e) => set('breakMinutes', Number(e.target.value) || 0)} />
+          </div>
+          <div>
+            <Label>Mark late after (min)</Label>
+            <Input type="number" min={0} value={f.lateAfterMinutes} onChange={(e) => set('lateAfterMinutes', Number(e.target.value) || 0)} />
+          </div>
+          <div>
+            <Label>Half-day under (min)</Label>
+            <Input type="number" min={0} value={f.halfDayMinutes} onChange={(e) => set('halfDayMinutes', Number(e.target.value) || 0)} />
+          </div>
+        </div>
+        <Row label="Enforce geofence" hint="Flag check-ins outside this site's radius">
+          <Switch checked={f.enforceGeofence} onChange={(v) => set('enforceGeofence', v)} />
+        </Row>
+        <Row label="Allow remote check-in" hint="Out-of-range check-ins at this site are NOT flagged">
+          <Switch checked={f.allowRemote} onChange={(v) => set('allowRemote', v)} />
+        </Row>
+        <div>
+          <Label>Weekly off days</Label>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {DAYS.map((d, i) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => toggleDay(i)}
+                className={cn(
+                  'rounded-md border px-3 py-1.5 text-sm font-medium transition-colors',
+                  f.weeklyOffDays.includes(i) ? 'border-primary bg-primary/10 text-primary' : 'border-input text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

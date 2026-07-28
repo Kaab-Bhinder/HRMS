@@ -25,7 +25,7 @@ export class AttendanceRecomputeService {
     const dayEnd = zonedWallToUtc(year, month, day + 1, '00:00', tz); // next local midnight
     const dateKey = new Date(Date.UTC(year, month, day)); // @db.Date key = local calendar date
 
-    const [punches, empShift, policy, holiday, leave] = await Promise.all([
+    const [punches, empShift, defaultPolicy, holiday, leave, employee] = await Promise.all([
       this.prisma.attendancePunch.findMany({
         where: { employeeId, occurredAt: { gte: dayStart, lt: dayEnd } },
         orderBy: { occurredAt: 'asc' },
@@ -40,14 +40,31 @@ export class AttendanceRecomputeService {
       this.prisma.leaveRequest.findFirst({
         where: { employeeId, status: 'approved', startDate: { lte: dateKey }, endDate: { gte: dateKey }, deletedAt: null },
       }),
+      this.prisma.employee.findUnique({ where: { id: employeeId }, select: { locationId: true } }),
     ]);
 
-    // Fall back to the org's default shift so office hours (late/break) apply to
-    // everyone, even employees without an explicit shift assignment.
-    const shift = empShift?.shift ?? (await this.prisma.shift.findFirst({
-      where: { organizationId: orgId, deletedAt: null },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-    }));
+    // Per-site overrides: a day is scored by the rules of the site it was
+    // worked at — the site of the day's first resolved punch, else the
+    // employee's assigned site (so absent/weekly-off days follow their site's
+    // calendar too). Sites without overrides inherit the org defaults.
+    const siteId = punches.find((p) => p.locationId)?.locationId ?? employee?.locationId ?? null;
+    const [sitePolicy, siteShift] = siteId
+      ? await Promise.all([
+          this.prisma.attendancePolicy.findFirst({ where: { organizationId: orgId, locationId: siteId, deletedAt: null } }),
+          this.prisma.shift.findFirst({ where: { organizationId: orgId, locationId: siteId, deletedAt: null } }),
+        ])
+      : [null, null];
+    const policy = sitePolicy ?? defaultPolicy;
+
+    // Office hours, most specific first: the employee's own shift assignment,
+    // else the site's hours, else the org default shift.
+    const shift =
+      empShift?.shift ??
+      siteShift ??
+      (await this.prisma.shift.findFirst({
+        where: { organizationId: orgId, deletedAt: null, locationId: null },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      }));
     const weeklyOff = (policy?.weeklyOffDays ?? [0, 6]).includes(localDow(dayStart, tz));
 
     // No punches → derive a non-working status.
