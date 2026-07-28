@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { AttendanceMethod } from '@prisma/client';
 import { FaceService } from '../../face/face.service';
 import { AttendanceProvider, CaptureContext, NormalizedPunch } from './attendance-provider.interface';
+import { SiteResolverService } from './site-resolver.service';
 
 /**
  * Face-recognition check-in from the Flutter app. Captures the selfie, runs it
@@ -13,7 +14,10 @@ import { AttendanceProvider, CaptureContext, NormalizedPunch } from './attendanc
 export class FaceAttendanceProvider implements AttendanceProvider {
   readonly method = AttendanceMethod.mobile_face;
 
-  constructor(private readonly face: FaceService) {}
+  constructor(
+    private readonly face: FaceService,
+    private readonly sites: SiteResolverService,
+  ) {}
 
   async capture(ctx: CaptureContext): Promise<NormalizedPunch> {
     const { faceImageKey, metadata } = ctx.payload;
@@ -28,18 +32,25 @@ export class FaceAttendanceProvider implements AttendanceProvider {
     if (!verify.livenessPassed) throw new BadRequestException('Liveness check failed — please try again');
     if (!verify.matched) throw new BadRequestException('Face did not match the enrolled employee');
 
+    // Same site resolution + geofence marker as GPS punches, so a face punch
+    // with coordinates is location-verified too, not just identity-verified.
+    const { site, geofence } =
+      ctx.payload.latitude != null && ctx.payload.longitude != null
+        ? await this.sites.resolve(ctx, ctx.payload.latitude, ctx.payload.longitude)
+        : { site: null, geofence: undefined };
+
     return {
       type: ctx.type,
       method: this.method,
       occurredAt: ctx.occurredAt,
-      locationId: ctx.payload.locationId,
+      locationId: site?.id ?? ctx.payload.locationId,
       latitude: ctx.payload.latitude,
       longitude: ctx.payload.longitude,
       accuracyMeters: ctx.payload.accuracyMeters,
       faceCaptureId: capture.id,
       isOffline: ctx.payload.isOffline ?? false,
       clientCreatedAt: ctx.payload.clientCreatedAt ? new Date(ctx.payload.clientCreatedAt) : undefined,
-      raw: ctx.payload.metadata,
+      raw: { ...(ctx.payload.metadata ?? {}), ...(geofence ? { geofence } : {}) },
     };
   }
 }

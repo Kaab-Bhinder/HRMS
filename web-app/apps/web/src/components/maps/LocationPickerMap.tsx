@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Circle, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useTheme } from '../../store/theme';
+import { Maximize2, Minimize2 } from 'lucide-react';
 
 /**
  * Pick-a-point map for office locations: click anywhere (or drag the pin) and
@@ -11,13 +11,28 @@ import { useTheme } from '../../store/theme';
  * previews the geofence radius live, so admins SEE the check-in boundary
  * instead of guessing what "400 meters" covers.
  *
- * Free CARTO/OSM tiles — same basemap as the live office map, no API key.
+ * Two free basemaps, no API key:
+ *  - Streets: standard OSM tiles — full street names/detail up to zoom 19,
+ *    the familiar "Google Maps" reading experience.
+ *  - Satellite: Esri World Imagery — for eyeballing the actual building.
+ * Plus a true browser-fullscreen toggle for precise pin placement.
  */
 
-const TILES = {
-  light: { url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', attribution: '&copy; OpenStreetMap &copy; CARTO' },
-  dark: { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', attribution: '&copy; OpenStreetMap &copy; CARTO' },
-};
+const LAYERS = {
+  streets: {
+    label: 'Streets',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap contributors',
+    maxNativeZoom: 19,
+  },
+  satellite: {
+    label: 'Satellite',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '&copy; Esri, Maxar, Earthstar Geographics',
+    maxNativeZoom: 19,
+  },
+} as const;
+type LayerKey = keyof typeof LAYERS;
 
 // Jakarta — a sensible starting view for an unset office; the admin's first
 // click replaces it, so the exact default barely matters.
@@ -87,23 +102,83 @@ export function LocationPickerMap({
   onPick: (lat: number, lng: number) => void;
   height?: number;
 }) {
-  const { theme } = useTheme();
-  const tiles = theme === 'dark' ? TILES.dark : TILES.light;
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [map, setMap] = useState<L.Map | null>(null);
+  const [layer, setLayer] = useState<LayerKey>('streets');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   const hasPoint = latitude != null && longitude != null && !(latitude === 0 && longitude === 0);
   const center: [number, number] = hasPoint ? [latitude!, longitude!] : FALLBACK_CENTER;
   const radius = radiusMeters && radiusMeters > 0 ? radiusMeters : 0;
   // Initial zoom only — reactive zoom would fight the user's scroll wheel.
   const initialZoom = useRef(zoomForRadius(radius || 300));
+  const tiles = LAYERS[layer];
+
+  // Track browser fullscreen (Esc also exits it) and re-measure the map for
+  // the new viewport either way.
+  useEffect(() => {
+    const onChange = () => {
+      setIsFullscreen(document.fullscreenElement === wrapRef.current);
+      setTimeout(() => map?.invalidateSize(), 120);
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, [map]);
+
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement === wrapRef.current) void document.exitFullscreen();
+    else void wrapRef.current?.requestFullscreen().catch(() => undefined);
+  };
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-border" style={{ height }}>
+    <div
+      ref={wrapRef}
+      className="relative overflow-hidden rounded-lg border border-border bg-surface"
+      style={{ height: isFullscreen ? '100vh' : height }}
+    >
       {!hasPoint && (
         <div className="pointer-events-none absolute left-1/2 top-3 z-[500] -translate-x-1/2 rounded-full bg-surface/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-card backdrop-blur">
           Click the map to drop the office pin
         </div>
       )}
-      <MapContainer center={center} zoom={initialZoom.current} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
-        <TileLayer url={tiles.url} attribution={tiles.attribution} />
+
+      {/* Layer switch + fullscreen — kept above Leaflet's panes. */}
+      <div className="absolute right-3 top-3 z-[500] flex items-center gap-1.5">
+        <div className="flex overflow-hidden rounded-md border border-border bg-surface/95 shadow-card backdrop-blur">
+          {(Object.keys(LAYERS) as LayerKey[]).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setLayer(k)}
+              className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                layer === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {LAYERS[k].label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          title={isFullscreen ? 'Exit full screen' : 'Full screen'}
+          className="rounded-md border border-border bg-surface/95 p-1.5 text-muted-foreground shadow-card backdrop-blur transition-colors hover:text-foreground"
+        >
+          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
+      </div>
+
+      <MapContainer
+        ref={setMap}
+        center={center}
+        zoom={initialZoom.current}
+        maxZoom={20}
+        style={{ height: '100%', width: '100%' }}
+        scrollWheelZoom
+      >
+        {/* key remounts the layer on switch; maxNativeZoom lets Leaflet upscale
+            the deepest tiles so zoom 20 still works for fine pin placement. */}
+        <TileLayer key={layer} url={tiles.url} attribution={tiles.attribution} maxZoom={20} maxNativeZoom={tiles.maxNativeZoom} />
         <FixSize />
         <ClickToPlace onPick={onPick} />
         {hasPoint && (

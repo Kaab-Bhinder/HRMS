@@ -4,6 +4,7 @@ import {
   CalendarPlus, UserPlus, ArrowRight, CheckCircle2, Clock,
 } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
+import { SetupWizard } from './SetupWizard';
 import { Card, CardHeader, CardBody } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
@@ -33,6 +34,8 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* First-run: asks a fresh workspace how it pays its team (once). */}
+      <SetupWizard />
       <PageHeader
         title={`${greeting}, ${user?.fullName.split(' ')[0]} 👋`}
         description="Here’s what’s happening across your organization today."

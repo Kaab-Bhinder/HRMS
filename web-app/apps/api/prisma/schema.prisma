@@ -193,6 +193,11 @@ enum CompensationType {
   hourly
 }
 
+enum CheckInScope {
+  any_site
+  assigned_only
+}
+
 enum CustomFieldType {
   text
   textarea
@@ -231,14 +236,20 @@ model Location {
   timezone       String?   @db.VarChar(64)
   isActive       Boolean   @default(true) @map("is_active")
   isDefault      Boolean   @default(false) @map("is_default")
+  // A work site is either the org's own branch (clientId null) or a CLIENT's
+  // premises where outsourced staff clock in. One geofence table for both —
+  // attendance code never needs to know who owns the site.
+  clientId       String?   @map("client_id") @db.Uuid
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client?      @relation("ClientSites", fields: [clientId], references: [id], onDelete: SetNull)
   employees    Employee[]
 
   @@index([organizationId])
+  @@index([clientId])
   @@map("locations")
 }
 
@@ -371,6 +382,7 @@ model Client {
 
   organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   department   Department?     @relation("ClientDept", fields: [departmentId], references: [id], onDelete: SetNull)
+  sites        Location[]      @relation("ClientSites")
 
   @@index([organizationId, status])
   @@index([departmentId])
@@ -716,6 +728,11 @@ model AttendancePolicy {
   overtimeAfterMinutes Int?      @map("overtime_after_minutes")
   enforceGeofence      Boolean   @default(true) @map("enforce_geofence")
   allowRemote          Boolean   @default(false) @map("allow_remote")
+  // any_site: validate against the nearest active work site the employee is
+  // inside. assigned_only: an employee WITH an assigned site must be inside
+  // that one; unassigned employees fall back to nearest-site so a fresh
+  // rollout never flags the whole workforce.
+  checkInScope         CheckInScope @default(any_site) @map("check_in_scope")
   allowedMethods       String[]  @default([]) @map("allowed_methods")
   weeklyOffDays        Int[]     @default([0, 6]) @map("weekly_off_days")
   trackingIntervalSec  Int       @default(120) @map("tracking_interval_sec")
@@ -778,6 +795,9 @@ model AttendanceDay {
   workDate          DateTime            @map("work_date") @db.Date
   shiftId           String?             @map("shift_id") @db.Uuid
   policyId          String?             @map("policy_id") @db.Uuid
+  // Work site of the day's first geofence-resolved check-in — "where they
+  // worked", the number outsourcing billing and branch reports read.
+  locationId        String?             @map("location_id") @db.Uuid
   firstInAt         DateTime?           @map("first_in_at")
   lastOutAt         DateTime?           @map("last_out_at")
   status            AttendanceDayStatus @default(absent)

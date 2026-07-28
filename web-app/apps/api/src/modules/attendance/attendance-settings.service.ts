@@ -37,6 +37,7 @@ export class AttendanceSettingsService {
         halfDayMinutes: policy.halfDayMinutes ?? 240,
         enforceGeofence: policy.enforceGeofence,
         allowRemote: policy.allowRemote,
+        checkInScope: policy.checkInScope,
         weeklyOffDays: policy.weeklyOffDays,
         trackingIntervalSec: policy.trackingIntervalSec,
       },
@@ -83,6 +84,7 @@ export class AttendanceSettingsService {
           halfDayMinutes: dto.policy.halfDayMinutes ?? policy.halfDayMinutes,
           enforceGeofence: dto.policy.enforceGeofence ?? policy.enforceGeofence,
           allowRemote: dto.policy.allowRemote ?? policy.allowRemote,
+          checkInScope: dto.policy.checkInScope ?? policy.checkInScope,
           weeklyOffDays: dto.policy.weeklyOffDays ?? policy.weeklyOffDays,
           trackingIntervalSec: dto.policy.trackingIntervalSec ?? policy.trackingIntervalSec,
         },
@@ -157,7 +159,7 @@ function workMinutes(start: string, end: string, breakMin: number): number {
 export interface AttendanceSettingsInput {
   timezone?: string;
   officeHours?: { startTime?: string; endTime?: string; graceMinutes?: number; breakMinutes?: number };
-  policy?: { lateAfterMinutes?: number; halfDayMinutes?: number; enforceGeofence?: boolean; allowRemote?: boolean; weeklyOffDays?: number[]; trackingIntervalSec?: number };
+  policy?: { lateAfterMinutes?: number; halfDayMinutes?: number; enforceGeofence?: boolean; allowRemote?: boolean; checkInScope?: 'any_site' | 'assigned_only'; weeklyOffDays?: number[]; trackingIntervalSec?: number };
   office?: { name?: string; address?: string; latitude?: number; longitude?: number; radiusMeters?: number };
   leave?: { annualLeaveDays?: number };
 }

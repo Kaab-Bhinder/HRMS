@@ -121,10 +121,14 @@ export class AttendanceRecomputeService {
     if (timeSkew) reasons.push(`Device clock off by ${Math.round((timeSkew.skewSeconds ?? 0) / 60)}m vs server`);
     if (breakOver) reasons.push(`Break ${breakMinutes}m exceeds allowed ${allowedBreak}m`);
 
+    // Where they worked: the site of the day's first location-resolved punch.
+    const dayLocationId = punches.find((p) => p.locationId)?.locationId ?? null;
+
     return this.upsert(orgId, employeeId, dateKey, {
       status,
       shiftId: shift?.id,
       policyId: policy?.id,
+      locationId: dayLocationId,
       firstInAt: firstIn,
       lastOutAt: lastOut,
       workedMinutes,

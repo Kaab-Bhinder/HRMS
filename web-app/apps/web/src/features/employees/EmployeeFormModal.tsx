@@ -6,14 +6,14 @@ import { Input, Select, Label } from '../../components/ui/Input';
 import { DynamicCustomField, validateCustomFields } from '../../components/forms/DynamicCustomField';
 import { Skeleton } from '../../components/feedback/States';
 import { useQuery } from '../../hooks/useQuery';
-import { customFieldsService, departmentsService, designationsService, employeesService, organizationService, rolesService } from '../../services';
+import { customFieldsService, departmentsService, designationsService, employeesService, locationsService, organizationService, rolesService } from '../../services';
 import { useToast } from '../../store/toast';
 import { usePermission } from '../../store/auth';
 import type { Employee, Role } from '../../lib/types';
 
 const EMPTY = {
   firstName: '', lastName: '', workEmail: '', phone: '', gender: 'male',
-  departmentId: '', designationId: '', employmentType: 'full_time', status: 'probation',
+  departmentId: '', designationId: '', locationId: '', employmentType: 'full_time', status: 'probation',
   dateOfJoining: new Date().toISOString().slice(0, 10),
   compensationType: 'hourly', basicSalary: '', payPerHour: '',
 };
@@ -28,6 +28,7 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
   const { data: desigs } = useQuery(() => designationsService.list(), []);
   const { data: roles } = useQuery(() => rolesService.list(), []);
   const { data: org } = useQuery(() => organizationService.current(), []);
+  const { data: sites } = useQuery(() => locationsService.list(), []);
   // Pay fields ride on payroll:read — without it the API masks them anyway, so
   // showing the inputs would render blanks and saving would try to write pay.
   const canSeePay = usePermission('payroll:read');
@@ -49,7 +50,8 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
       setForm(employee ? {
         firstName: employee.firstName, lastName: employee.lastName, workEmail: employee.workEmail,
         phone: employee.phone, gender: employee.gender ?? 'male', departmentId: employee.departmentId,
-        designationId: employee.designationId, employmentType: employee.employmentType, status: employee.status,
+        designationId: employee.designationId, locationId: employee.locationId ?? '',
+        employmentType: employee.employmentType, status: employee.status,
         dateOfJoining: employee.dateOfJoining.slice(0, 10),
         compensationType: employee.compensationType ?? 'hourly',
         basicSalary: employee.basicSalary != null ? String(employee.basicSalary) : '',
@@ -111,6 +113,8 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
     for (const k of ['departmentId', 'designationId', 'managerId', 'locationId']) {
       if (!payload[k]) delete payload[k];
     }
+    // Except on edit: clearing the work site must persist as null, not vanish.
+    if (isEdit && !form.locationId) payload.locationId = null;
     // Compensation: send only the field that matches the chosen type, and null
     // out the other so switching type doesn't leave a stale amount behind.
     // Without payroll:read the fields never loaded (masked by the API), so
@@ -225,6 +229,17 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
               <Select value={form.status} onChange={(e) => set('status', e.target.value)}>
                 <option value="probation">Probation</option><option value="active">Active</option>
                 <option value="on_leave">On Leave</option><option value="suspended">Suspended</option>
+              </Select>
+            </Field>
+            <Field label="Work site">
+              {/* Where this person clocks in — a branch or a client's premises.
+                  With the strict check-in policy their geofence answers to this
+                  site; unassigned = validated at whichever site they're at. */}
+              <Select value={form.locationId} onChange={(e) => set('locationId', e.target.value)}>
+                <option value="">Any site (unassigned)</option>
+                {(sites ?? []).map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}{s.clientName ? ` — ${s.clientName}` : ''}</option>
+                ))}
               </Select>
             </Field>
             {canSeePay && (

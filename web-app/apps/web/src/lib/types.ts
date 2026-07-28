@@ -33,6 +33,7 @@ export interface Employee {
   departmentName: string;
   designationId: ID;
   designationName: string;
+  locationId?: ID | null;
   locationName: string;
   managerId?: ID;
   managerName?: string;
@@ -191,6 +192,8 @@ export interface AttendanceRecord {
   employeeCode: string;
   departmentName: string;
   avatarUrl?: string;
+  /** Work site the day's first check-in resolved to — branch or client premises. */
+  siteName?: string | null;
   workDate: string;
   checkInAt?: string;
   checkOutAt?: string;

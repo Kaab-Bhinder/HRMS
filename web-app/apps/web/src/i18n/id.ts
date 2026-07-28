@@ -1003,7 +1003,31 @@ export const ID: Record<string, string> = {
   'Every issue and return is recorded — this trail backs offboarding clearance.': 'Setiap penyerahan dan pengembalian tercatat — jejak ini mendukung proses karyawan keluar.',
   'Remove asset?': 'Hapus aset?',
 
+  // --- First-run setup wizard ---
+  'How do you pay your team?': 'Bagaimana Anda menggaji tim Anda?',
+  'Fixed basic salary; only unpaid leave deducts. Banks & offices.': 'Gaji pokok tetap; hanya cuti tanpa gaji yang memotong. Bank & kantor.',
+  'Pay follows verified attendance hours. Retail & field staff.': 'Gaji mengikuti jam kehadiran terverifikasi. Ritel & staf lapangan.',
+  'Before you add your first employee, tell us how your organization pays people. New employees inherit this — you can still override it per person, and change any of it later in Organization settings.':
+    'Sebelum menambah karyawan pertama, beri tahu kami cara organisasi Anda menggaji. Karyawan baru mewarisinya — Anda tetap bisa mengubahnya per orang, dan mengganti semuanya nanti di pengaturan Organisasi.',
+  'Next: add departments and your first employees.': 'Selanjutnya: tambahkan departemen dan karyawan pertama Anda.',
+  'Skip for now': 'Lewati dulu',
+  'Finish setup': 'Selesaikan penyiapan',
+
+  // --- Work sites / multi-branch attendance ---
+  'Work site': 'Lokasi kerja',
+  'Any site (unassigned)': 'Semua lokasi (belum ditetapkan)',
+  'Check-in scope': 'Cakupan check-in',
+  'Any work site — nearest branch/client site validates': 'Semua lokasi kerja — cabang/lokasi klien terdekat yang memvalidasi',
+  'Assigned site only — employees answer to their own site': 'Hanya lokasi yang ditetapkan — karyawan terikat lokasinya sendiri',
+  'Employees without an assigned work site are always validated at the nearest site.': 'Karyawan tanpa lokasi kerja yang ditetapkan selalu divalidasi di lokasi terdekat.',
+  'Client site': 'Lokasi klien',
+  'Own branch (not a client site)': 'Cabang sendiri (bukan lokasi klien)',
+  'Client sites:': 'Lokasi klien:',
+  'checked in now': 'sedang check-in',
+
   // --- Office location map picker ---
+  'Streets': 'Jalan',
+  'Satellite': 'Satelit',
   'Click the map to drop the office pin': 'Klik peta untuk meletakkan pin kantor',
   'Click the map or drag the pin — the coordinates fill in automatically. The shaded circle is the geofence: employees must check in inside it. Adjust the radius to grow or shrink the boundary live.':
     'Klik peta atau seret pin — koordinat terisi otomatis. Lingkaran berbayang adalah geofence: karyawan harus check-in di dalamnya. Ubah radius untuk memperbesar atau memperkecil batas secara langsung.',

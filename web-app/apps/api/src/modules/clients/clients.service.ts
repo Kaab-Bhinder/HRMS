@@ -19,16 +19,7 @@ export class ClientsService {
     const rows = await this.prisma.client.findMany({
       where: { organizationId: orgId, deletedAt: null },
       orderBy: [{ status: 'asc' }, { name: 'asc' }],
-      include: {
-        department: {
-          select: {
-            id: true,
-            name: true,
-            head: { select: { id: true, firstName: true, lastName: true } },
-            _count: { select: { members: { where: { deletedAt: null } } } },
-          },
-        },
-      },
+      include: this.include(),
     });
     return rows.map((c) => this.serialize(c));
   }
@@ -90,7 +81,7 @@ export class ClientsService {
     ]);
     const memberIds = members.map((m) => m.id);
 
-    const [days, taskGroups, overdueTasks, reports] = await Promise.all([
+    const [days, checkedInNow, taskGroups, overdueTasks, reports] = await Promise.all([
       memberIds.length
         ? this.prisma.attendanceDay.groupBy({
             by: ['status'],
@@ -98,6 +89,12 @@ export class ClientsService {
             _count: { status: true },
           })
         : Promise.resolve([] as { status: string; _count: { status: number } }[]),
+      // Checked in right now: today's day-record has an IN but no OUT yet.
+      memberIds.length
+        ? this.prisma.attendanceDay.count({
+            where: { organizationId: orgId, employeeId: { in: memberIds }, workDate: today, firstInAt: { not: null }, lastOutAt: null },
+          })
+        : Promise.resolve(0),
       this.prisma.task.groupBy({
         by: ['status'],
         where: { organizationId: orgId, departmentId: deptId, deletedAt: null },
@@ -149,6 +146,7 @@ export class ClientsService {
           onLeaveDays: att['on_leave'] ?? 0,
           recordedDays: recorded,
           presentRate: recorded > 0 ? Math.round((presentDays / recorded) * 100) : null,
+          checkedInNow,
         },
         tasks: {
           open: openTasks,
@@ -187,6 +185,7 @@ export class ClientsService {
           _count: { select: { members: { where: { deletedAt: null } } } },
         },
       },
+      sites: { where: { deletedAt: null }, select: { id: true, name: true, address: true, isActive: true } },
     } as const;
   }
 
@@ -204,6 +203,9 @@ export class ClientsService {
       departmentName: c.department?.name ?? null,
       headName: c.department?.head ? `${c.department.head.firstName} ${c.department.head.lastName}` : null,
       teamSize: c.department?._count?.members ?? 0,
+      // The client's own premises registered as geofenced work sites —
+      // outsourced staff assigned to one clock in there like at a branch.
+      sites: (c.sites ?? []).map((s: any) => ({ id: s.id, name: s.name, address: s.address ?? null, isActive: s.isActive })),
       createdAt: c.createdAt,
     };
   }

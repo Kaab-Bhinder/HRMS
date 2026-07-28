@@ -149,7 +149,16 @@ export default function AttendancePage() {
         </div>
       ),
     },
-    { key: 'departmentName', header: 'Department', sortable: true, render: (r) => <span className="text-foreground">{r.departmentName}</span> },
+    {
+      key: 'departmentName', header: 'Department', sortable: true,
+      render: (r) => (
+        <div className="min-w-0">
+          <p className="truncate text-foreground">{r.departmentName}</p>
+          {/* Where the day's first check-in landed — branch or client site. */}
+          {r.siteName && <p className="truncate text-xs text-muted-foreground">@ {r.siteName}</p>}
+        </div>
+      ),
+    },
     { key: 'checkInAt', header: 'Check In', sortable: true, render: (r) => <span className="tabular-nums text-foreground">{formatTime(r.checkInAt)}</span> },
     { key: 'checkOutAt', header: 'Check Out', render: (r) => <span className="tabular-nums text-muted-foreground">{formatTime(r.checkOutAt)}</span> },
     {

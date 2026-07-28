@@ -36,17 +36,24 @@ export class OrganizationsService {
     }
   }
 
-  listLocations(orgId: string) {
-    return this.prisma.location.findMany({ where: { organizationId: orgId, deletedAt: null }, orderBy: { name: 'asc' } });
+  async listLocations(orgId: string) {
+    const rows = await this.prisma.location.findMany({
+      where: { organizationId: orgId, deletedAt: null },
+      orderBy: { name: 'asc' },
+      include: { client: { select: { id: true, name: true } } },
+    });
+    return rows.map((l) => ({ ...l, clientName: l.client?.name ?? null, client: undefined }));
   }
 
-  createLocation(orgId: string, dto: CreateLocationDto) {
+  async createLocation(orgId: string, dto: CreateLocationDto) {
     this.assertLocationTimezone(dto);
+    await this.assertClient(orgId, dto.clientId);
     return this.prisma.location.create({ data: { organizationId: orgId, ...dto } });
   }
 
   async updateLocation(orgId: string, id: string, dto: UpdateLocationDto) {
     this.assertLocationTimezone(dto);
+    await this.assertClient(orgId, dto.clientId);
     await this.ensureLocation(orgId, id);
     return this.prisma.location.update({ where: { id }, data: dto });
   }
@@ -61,5 +68,12 @@ export class OrganizationsService {
     const loc = await this.prisma.location.findFirst({ where: { id, organizationId: orgId, deletedAt: null } });
     if (!loc) throw new NotFoundException('Location not found');
     return loc;
+  }
+
+  /** A site tagged to a client must reference a client in THIS org. */
+  private async assertClient(orgId: string, clientId?: string | null) {
+    if (!clientId) return;
+    const client = await this.prisma.client.findFirst({ where: { id: clientId, organizationId: orgId, deletedAt: null }, select: { id: true } });
+    if (!client) throw new BadRequestException('The selected client does not exist');
   }
 }

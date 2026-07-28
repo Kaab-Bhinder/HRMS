@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min, ValidateNested } from 'class-validator';
+import { CheckInScope } from '@prisma/client';
 
 class OfficeHoursDto {
   @ApiPropertyOptional({ example: '09:00' }) @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) startTime?: string;
@@ -16,6 +17,8 @@ class PolicyDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() allowRemote?: boolean;
   @ApiPropertyOptional({ description: '0=Sun … 6=Sat' }) @IsOptional() @IsArray() @IsInt({ each: true }) weeklyOffDays?: number[];
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(30) @Max(3600) trackingIntervalSec?: number;
+  @ApiPropertyOptional({ enum: CheckInScope, description: 'any_site: nearest work site validates · assigned_only: employees answer to their assigned site' })
+  @IsOptional() @IsEnum(CheckInScope) checkInScope?: CheckInScope;
 }
 
 class OfficeDto {

@@ -1,5 +1,5 @@
 import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsInt, IsNumber, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNumber, IsObject, IsOptional, IsString, IsUUID, MaxLength, ValidateIf } from 'class-validator';
 import { CompensationType } from '@prisma/client';
 
 export class UpdateOrganizationDto {
@@ -22,6 +22,8 @@ export class CreateLocationDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() radiusMeters?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(64) timezone?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+  @ApiPropertyOptional({ description: 'Set when this site is a CLIENT\'s premises (outsourced staff clock in there). Null = the org\'s own branch.' })
+  @IsOptional() @ValidateIf((o) => o.clientId !== null) @IsUUID() clientId?: string | null;
 }
 
 export class UpdateLocationDto extends PartialType(CreateLocationDto) {}

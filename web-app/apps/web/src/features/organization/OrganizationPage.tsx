@@ -9,9 +9,9 @@ import { Modal } from '../../components/ui/Modal';
 import { Input, Select, Label } from '../../components/ui/Input';
 import { Switch } from '../../components/ui/Switch';
 import { useToast } from '../../store/toast';
-import { useAuth } from '../../store/auth';
+import { useAuth, usePermission } from '../../store/auth';
 import { useQuery } from '../../hooks/useQuery';
-import { organizationService, locationsService } from '../../services';
+import { organizationService, locationsService, clientsService } from '../../services';
 import { timezoneGroups, DEFAULT_TIMEZONE } from '../../lib/timezones';
 import { LocationPickerMap } from '../../components/maps/LocationPickerMap';
 import type { OfficeLocationDto } from '../../services';
@@ -160,6 +160,8 @@ const EMPTY_LOCATION: OfficeLocationDto = {
 
 function LocationsTab() {
   const toast = useToast();
+  const canSeeClients = usePermission('clients:read');
+  const { data: clients } = useQuery(() => (canSeeClients ? clientsService.list() : Promise.resolve(null)), [canSeeClients]);
   const { data, loading, error, refetch } = useQuery(() => locationsService.list(), []);
   const locations = data ?? [];
   const [modalOpen, setModalOpen] = useState(false);
@@ -242,6 +244,7 @@ function LocationsTab() {
                     <div className="flex items-center gap-2">
                       <span className="truncate font-medium text-foreground">{loc.name}</span>
                       <Badge tone={loc.isActive ? 'success' : 'neutral'} dot>{loc.isActive ? 'Active' : 'Inactive'}</Badge>
+                      {loc.clientName && <Badge tone="info">Client: {loc.clientName}</Badge>}
                       {!hasCoords && <Badge tone="warning">No geofence</Badge>}
                     </div>
                     <p className="truncate text-xs text-muted-foreground">
@@ -305,6 +308,16 @@ function LocationsTab() {
           <Row label="Geofence radius (m)">
             <Input type="number" min={0} value={draft.radiusMeters ?? 0} onChange={(e) => setD('radiusMeters', Number(e.target.value))} />
           </Row>
+          {canSeeClients && (
+            <Row label="Client site">
+              {/* A site can belong to a client — outsourced staff assigned to it
+                  clock in at the client's premises like at a branch. */}
+              <Select value={draft.clientId ?? ''} onChange={(e) => setD('clientId', e.target.value || null)}>
+                <option value="">Own branch (not a client site)</option>
+                {(clients ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </Row>
+          )}
           <Row label="Timezone">
             <Select value={draft.timezone ?? DEFAULT_TIMEZONE} onChange={(e) => setD('timezone', e.target.value)}>
               {timezoneGroups(draft.timezone).map((g) => (

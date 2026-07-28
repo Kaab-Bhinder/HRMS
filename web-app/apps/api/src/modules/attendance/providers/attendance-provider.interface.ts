@@ -20,6 +20,9 @@ export interface EffectivePolicy {
   allowRemote: boolean;
   allowedMethods: string[];
   trackingIntervalSec: number;
+  /** any_site: nearest active work site wins · assigned_only: employees with an
+   *  assigned site must be inside that one (unassigned fall back to nearest). */
+  checkInScope: 'any_site' | 'assigned_only';
 }
 
 export interface CaptureContext {

@@ -11,6 +11,7 @@ import { FaceModule } from '../face/face.module';
 import { ManualAttendanceProvider, QrAttendanceProvider, WebAttendanceProvider } from './providers/simple.providers';
 import { GpsAttendanceProvider } from './providers/gps.provider';
 import { FaceAttendanceProvider } from './providers/face.provider';
+import { SiteResolverService } from './providers/site-resolver.service';
 import {
   ATTENDANCE_PROVIDER_REGISTRY, AttendanceProvider, ProviderRegistry,
 } from './providers/attendance-provider.interface';
@@ -24,6 +25,7 @@ import {
     AttendanceAutoCheckoutService,
     TrackingService,
     AttendanceRecomputeService,
+    SiteResolverService,
     ManualAttendanceProvider,
     WebAttendanceProvider,
     QrAttendanceProvider,

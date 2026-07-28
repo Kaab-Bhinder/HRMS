@@ -141,6 +141,14 @@ export default function AttendanceSettingsPage() {
             <Row label="Enforce geofence" hint="Flag check-ins outside the office radius">
               <Switch checked={form.policy.enforceGeofence} onChange={(v) => set('policy', 'enforceGeofence', v)} />
             </Row>
+            <div>
+              <Label htmlFor="scope">Check-in scope</Label>
+              <Select id="scope" value={form.policy.checkInScope ?? 'any_site'} onChange={(e) => set('policy', 'checkInScope', e.target.value)}>
+                <option value="any_site">Any work site — nearest branch/client site validates</option>
+                <option value="assigned_only">Assigned site only — employees answer to their own site</option>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">Employees without an assigned work site are always validated at the nearest site.</p>
+            </div>
             <Row label="Allow remote check-in" hint="If on, out-of-range check-ins are NOT flagged">
               <Switch checked={form.policy.allowRemote} onChange={(v) => set('policy', 'allowRemote', v)} />
             </Row>

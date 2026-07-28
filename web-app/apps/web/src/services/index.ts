@@ -49,7 +49,7 @@ type DeepPartial<T> = { [K in keyof T]?: DeepPartial<T[K]> };
 export interface AttendanceSettings {
   timezone: string;
   officeHours: { startTime: string; endTime: string; graceMinutes: number; breakMinutes: number };
-  policy: { lateAfterMinutes: number; halfDayMinutes: number; enforceGeofence: boolean; allowRemote: boolean; weeklyOffDays: number[]; trackingIntervalSec: number };
+  policy: { lateAfterMinutes: number; halfDayMinutes: number; enforceGeofence: boolean; allowRemote: boolean; checkInScope: 'any_site' | 'assigned_only'; weeklyOffDays: number[]; trackingIntervalSec: number };
   office: { id: string; name: string; address: string | null; latitude: number | null; longitude: number | null; radiusMeters: number };
   leave: { annualLeaveDays: number };
 }
@@ -148,7 +148,7 @@ export const attendanceService = {
       ...res,
       data: res.data.map((r): AttendanceRecord => ({
         id: r.id, employeeId: r.employeeId, employeeName: r.employeeName, employeeCode: r.employeeCode,
-        departmentName: r.departmentName, workDate: r.workDate,
+        departmentName: r.departmentName, siteName: r.siteName ?? null, workDate: r.workDate,
         checkInAt: r.firstInAt, checkOutAt: r.lastOutAt, checkInMethod: r.primaryMethod,
         status: r.status, workedMinutes: r.workedMinutes, overtimeMinutes: r.overtimeMinutes,
         isFlagged: r.isFlagged, flagReason: r.flagReason ?? null, faceMatchScore: undefined,
@@ -181,7 +181,7 @@ export const attendanceService = {
         ? {
             policy: pick(dto.policy, [
               'lateAfterMinutes', 'halfDayMinutes', 'enforceGeofence',
-              'allowRemote', 'weeklyOffDays', 'trackingIntervalSec',
+              'allowRemote', 'checkInScope', 'weeklyOffDays', 'trackingIntervalSec',
             ]),
           }
         : {}),
@@ -400,6 +400,8 @@ export interface Client {
   departmentName: string | null;
   headName: string | null;
   teamSize: number;
+  /** The client's premises registered as geofenced work sites. */
+  sites: { id: string; name: string; address: string | null; isActive: boolean }[];
   createdAt: string;
 }
 export interface ClientPerformance {
@@ -410,7 +412,7 @@ export interface ClientPerformance {
     headName: string | null;
     memberCount: number;
     members: { id: string; name: string; employeeCode: string; designation: string | null; status: string }[];
-    attendance: { presentDays: number; lateDays: number; absentDays: number; onLeaveDays: number; recordedDays: number; presentRate: number | null };
+    attendance: { presentDays: number; lateDays: number; absentDays: number; onLeaveDays: number; recordedDays: number; presentRate: number | null; checkedInNow: number };
     tasks: { open: number; inProgress: number; blocked: number; done: number; overdue: number };
     recentReports: { id: string; title: string; periodLabel: string | null; status: string; submittedAt: string; submitterName: string }[];
   } | null;
@@ -487,7 +489,7 @@ export interface OrganizationProfile {
 }
 
 const ORG_COLUMN_FIELDS = ['name', 'legalName', 'timezone', 'locale', 'currency', 'defaultCompensationType', 'logoUrl'];
-const ORG_SETTING_FIELDS = ['registrationNo', 'fiscalYearStart'];
+const ORG_SETTING_FIELDS = ['registrationNo', 'fiscalYearStart', 'setupCompleted'];
 
 export const organizationService = {
   current: () => api.get<OrganizationProfile>('/organizations/current'),
@@ -516,9 +518,12 @@ export interface OfficeLocationDto {
   radiusMeters?: number | null;
   timezone?: string | null;
   isActive?: boolean;
+  /** Set when this site is a client's premises; null = the org's own branch. */
+  clientId?: string | null;
+  clientName?: string | null;
 }
 
-const LOCATION_FIELDS = ['name', 'address', 'latitude', 'longitude', 'radiusMeters', 'timezone', 'isActive'];
+const LOCATION_FIELDS = ['name', 'address', 'latitude', 'longitude', 'radiusMeters', 'timezone', 'isActive', 'clientId'];
 export const locationsService = {
   list: () => api.get<OfficeLocationDto[]>('/organizations/locations'),
   create: (payload: Partial<OfficeLocationDto>) =>

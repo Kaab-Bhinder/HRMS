@@ -259,6 +259,13 @@ function ClientPerformanceModal({ open, onClose, client }: { open: boolean; onCl
           </p>
         ) : (
           <>
+            {client.sites.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-muted-foreground">Client sites:</span>
+                {client.sites.map((s) => <Badge key={s.id} tone={s.isActive ? 'info' : 'neutral'}>{s.name}</Badge>)}
+                <Badge tone="success">{team.attendance.checkedInNow} checked in now</Badge>
+              </div>
+            )}
             <div>
               <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                 <span>Team attendance this month</span>

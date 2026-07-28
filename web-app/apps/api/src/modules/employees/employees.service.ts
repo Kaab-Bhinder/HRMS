@@ -337,6 +337,7 @@ export class EmployeesService {
       departmentName: e.department?.name ?? null,
       designationId: e.designationId,
       designationName: e.designation?.title ?? null,
+      locationId: e.locationId ?? null,
       locationName: e.location?.name ?? null,
       managerId: e.managerId,
       managerName: e.manager ? `${e.manager.firstName} ${e.manager.lastName}` : null,

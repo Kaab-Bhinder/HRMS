@@ -165,7 +165,14 @@ export class AttendanceService {
       }),
       this.prisma.attendanceDay.count({ where }),
     ]);
-    return paginated(rows.map((r) => this.serializeDay(r)), total, q.page, q.limit);
+    // Site names for "where they worked" — locationId is a bare column (no
+    // relation), so resolve the page's distinct sites in one batch query.
+    const siteIds = [...new Set(rows.map((r) => r.locationId).filter(Boolean))] as string[];
+    const sites = siteIds.length
+      ? await this.prisma.location.findMany({ where: { id: { in: siteIds } }, select: { id: true, name: true } })
+      : [];
+    const siteName = new Map(sites.map((s) => [s.id, s.name]));
+    return paginated(rows.map((r) => this.serializeDay(r, siteName)), total, q.page, q.limit);
   }
 
   async summary(user: AuthUser, dateStr?: string) {
@@ -460,16 +467,18 @@ export class AttendanceService {
   private async effectivePolicy(orgId: string): Promise<EffectivePolicy | null> {
     const p = await this.prisma.attendancePolicy.findFirst({ where: { organizationId: orgId, isDefault: true, deletedAt: null } });
     if (!p) return null;
-    return { enforceGeofence: p.enforceGeofence, allowRemote: p.allowRemote, allowedMethods: p.allowedMethods, trackingIntervalSec: p.trackingIntervalSec };
+    return { enforceGeofence: p.enforceGeofence, allowRemote: p.allowRemote, allowedMethods: p.allowedMethods, trackingIntervalSec: p.trackingIntervalSec, checkInScope: p.checkInScope };
   }
 
-  private serializeDay(r: any) {
+  private serializeDay(r: any, siteName?: Map<string, string>) {
     return {
       id: r.id,
       employeeId: r.employeeId,
       employeeName: `${r.employee.firstName} ${r.employee.lastName}`,
       employeeCode: r.employee.employeeCode,
       departmentName: r.employee.department?.name ?? null,
+      locationId: r.locationId ?? null,
+      siteName: (r.locationId ? siteName?.get(r.locationId) : null) ?? null,
       workDate: r.workDate,
       firstInAt: r.firstInAt,
       lastOutAt: r.lastOutAt,
