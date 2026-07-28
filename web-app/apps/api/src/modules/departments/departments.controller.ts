@@ -3,7 +3,8 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { DepartmentsService } from './departments.service';
 import { CreateDepartmentDto, UpdateDepartmentDto } from './dto/department.dto';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
+import { canSeePay, stripPayFields } from '../../common/utils/pay-visibility.util';
 
 @ApiTags('Departments')
 @ApiBearerAuth()
@@ -31,8 +32,11 @@ export class DepartmentsController {
 
   @Post()
   @RequirePermissions('departments:create')
-  create(@CurrentUser('organizationId') orgId: string, @CurrentUser('id') userId: string, @Body() dto: CreateDepartmentDto) {
-    return this.service.create(orgId, userId, dto);
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateDepartmentDto) {
+    // The inline new-head employee rides the same pay-write gate as
+    // POST /employees — without payroll:read its pay fields are dropped.
+    if (dto.head?.newEmployee && !canSeePay(user)) stripPayFields(dto.head.newEmployee);
+    return this.service.create(user.organizationId, user.id, dto);
   }
 
   @Patch(':id')

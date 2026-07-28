@@ -13,6 +13,7 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
 import { DepartmentsModule } from './modules/departments/departments.module';
 import { DesignationsModule } from './modules/designations/designations.module';
 import { ClientsModule } from './modules/clients/clients.module';
+import { AssetsModule } from './modules/assets/assets.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { UsersModule } from './modules/users/users.module';
@@ -62,6 +63,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     DepartmentsModule,
     DesignationsModule,
     ClientsModule,
+    AssetsModule,
     RolesModule,
     PermissionsModule,
     UsersModule,

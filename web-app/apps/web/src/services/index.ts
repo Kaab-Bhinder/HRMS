@@ -426,6 +426,54 @@ export const clientsService = {
   remove: (id: string) => api.del<{ success: boolean }>(`/clients/${id}`),
 };
 
+// --- Assets (company property registry + issue/return audit trail) ---
+export type AssetStatus = 'available' | 'assigned' | 'in_repair' | 'lost' | 'retired';
+export interface Asset {
+  id: string;
+  assetTag: string;
+  name: string;
+  category: string;
+  serialNumber: string | null;
+  purchaseDate: string | null;
+  purchaseCost: number | null;
+  vendor: string | null;
+  warrantyUntil: string | null;
+  status: AssetStatus;
+  condition: string | null;
+  notes: string | null;
+  customFields: Record<string, unknown>;
+  assignedToId: string | null;
+  assignedToName: string | null;
+  assignedToCode: string | null;
+  createdAt: string;
+}
+export interface AssetHistoryEntry {
+  id: string;
+  employeeName: string;
+  employeeCode: string;
+  assignedAt: string;
+  returnedAt: string | null;
+  conditionOut: string | null;
+  conditionIn: string | null;
+  notes: string | null;
+}
+
+const ASSET_FIELDS = ['name', 'assetTag', 'category', 'serialNumber', 'purchaseDate', 'purchaseCost', 'vendor', 'warrantyUntil', 'status', 'condition', 'notes', 'customFields'];
+
+export const assetsService = {
+  list: (p?: { status?: string; category?: string; employeeId?: string; search?: string }) => {
+    const qp = new URLSearchParams(Object.entries(p ?? {}).filter(([, v]) => v) as [string, string][]).toString();
+    return api.get<Asset[]>(`/assets${qp ? `?${qp}` : ''}`);
+  },
+  mine: () => api.get<Asset[]>('/assets/mine'),
+  history: (id: string) => api.get<AssetHistoryEntry[]>(`/assets/${id}/history`),
+  create: (payload: Partial<Asset>) => api.post<Asset>('/assets', pick(payload, ASSET_FIELDS)),
+  update: (id: string, payload: Partial<Asset>) => api.patch<Asset>(`/assets/${id}`, pick(payload, ASSET_FIELDS)),
+  assign: (id: string, payload: { employeeId: string; condition?: string; notes?: string }) => api.post<Asset>(`/assets/${id}/assign`, payload),
+  return: (id: string, payload: { condition?: string; nextStatus?: string; notes?: string }) => api.post<Asset>(`/assets/${id}/return`, payload),
+  remove: (id: string) => api.del<{ success: boolean }>(`/assets/${id}`),
+};
+
 export interface OrganizationProfile {
   id: string;
   name: string;

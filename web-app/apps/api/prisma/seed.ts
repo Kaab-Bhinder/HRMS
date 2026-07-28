@@ -9,7 +9,7 @@ const RESOURCES = [
   'employees', 'departments', 'designations', 'roles', 'permissions', 'users',
   'tasks', 'attendance', 'leave', 'performance', 'reports', 'analytics',
   'audit', 'settings', 'notifications', 'custom_fields', 'organizations', 'files',
-  'shifts', 'biometric', 'face', 'payroll', 'clients',
+  'shifts', 'biometric', 'face', 'payroll', 'clients', 'assets',
 ];
 const ACTIONS = ['read', 'create', 'update', 'delete'];
 // Special (non-CRUD) permissions.
@@ -59,7 +59,7 @@ async function main() {
     { name: 'Super Admin', description: 'Full platform control', keys: permKeys, web: true, mobile: false },
     { name: 'HR Manager', description: 'Full HR operations', keys: permKeys.filter((k) => !k.startsWith('settings:') && !k.startsWith('roles:') && !k.startsWith('permissions:')), web: true, mobile: true },
     { name: 'Department Head', description: 'Leads a department: team visibility, approvals and task assignment', keys: ['employees:read', 'attendance:read', 'attendance:track', 'leave:read', 'leave:update', 'tasks:read', 'tasks:create', 'tasks:update', 'performance:read', 'reports:read', 'analytics:read', 'files:read', 'files:create', 'files:delete'], web: true, mobile: true },
-    { name: 'Finance Officer', description: 'Payroll and financial reports', keys: ['employees:read', 'reports:read', 'reports:create', 'attendance:read', 'analytics:read', 'payroll:read', 'payroll:create'], web: true, mobile: false },
+    { name: 'Finance Officer', description: 'Payroll and financial reports', keys: ['employees:read', 'reports:read', 'reports:create', 'attendance:read', 'analytics:read', 'payroll:read', 'payroll:create', 'assets:read'], web: true, mobile: false },
     // files:* is safe to grant broadly because FilesService.assertOwnerAccess
     // narrows unprivileged users to their own tasks, their own employee record
     // and their own reports — the permission alone is not org-wide access.
@@ -67,6 +67,7 @@ async function main() {
     // (register, team payslips). One's own payslip is scope-guarded, not
     // permission-gated, so self-service keeps working without it. Granting it
     // here would leak team salaries to anyone who also holds Department Head.
+    // Own assets ride a scope-guarded /assets/mine endpoint, no permission.
     { name: 'Employee', description: 'Self-service access', keys: ['attendance:read', 'leave:read', 'leave:create', 'tasks:read', 'tasks:update', 'files:read', 'files:create'], web: false, mobile: true },
   ];
 

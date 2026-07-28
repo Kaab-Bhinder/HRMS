@@ -145,10 +145,14 @@ function ClientFormModal({ open, onClose, client, onSaved }: { open: boolean; on
     }
     setSaving(true);
     const payload: Record<string, unknown> = { ...form };
-    // Optional fields: omit blanks so the API treats them as "not provided";
-    // departmentId '' would fail @IsUUID.
+    // Optional fields: on CREATE omit blanks ("not provided"); on EDIT send
+    // null so clearing a field actually persists — an omitted key means
+    // "unchanged" to the API, which would silently keep the old value.
     for (const k of ['code', 'contactPerson', 'contactEmail', 'contactPhone', 'notes', 'departmentId']) {
-      if (!payload[k]) delete payload[k];
+      if (!payload[k]) {
+        if (client) payload[k] = null;
+        else delete payload[k];
+      }
     }
     try {
       if (client) {
@@ -221,7 +225,7 @@ function ClientFormModal({ open, onClose, client, onSaved }: { open: boolean; on
 }
 
 function ClientPerformanceModal({ open, onClose, client }: { open: boolean; onClose: () => void; client: Client | null }) {
-  const { data, loading } = useQuery<ClientPerformance | null>(
+  const { data, loading, error, refetch } = useQuery<ClientPerformance | null>(
     () => (client ? clientsService.performance(client.id) : Promise.resolve(null)),
     [client?.id, open],
   );
@@ -244,6 +248,11 @@ function ClientPerformanceModal({ open, onClose, client }: { open: boolean; onCl
 
         {loading ? (
           <Skeleton className="h-64" />
+        ) : error ? (
+          <div className="rounded-md bg-danger/10 p-3 text-sm text-danger">
+            Couldn't load the team's performance: {error}
+            <Button variant="ghost" size="sm" className="ml-2" onClick={refetch}>Retry</Button>
+          </div>
         ) : !team ? (
           <p className="rounded-md bg-warning/10 p-3 text-sm text-warning">
             Assign a serving team (department) to this client to see attendance, tasks and roster here.
@@ -269,7 +278,9 @@ function ClientPerformanceModal({ open, onClose, client }: { open: boolean; onCl
             </div>
 
             <div>
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Team roster · {team.memberCount}</h4>
+              {/* Count lives in its own span so the "Team roster" text node
+                  stays clean for the i18n DOM walker (exact-key matching). */}
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Team roster<span> · {team.memberCount}</span></h4>
               <div className="max-h-48 overflow-auto rounded-md border border-border">
                 {team.members.map((m) => (
                   <div key={m.id} className="flex items-center gap-3 border-b border-border px-3 py-2 last:border-b-0">

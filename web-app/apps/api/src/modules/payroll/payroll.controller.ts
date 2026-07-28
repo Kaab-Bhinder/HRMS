@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsInt, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -37,6 +37,9 @@ export class PayrollController {
     @Query('year') year?: string,
     @Query('month') month?: string,
   ) {
+    // Guard the param explicitly: Prisma treats `id: undefined` as "no filter",
+    // so letting it through would resolve to an arbitrary employee's slip.
+    if (!employeeId) throw new BadRequestException('employeeId is required');
     const { y, m } = resolveMonth(year, month);
     return this.payroll.payslip(user, employeeId, y, m);
   }

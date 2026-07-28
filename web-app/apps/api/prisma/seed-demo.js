@@ -352,6 +352,38 @@ async function main() {
     });
   }
 
+  // --- Assets: registry + a few live assignments ---
+  const demoAssets = [
+    { name: 'MacBook Pro 14"', category: 'Laptop', vendor: 'Apple', purchaseCost: 32000000, condition: 'good' },
+    { name: 'ThinkPad T14', category: 'Laptop', vendor: 'Lenovo', purchaseCost: 18000000, condition: 'good' },
+    { name: 'iPhone 15', category: 'Phone', vendor: 'Apple', purchaseCost: 15000000, condition: 'new' },
+    { name: 'Dell U2723QE Monitor', category: 'Monitor', vendor: 'Dell', purchaseCost: 9000000, condition: 'good' },
+    { name: 'Toyota Avanza (Pool Car)', category: 'Vehicle', vendor: 'Toyota', purchaseCost: 250000000, condition: 'fair' },
+    { name: 'Microsoft 365 E3 Seat', category: 'Software License', vendor: 'Microsoft', purchaseCost: 6000000, condition: null },
+  ];
+  const existingAssets = await prisma.asset.count({ where: { organizationId: orgId } });
+  if (existingAssets === 0) {
+    const holders = await prisma.employee.findMany({ where: { organizationId: orgId, deletedAt: null }, take: 3, select: { id: true } });
+    for (let i = 0; i < demoAssets.length; i++) {
+      const a = demoAssets[i];
+      const holder = i < 3 ? holders[i] : null; // first three are issued, rest in stock
+      const asset = await prisma.asset.create({
+        data: {
+          organizationId: orgId,
+          assetTag: `AST-${String(i + 1).padStart(4, '0')}`,
+          status: holder ? 'assigned' : 'available',
+          assignedToId: holder?.id,
+          ...a,
+        },
+      });
+      if (holder) {
+        await prisma.assetAssignment.create({
+          data: { organizationId: orgId, assetId: asset.id, employeeId: holder.id, conditionOut: a.condition ?? 'good' },
+        });
+      }
+    }
+  }
+
   const counts = {
     employees: await prisma.employee.count({ where: { organizationId: orgId, deletedAt: null } }),
     attendance: await prisma.attendanceDay.count({ where: { organizationId: orgId } }),
@@ -359,6 +391,7 @@ async function main() {
     leave: await prisma.leaveRequest.count({ where: { organizationId: orgId } }),
     departments: await prisma.department.count({ where: { organizationId: orgId, deletedAt: null } }),
     clients: await prisma.client.count({ where: { organizationId: orgId, deletedAt: null } }),
+    assets: await prisma.asset.count({ where: { organizationId: orgId, deletedAt: null } }),
   };
   console.log('Demo seed complete:', JSON.stringify(counts));
   await prisma.$disconnect();

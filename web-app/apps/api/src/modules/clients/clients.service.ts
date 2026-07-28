@@ -76,7 +76,7 @@ export class ClientsService {
 
     const [dept, members] = await Promise.all([
       this.prisma.department.findFirst({
-        where: { id: deptId, organizationId: orgId },
+        where: { id: deptId, organizationId: orgId, deletedAt: null },
         select: { id: true, name: true, head: { select: { id: true, firstName: true, lastName: true } } },
       }),
       this.prisma.employee.findMany({
@@ -110,7 +110,7 @@ export class ClientsService {
         },
       }),
       this.prisma.report.findMany({
-        where: { organizationId: orgId, departmentId: deptId },
+        where: { organizationId: orgId, departmentId: deptId, deletedAt: null },
         orderBy: { submittedAt: 'desc' },
         take: 5,
         select: { id: true, title: true, periodLabel: true, status: true, submittedAt: true, submitterName: true },

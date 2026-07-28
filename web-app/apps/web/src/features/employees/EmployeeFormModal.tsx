@@ -61,6 +61,22 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
       setPasswordStrategy('generate');
       setCreated(null);
     }
+    // Deliberately NOT keyed on depts/desigs/org: those queries resolving
+    // after the modal opens must not re-run this reset and wipe half-typed
+    // input. The effects below backfill their defaults non-destructively.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, employee]);
+
+  // Late-arriving defaults for a NEW employee: fill only fields the user
+  // hasn't touched (still at their empty/seed value) — never overwrite input.
+  useEffect(() => {
+    if (!open || employee) return;
+    setForm((f) => ({
+      ...f,
+      departmentId: f.departmentId || (depts?.[0]?.id ?? ''),
+      designationId: f.designationId || (desigs?.[0]?.id ?? ''),
+      compensationType: f.compensationType === EMPTY.compensationType && org?.defaultCompensationType ? org.defaultCompensationType : f.compensationType,
+    }));
   }, [open, employee, depts, desigs, org]);
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));

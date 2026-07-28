@@ -221,6 +221,7 @@ const Map<String, String> idStrings = {
   'Basic salary': 'Gaji pokok',
   'per month': 'per bulan',
   'Deductions': 'Potongan',
+  'day unpaid leave': 'hari cuti tanpa gaji',
   'days unpaid leave': 'hari cuti tanpa gaji',
   'No unpaid leave': 'Tidak ada cuti tanpa gaji',
   'of': 'dari',

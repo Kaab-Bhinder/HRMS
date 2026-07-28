@@ -115,6 +115,8 @@ export class PayrollService {
       // Per-day breakdown is meaningful for hourly (pay accrues daily). For
       // monthly the daily "pay" column is 0 — the day list is just the
       // attendance record; deductions are driven by unpaid leave, not by day.
+      // Rates/type come from the (possibly frozen) summary, not the live row,
+      // so a finalized month's day pay can't drift when HR later edits pay.
       days: days.map((d) => {
         const payable = payableMinutes(d.status, d.workedMinutes, officeMinutes);
         return {
@@ -124,7 +126,7 @@ export class PayrollService {
           payableMinutes: payable,
           lateMinutes: d.lateMinutes,
           isFlagged: d.isFlagged,
-          pay: emp.compensationType === CompensationType.monthly ? 0 : emp.payPerHour ? round2((payable / 60) * Number(emp.payPerHour)) : 0,
+          pay: summary.compensationType === CompensationType.monthly ? 0 : summary.payPerHour ? round2((payable / 60) * Number(summary.payPerHour)) : 0,
         };
       }),
     };
@@ -199,9 +201,11 @@ export class PayrollService {
     const earnedPay = round2((payMinutes / 60) * rate);
     const potentialPay = round2((officeMinutes / 60) * workingDaysTotal * rate);
 
-    // monthly figures — one unpaid-leave working day = basic ÷ workingDays
+    // monthly figures — one unpaid-leave working day = basic ÷ workingDays.
+    // Capped at basic: overlapping approved unpaid-leave requests could
+    // otherwise push the deduction past the salary and freeze a negative net.
     const dailyRate = workingDaysTotal > 0 ? basic / workingDaysTotal : 0;
-    const monthlyDeduction = monthly ? round2(dailyRate * unpaidLeaveDays) : 0;
+    const monthlyDeduction = monthly ? Math.min(round2(dailyRate * unpaidLeaveDays), basic) : 0;
     const monthlyNet = round2(basic - monthlyDeduction);
 
     // unified fields the UI reads regardless of type
@@ -241,19 +245,18 @@ export class PayrollService {
     };
   }
 
-  /** When a month is finalized, the snapshot is authoritative — return its
-   *  frozen figures instead of the live recomputation. The descriptive fields
-   *  (type, salary, rate) come from the snapshot's breakdown too, so a
-   *  finalized month renders exactly as it was finalized even if the employee
-   *  was since switched between monthly and hourly. */
+  /** When a month is finalized, the snapshot is authoritative — the WHOLE
+   *  summary is replayed from the frozen breakdown (rates, hours, earned/
+   *  potential, progress — everything), so a finalized month renders exactly
+   *  as it was finalized no matter how the employee's pay is edited later.
+   *  The live row only backfills fields a pre-upgrade snapshot might lack. */
   private overlayFinalized(row: ReturnType<PayrollService['summarize']>, snap?: FinalizedSnap) {
     if (!snap) return row;
     const frozen = (snap.breakdown ?? {}) as Partial<ReturnType<PayrollService['summarize']>>;
     return {
       ...row,
+      ...frozen,
       compensationType: snap.compensationType,
-      basicSalary: 'basicSalary' in frozen ? (frozen.basicSalary ?? null) : row.basicSalary,
-      payPerHour: 'payPerHour' in frozen ? (frozen.payPerHour ?? null) : row.payPerHour,
       grossPay: Number(snap.grossAmount),
       deductions: Number(snap.deductions),
       netPay: Number(snap.netAmount),

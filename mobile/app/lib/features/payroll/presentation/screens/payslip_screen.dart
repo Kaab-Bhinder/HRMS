@@ -105,7 +105,7 @@ class _PayslipScreenState extends ConsumerState<PayslipScreen> {
                               label: context.tr('Deductions'),
                               value: s.deductions > 0 ? '−$cur${money.format(s.deductions)}' : '—',
                               hint: s.unpaidLeaveDays > 0
-                                  ? '${_trimD(s.unpaidLeaveDays)} ${context.tr('days unpaid leave')}'
+                                  ? '${_trimD(s.unpaidLeaveDays)} ${context.tr(s.unpaidLeaveDays == 1 ? 'day unpaid leave' : 'days unpaid leave')}'
                                   : context.tr('No unpaid leave'),
                             ),
                           ],
@@ -155,13 +155,13 @@ class _PayslipScreenState extends ConsumerState<PayslipScreen> {
                         Row(
                           children: [
                             _Stat(
-                              label: 'Payable hours',
+                              label: context.tr('Payable hours'),
                               value: '${s.payableHours}h',
                               hint: 'of ${s.workedHours}h worked',
                             ),
                             const SizedBox(width: AppSpacing.md),
                             _Stat(
-                              label: 'Days present',
+                              label: context.tr('Days present'),
                               value: '${s.daysPresent}',
                               hint: '${s.officeHoursPerDay}h office day',
                             ),
@@ -171,15 +171,15 @@ class _PayslipScreenState extends ConsumerState<PayslipScreen> {
                         Row(
                           children: [
                             _Stat(
-                              label: 'Hourly rate',
+                              label: context.tr('Hourly rate'),
                               value: s.hasRate ? '$cur${money.format(s.payPerHour)}' : '—',
-                              hint: s.hasRate ? 'Current rate' : 'Not set by HR yet',
+                              hint: context.tr(s.hasRate ? 'Current rate' : 'Not set by HR yet'),
                             ),
                             const SizedBox(width: AppSpacing.md),
                             _Stat(
-                              label: 'Late time',
+                              label: context.tr('Late time'),
                               value: '${s.lateMinutes} min',
-                              hint: 'This month',
+                              hint: context.tr('This month'),
                             ),
                           ],
                         ),
@@ -248,13 +248,17 @@ class _MonthlyHero extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text('$cur${money.format(s.netPay)}',
+          Text(s.hasSalary ? '$cur${money.format(s.netPay)}' : '—',
               style: AppTypography.numeric(34, FontWeight.w700, HeroSurface.onHero)),
           const SizedBox(height: 2),
           Text(
-            s.deductions > 0
-                ? '${context.tr('Basic')} $cur${money.format(s.basicSalary ?? 0)} − $cur${money.format(s.deductions)} ${context.tr('unpaid leave')}'
-                : context.tr('Full basic salary — no deductions'),
+            // Don't announce "full salary" when HR hasn't set one — the 0
+            // would read as an actual (terrifying) payslip figure.
+            !s.hasSalary
+                ? context.tr('Not set by HR yet')
+                : s.deductions > 0
+                    ? '${context.tr('Basic')} $cur${money.format(s.basicSalary ?? 0)} − $cur${money.format(s.deductions)} ${context.tr('unpaid leave')}'
+                    : context.tr('Full basic salary — no deductions'),
             style: context.text.bodyMedium?.copyWith(color: HeroSurface.onHeroMuted),
           ),
           if (isCurrentMonth) ...[
@@ -306,7 +310,7 @@ class _HourlyHero extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(isCurrentMonth ? 'EARNED THIS MONTH' : 'EARNED',
+          Text(context.tr(isCurrentMonth ? 'EARNED THIS MONTH' : 'EARNED'),
               style: AppTypography.overline(HeroSurface.onHeroMuted)),
           const SizedBox(height: AppSpacing.sm),
           Text('$cur${money.format(s.earnedPay)}',
