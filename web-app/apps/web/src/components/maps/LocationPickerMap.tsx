@@ -133,7 +133,7 @@ export function LocationPickerMap({
   return (
     <div
       ref={wrapRef}
-      className="relative overflow-hidden rounded-lg border border-border bg-surface"
+      className="relative isolate overflow-hidden rounded-lg border border-border bg-surface"
       style={{ height: isFullscreen ? '100vh' : height }}
     >
       {!hasPoint && (

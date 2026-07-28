@@ -83,7 +83,9 @@ export function LiveOfficeMap({ height = 380 }: { height?: number }) {
   if (!office) return <div style={{ height }}><EmptyState icon={<Users className="h-6 w-6" />} title="Set the office location" description="Add office coordinates in Attendance Settings to see the live map." /></div>;
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border" style={{ height }}>
+    // `isolate` traps Leaflet's internal z-indexes (up to ~1000) inside this
+    // box so the map can never bleed over app modals (z-50).
+    <div className="relative isolate overflow-hidden rounded-xl border border-border" style={{ height }}>
       <div className="pointer-events-none absolute right-3 top-3 z-[500] flex items-center gap-2 rounded-full bg-surface/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-card backdrop-blur">
         <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success/70" /><span className="relative inline-flex h-2 w-2 rounded-full bg-success" /></span>
         {data?.count ?? 0} checked in
