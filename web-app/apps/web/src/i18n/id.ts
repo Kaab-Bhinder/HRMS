@@ -1003,6 +1003,22 @@ export const ID: Record<string, string> = {
   'Every issue and return is recorded — this trail backs offboarding clearance.': 'Setiap penyerahan dan pengembalian tercatat — jejak ini mendukung proses karyawan keluar.',
   'Remove asset?': 'Hapus aset?',
 
+  // --- Attendance scorecard + employee detail ---
+  'Monthly scorecard per employee — click a row for their day-by-day log.':
+    'Kartu skor bulanan per karyawan — klik baris untuk log harian mereka.',
+  'On leave': 'Sedang cuti',
+  'Worked (h)': 'Jam kerja',
+  'All clients': 'Semua klien',
+  'No one matches your current filters for this month.': 'Tidak ada yang cocok dengan filter Anda untuk bulan ini.',
+  'All days': 'Semua hari',
+  'Present days': 'Hari hadir',
+  'Absent days': 'Hari absen',
+  'Worked hours': 'Jam kerja',
+  'Attendance detail': 'Detail kehadiran',
+  'Daily attendance log': 'Log kehadiran harian',
+  'No days match': 'Tidak ada hari yang cocok',
+  'Nothing recorded for this filter in the selected month.': 'Tidak ada catatan untuk filter ini di bulan terpilih.',
+
   // --- First-run setup wizard ---
   'How do you pay your team?': 'Bagaimana Anda menggaji tim Anda?',
   'Fixed basic salary; only unpaid leave deducts. Banks & offices.': 'Gaji pokok tetap; hanya cuti tanpa gaji yang memotong. Bank & kantor.',
@@ -1016,6 +1032,9 @@ export const ID: Record<string, string> = {
   // --- Work sites / multi-branch attendance ---
   'Work site': 'Lokasi kerja',
   'Any site (unassigned)': 'Semua lokasi (belum ditetapkan)',
+  'This department serves': 'Departemen ini melayani',
+  '— their site is preselected as the work site.': '— lokasi mereka dipilih otomatis sebagai lokasi kerja.',
+  '(no client site registered yet — add one under Organization → Locations).': '(belum ada lokasi klien terdaftar — tambahkan di Organisasi → Lokasi).',
   'Check-in scope': 'Cakupan check-in',
   'Any work site — nearest branch/client site validates': 'Semua lokasi kerja — cabang/lokasi klien terdekat yang memvalidasi',
   'Assigned site only — employees answer to their own site': 'Hanya lokasi yang ditetapkan — karyawan terikat lokasinya sendiri',

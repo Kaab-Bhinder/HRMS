@@ -6,7 +6,7 @@ import { Select, Label } from '../../components/ui/Input';
 import { useQuery } from '../../hooks/useQuery';
 import { usePermission } from '../../store/auth';
 import { useToast } from '../../store/toast';
-import { organizationService } from '../../services';
+import { employeesService, organizationService } from '../../services';
 import { timezoneGroups } from '../../lib/timezones';
 
 /**
@@ -23,6 +23,9 @@ const CURRENCIES = ['IDR', 'USD', 'PKR', 'EUR', 'GBP', 'SGD', 'MYR', 'AUD', 'INR
 export function SetupWizard() {
   const canManage = usePermission('organizations:update');
   const { data: org, refetch } = useQuery(() => organizationService.current(), []);
+  // A workspace with employees is obviously not a first run — never greet it,
+  // even if it predates the wizard and lacks the setupCompleted flag.
+  const { data: emps } = useQuery(() => employeesService.list({ limit: 1 }), []);
   const [dismissed, setDismissed] = useState(false);
   const [payModel, setPayModel] = useState<'monthly' | 'hourly'>('monthly');
   const [currency, setCurrency] = useState('IDR');
@@ -39,7 +42,13 @@ export function SetupWizard() {
     if (org.timezone) setTimezone(org.timezone);
   }, [org]);
 
-  const open = !!org && (org.settings as Record<string, unknown> | null)?.setupCompleted !== true && canManage && !dismissed;
+  const isFreshWorkspace = !!emps && emps.meta.total === 0;
+  const open =
+    !!org &&
+    (org.settings as Record<string, unknown> | null)?.setupCompleted !== true &&
+    isFreshWorkspace &&
+    canManage &&
+    !dismissed;
   if (!open) return null;
 
   const finish = async () => {

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
-import {
-  Download, CalendarDays, UserCheck, Clock, UserX, Home, ShieldAlert, AlertTriangle,
-} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Download, CalendarDays, UserCheck, Clock, UserX, Home, ShieldAlert } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { FilterBar } from '../../components/FilterBar';
 import { Card, CardHeader, CardBody } from '../../components/ui/Card';
@@ -13,135 +12,126 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { StatCard } from '../../components/charts/StatCard';
 import { AttendanceAreaChart } from '../../components/charts/Charts';
 import { Skeleton } from '../../components/feedback/States';
-import { Modal } from '../../components/ui/Modal';
-import { Textarea } from '../../components/ui/Input';
+import { Input } from '../../components/ui/Input';
 import { useQuery } from '../../hooks/useQuery';
 import { exportCsv, datedFilename, type CsvColumn } from '../../lib/csv';
-import { AttendanceSlipModal } from './AttendanceSlipModal';
-import { attendanceService, analyticsService, departmentsService } from '../../services';
+import { attendanceService, analyticsService, departmentsService, clientsService, type AttendanceEmployeeSummaryRow } from '../../services';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { usePermission } from '../../store/auth';
 import { useToast } from '../../store/toast';
-import { cn } from '../../lib/utils';
-import { formatTime, formatDate } from '../../lib/format';
-import type { AttendanceRecord } from '../../lib/types';
+import { formatDate } from '../../lib/format';
 
-const STATUS_OPTIONS = [
-  { value: 'present', label: 'Present' },
-  { value: 'late', label: 'Late' },
-  { value: 'absent', label: 'Absent' },
-  { value: 'wfh', label: 'Work From Home' },
-  { value: 'on_leave', label: 'On Leave' },
-];
+/**
+ * Org-wide attendance is a MONTHLY SCORECARD — one row per employee with their
+ * present/late/absent/flagged day counts — not a flood of day entries. The
+ * day-by-day log lives on each employee's own page (click a row). Filters:
+ * department, client (resolves to the client's serving department — same
+ * client→team model as everywhere else), and free search.
+ */
 
-const METHOD_TONE: Record<string, 'neutral' | 'primary' | 'success' | 'info' | 'warning' | 'accent'> = {
-  face: 'info',
-  facial: 'info',
-  biometric: 'primary',
-  fingerprint: 'primary',
-  web: 'neutral',
-  mobile: 'accent',
-  geofence: 'success',
-  manual: 'warning',
-};
-
-function formatMethod(method?: string): string {
-  if (!method) return '—';
-  return method.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+function currentMonthValue(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-/** Bound on one export: attendance grows by ~1 row per employee per day. */
-const ATTENDANCE_EXPORT_LIMIT = 5000;
-
-const ATTENDANCE_CSV_COLUMNS: CsvColumn<AttendanceRecord>[] = [
-  { header: 'Date', value: (r) => r.workDate?.slice(0, 10) },
+const SCORECARD_CSV: CsvColumn<AttendanceEmployeeSummaryRow>[] = [
   { header: 'Employee code', value: (r) => r.employeeCode },
   { header: 'Employee', value: (r) => r.employeeName },
-  { header: 'Department', value: (r) => r.departmentName },
-  { header: 'Status', value: (r) => r.status },
-  { header: 'Check in', value: (r) => (r.checkInAt ? new Date(r.checkInAt).toISOString() : '') },
-  { header: 'Check out', value: (r) => (r.checkOutAt ? new Date(r.checkOutAt).toISOString() : '') },
-  { header: 'Method', value: (r) => r.checkInMethod ?? '' },
-  { header: 'Worked minutes', value: (r) => r.workedMinutes ?? 0 },
-  { header: 'Overtime minutes', value: (r) => r.overtimeMinutes ?? 0 },
-  { header: 'Flagged', value: (r) => (r.isFlagged ? 'yes' : 'no') },
+  { header: 'Department', value: (r) => r.departmentName ?? '' },
+  { header: 'Work site', value: (r) => r.siteName ?? '' },
+  { header: 'Present days', value: (r) => r.presentDays },
+  { header: 'Late days', value: (r) => r.lateDays },
+  { header: 'Absent days', value: (r) => r.absentDays },
+  { header: 'On leave days', value: (r) => r.onLeaveDays },
+  { header: 'Flagged days', value: (r) => r.flaggedDays },
+  { header: 'Worked hours', value: (r) => r.workedHours },
+  { header: 'Late minutes', value: (r) => r.lateMinutes },
 ];
 
 export default function AttendancePage() {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const canSeeClients = usePermission('clients:read');
+
+  const [month, setMonth] = useState(currentMonthValue());
+  const [year, mon] = useMemo(() => month.split('-').map(Number), [month]);
   const [search, setSearch] = useState('');
   const debounced = useDebouncedValue(search, 300);
-  const [filters, setFilters] = useState<Record<string, string>>({ status: 'all', departmentId: 'all', flagged: 'all' });
-  const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: 'checkInAt', order: 'desc' });
+  const [filters, setFilters] = useState<Record<string, string>>({ departmentId: 'all', clientId: 'all' });
+  const [sort, setSort] = useState<{ key: string; order: 'asc' | 'desc' }>({ key: 'employeeName', order: 'asc' });
 
   const { data: summary, loading: summaryLoading } = useQuery(() => attendanceService.summary(), []);
   const { data: overview, loading: chartLoading } = useQuery(() => analyticsService.overview(), []);
   const { data: depts } = useQuery(() => departmentsService.tree(), []);
+  const { data: clients } = useQuery(() => (canSeeClients ? clientsService.list() : Promise.resolve(null)), [canSeeClients]);
 
-  const params = useMemo(
-    () => ({ page, limit: 10, search: debounced, sort: sort.key, order: sort.order, filters }),
-    [page, debounced, sort, filters],
+  // The client filter is sugar over the department filter: a client is served
+  // by one department, so picking a client scopes to that team.
+  const effectiveDeptId = useMemo(() => {
+    if (filters.clientId !== 'all') {
+      const c = (clients ?? []).find((x) => x.id === filters.clientId);
+      return c?.departmentId ?? undefined;
+    }
+    return filters.departmentId !== 'all' ? filters.departmentId : undefined;
+  }, [filters, clients]);
+
+  const { data, loading, error, refetch } = useQuery(
+    () => attendanceService.employeeSummary({ year, month: mon, departmentId: effectiveDeptId, search: debounced || undefined }),
+    [year, mon, effectiveDeptId, debounced],
   );
-  const { data, loading, error, refetch } = useQuery(() => attendanceService.list(params), [params]);
 
-  // Exports every record matching the current filters, not just the visible
-  // page — the list is paginated, so this re-requests with a high limit.
+  const rows = useMemo(() => {
+    const list = [...(data?.rows ?? [])];
+    const dir = sort.order === 'asc' ? 1 : -1;
+    const key = sort.key as keyof AttendanceEmployeeSummaryRow;
+    list.sort((a, b) => {
+      const av = a[key];
+      const bv = b[key];
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      return String(av ?? '').localeCompare(String(bv ?? '')) * dir;
+    });
+    return list;
+  }, [data, sort]);
+
   const [exporting, setExporting] = useState(false);
-  const exportRows = async () => {
+  const exportRows = () => {
     setExporting(true);
     try {
-      const all = await attendanceService.list({ ...params, page: 1, limit: ATTENDANCE_EXPORT_LIMIT });
-      const records = all?.data ?? [];
-      if (!records.length) {
-        toast.error('Nothing to export', 'No attendance records match the current filters.');
+      if (!rows.length) {
+        toast.error('Nothing to export', 'No employees match the current filters.');
         return;
       }
-      exportCsv(datedFilename('attendance'), records, ATTENDANCE_CSV_COLUMNS);
-      const capped = (all?.meta?.total ?? records.length) > records.length;
-      toast.success(
-        `Exported ${records.length} record${records.length === 1 ? '' : 's'}`,
-        capped
-          ? `Capped at ${ATTENDANCE_EXPORT_LIMIT}. Narrow the date range to export more.`
-          : 'Downloaded as CSV.',
-      );
-    } catch (e) {
-      toast.error('Export failed', (e as Error).message);
+      exportCsv(datedFilename('attendance-scorecard'), rows, SCORECARD_CSV);
+      toast.success(`Exported ${rows.length} employee${rows.length === 1 ? '' : 's'}`, 'Downloaded as CSV.');
     } finally {
       setExporting(false);
     }
   };
-  const [slipFor, setSlipFor] = useState<{ id: string; name: string } | null>(null);
-  const canResolve = usePermission('attendance:update');
-  const toast = useToast();
-  const [toReview, setToReview] = useState<AttendanceRecord | null>(null);
-  const [note, setNote] = useState('');
-  const [resolving, setResolving] = useState(false);
-
-  const resolveFlag = async () => {
-    if (!toReview) return;
-    setResolving(true);
-    try {
-      await attendanceService.resolveFlag(toReview.id, note.trim() || undefined);
-      toast.success('Flag resolved', `${toReview.employeeName}’s record was reviewed.`);
-      setToReview(null); setNote('');
-      refetch();
-    } catch (e) {
-      toast.error('Could not resolve', (e as Error).message);
-    } finally { setResolving(false); }
-  };
 
   const onSort = (key: string) => setSort((s) => ({ key, order: s.key === key && s.order === 'asc' ? 'desc' : 'asc' }));
-  const setFilter = (key: string, value: string) => { setFilters((f) => ({ ...f, [key]: value })); setPage(1); };
-  const clear = () => { setSearch(''); setFilters({ status: 'all', departmentId: 'all', flagged: 'all' }); setPage(1); };
+  const setFilter = (key: string, value: string) => {
+    setFilters((f) => ({
+      ...f,
+      [key]: value,
+      // dept and client filters are mutually exclusive — picking one resets the other
+      ...(key === 'departmentId' ? { clientId: 'all' } : {}),
+      ...(key === 'clientId' ? { departmentId: 'all' } : {}),
+    }));
+  };
+  const clear = () => { setSearch(''); setFilters({ departmentId: 'all', clientId: 'all' }); };
 
   const today = formatDate(new Date(), { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
 
-  const columns: Column<AttendanceRecord>[] = [
+  const num = (v: number, tone?: string) => (
+    <span className={v ? `font-semibold tabular-nums ${tone ?? 'text-foreground'}` : 'tabular-nums text-muted-foreground'}>{v}</span>
+  );
+
+  const columns: Column<AttendanceEmployeeSummaryRow>[] = [
     {
       key: 'employeeName', header: 'Employee', sortable: true,
       render: (r) => (
-        <div className={cn('-mx-4 -my-3 flex items-center gap-3 px-4 py-3', r.isFlagged && 'border-l-2 border-danger bg-danger/5')}>
-          <Avatar name={r.employeeName} src={r.avatarUrl} size="sm" />
+        <div className="flex items-center gap-3">
+          <Avatar name={r.employeeName} size="sm" />
           <div className="min-w-0">
             <p className="truncate font-medium text-foreground">{r.employeeName}</p>
             <p className="truncate font-mono text-xs text-muted-foreground">{r.employeeCode}</p>
@@ -153,50 +143,35 @@ export default function AttendancePage() {
       key: 'departmentName', header: 'Department', sortable: true,
       render: (r) => (
         <div className="min-w-0">
-          <p className="truncate text-foreground">{r.departmentName}</p>
-          {/* Where the day's first check-in landed — branch or client site. */}
+          <p className="truncate text-foreground">{r.departmentName ?? '—'}</p>
           {r.siteName && <p className="truncate text-xs text-muted-foreground">@ {r.siteName}</p>}
         </div>
       ),
     },
-    { key: 'checkInAt', header: 'Check In', sortable: true, render: (r) => <span className="tabular-nums text-foreground">{formatTime(r.checkInAt)}</span> },
-    { key: 'checkOutAt', header: 'Check Out', render: (r) => <span className="tabular-nums text-muted-foreground">{formatTime(r.checkOutAt)}</span> },
+    { key: 'presentDays', header: 'Present', sortable: true, align: 'right', render: (r) => num(r.presentDays, 'text-success') },
+    { key: 'lateDays', header: 'Late', sortable: true, align: 'right', render: (r) => num(r.lateDays, 'text-warning') },
+    { key: 'absentDays', header: 'Absent', sortable: true, align: 'right', render: (r) => num(r.absentDays, 'text-danger') },
+    { key: 'onLeaveDays', header: 'On leave', sortable: true, align: 'right', render: (r) => num(r.onLeaveDays) },
     {
-      key: 'checkInMethod', header: 'Method',
-      render: (r) => r.checkInMethod
-        ? <Badge tone={METHOD_TONE[r.checkInMethod] ?? 'neutral'}>{formatMethod(r.checkInMethod)}</Badge>
+      key: 'flaggedDays', header: 'Flagged', sortable: true, align: 'right',
+      render: (r) => r.flaggedDays
+        ? <Badge tone="danger">{r.flaggedDays}</Badge>
         : <span className="text-muted-foreground">—</span>,
     },
-    { key: 'status', header: 'Status', sortable: true, render: (r) => <StatusBadge value={r.status} /> },
-    {
-      key: 'faceMatchScore', header: 'Face Match', align: 'right',
-      render: (r) => r.faceMatchScore == null
-        ? <span className="text-muted-foreground">—</span>
-        : <span className={cn('font-medium tabular-nums', r.faceMatchScore < 90 ? 'text-warning' : 'text-success')}>{r.faceMatchScore.toFixed(1)}%</span>,
-    },
-    {
-      key: 'isFlagged', header: 'Flagged', align: 'right',
-      render: (r) => r.isFlagged
-        ? (
-          <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-            <span title={r.flagReason ?? ''}><Badge tone="danger"><AlertTriangle className="h-3 w-3" /> Flagged</Badge></span>
-            {canResolve && <Button variant="outline" size="sm" onClick={() => { setToReview(r); setNote(''); }}>Review</Button>}
-          </div>
-        )
-        : <span className="text-muted-foreground">—</span>,
-    },
+    { key: 'workedHours', header: 'Worked (h)', sortable: true, align: 'right', render: (r) => <span className="tabular-nums text-foreground">{r.workedHours}</span> },
   ];
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Attendance Monitoring"
-        description="Real-time check-ins, biometric verification and anomaly flags across the bank."
+        description="Monthly scorecard per employee — click a row for their day-by-day log."
         actions={
           <>
             <span className="hidden items-center gap-1.5 rounded-md border border-border bg-surface-2/40 px-3 py-1.5 text-xs font-medium text-muted-foreground sm:inline-flex">
               <CalendarDays className="h-3.5 w-3.5" /> {today}
             </span>
+            <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-[10.5rem]" leftIcon={<CalendarDays className="h-4 w-4" />} />
             <Button variant="outline" size="sm" onClick={exportRows} loading={exporting}>
               <Download className="h-4 w-4" /> Export
             </Button>
@@ -205,10 +180,10 @@ export default function AttendancePage() {
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard loading={summaryLoading} label="Present" value={summary?.present ?? 0} icon={<UserCheck />} accent="success" />
-        <StatCard loading={summaryLoading} label="Late" value={summary?.late ?? 0} icon={<Clock />} accent="warning" />
-        <StatCard loading={summaryLoading} label="Absent" value={summary?.absent ?? 0} icon={<UserX />} accent="info" />
-        <StatCard loading={summaryLoading} label="WFH" value={summary?.wfh ?? 0} icon={<Home />} accent="primary" />
+        <StatCard loading={summaryLoading} label="Present" value={summary?.present ?? 0} icon={<UserCheck />} accent="success" hint="Today" />
+        <StatCard loading={summaryLoading} label="Late" value={summary?.late ?? 0} icon={<Clock />} accent="warning" hint="Today" />
+        <StatCard loading={summaryLoading} label="Absent" value={summary?.absent ?? 0} icon={<UserX />} accent="info" hint="Today" />
+        <StatCard loading={summaryLoading} label="WFH" value={summary?.wfh ?? 0} icon={<Home />} accent="primary" hint="Today" />
         <StatCard loading={summaryLoading} label="Flagged" value={summary?.flagged ?? 0} icon={<ShieldAlert />} accent="danger" hint="Needs review" />
       </div>
 
@@ -221,12 +196,16 @@ export default function AttendancePage() {
 
       <FilterBar
         search={search}
-        onSearch={(v) => { setSearch(v); setPage(1); }}
+        onSearch={setSearch}
         searchPlaceholder="Search by name or employee code…"
         filters={[
-          { key: 'status', placeholder: 'All statuses', value: filters.status, options: STATUS_OPTIONS },
           { key: 'departmentId', placeholder: 'All departments', value: filters.departmentId, options: (depts ?? []).map((d) => ({ value: d.id, label: d.name })) },
-          { key: 'flagged', placeholder: 'All records', value: filters.flagged, options: [{ value: 'true', label: 'Flagged only' }] },
+          ...(canSeeClients
+            ? [{
+                key: 'clientId', placeholder: 'All clients', value: filters.clientId,
+                options: (clients ?? []).filter((c) => c.departmentId).map((c) => ({ value: c.id, label: c.name })),
+              }]
+            : []),
         ]}
         onFilterChange={setFilter}
         onClear={clear}
@@ -234,48 +213,16 @@ export default function AttendancePage() {
 
       <DataTable
         columns={columns}
-        rows={data?.data}
+        rows={data ? rows : undefined}
         loading={loading}
         error={error}
         onRetry={refetch}
-        rowKey={(r) => r.id}
-        onRowClick={(r) => setSlipFor({ id: r.employeeId, name: r.employeeName })}
+        rowKey={(r) => r.employeeId}
+        onRowClick={(r) => navigate(`/attendance/employee/${r.employeeId}`)}
         sort={sort}
         onSortChange={onSort}
-        empty={{ title: 'No attendance records', description: 'No check-ins match your current filters for this period.' }}
-        pagination={data ? { page, totalPages: data.meta.totalPages, total: data.meta.total, limit: data.meta.limit, onPage: setPage } : undefined}
+        empty={{ title: 'No employees in scope', description: 'No one matches your current filters for this month.' }}
       />
-
-      <AttendanceSlipModal open={!!slipFor} onClose={() => setSlipFor(null)} employeeId={slipFor?.id ?? null} employeeName={slipFor?.name} />
-
-      <Modal
-        open={!!toReview}
-        onClose={() => setToReview(null)}
-        title="Review flagged attendance"
-        size="sm"
-        footer={
-          <>
-            <Button variant="outline" onClick={() => setToReview(null)}>Cancel</Button>
-            <Button onClick={resolveFlag} loading={resolving}>Mark reviewed</Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <div>
-            <p className="text-sm font-medium text-foreground">{toReview?.employeeName}</p>
-            <p className="text-xs text-muted-foreground">{toReview && formatDate(toReview.workDate)}</p>
-          </div>
-          <div className="rounded-md bg-danger/5 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-danger">Flag reason</p>
-            <p className="mt-1 text-sm text-foreground">{toReview?.flagReason ?? 'Flagged for review'}</p>
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Review note (optional)</label>
-            <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Verified with employee — was at client site." />
-          </div>
-          <p className="text-xs text-muted-foreground">Marking as reviewed clears the flag and records who resolved it.</p>
-        </div>
-      </Modal>
     </div>
   );
 }

@@ -118,6 +118,22 @@ export class AttendanceController {
     return this.attendance.summary(user, date);
   }
 
+  @Get('employee-summary')
+  @RequirePermissions('attendance:read')
+  @ApiOperation({ summary: 'Month scorecard: one row per in-scope employee with day counts' })
+  employeeSummary(
+    @CurrentUser() user: AuthUser,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('departmentId') departmentId?: string,
+    @Query('search') search?: string,
+  ) {
+    const now = new Date();
+    const y = year ? parseInt(year, 10) : now.getUTCFullYear();
+    const m = month ? parseInt(month, 10) : now.getUTCMonth() + 1;
+    return this.attendance.employeeSummary(user, y, m, { departmentId, search });
+  }
+
   @Post('days/:id/resolve-flag')
   @RequirePermissions('attendance:update')
   @ApiOperation({ summary: 'HR review: clear a flagged attendance day with an optional note' })

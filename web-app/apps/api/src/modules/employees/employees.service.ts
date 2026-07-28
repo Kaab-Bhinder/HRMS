@@ -156,6 +156,25 @@ export class EmployeesService {
       if (dept?.headEmployeeId) managerId = dept.headEmployeeId;
     }
 
+    // Joining a department that serves a client whose premises are registered
+    // as a work site → the hire works there; inherit it unless a site was
+    // chosen explicitly (same defaulting pattern as the manager above).
+    let locationId = dto.locationId;
+    if (!locationId && dto.departmentId) {
+      const servingClient = await tx.client.findFirst({
+        where: { organizationId: orgId, departmentId: dto.departmentId, deletedAt: null },
+        select: { id: true },
+      });
+      if (servingClient) {
+        const site = await tx.location.findFirst({
+          where: { organizationId: orgId, clientId: servingClient.id, deletedAt: null, isActive: true },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true },
+        });
+        if (site) locationId = site.id;
+      }
+    }
+
     // New hires inherit the org's default pay model unless one is set explicitly.
     let compensationType = dto.compensationType;
     if (!compensationType) {
@@ -179,7 +198,7 @@ export class EmployeesService {
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
         departmentId: dto.departmentId,
         designationId: dto.designationId,
-        locationId: dto.locationId,
+        locationId,
         managerId,
         employmentType: dto.employmentType,
         status: dto.status,
@@ -254,6 +273,27 @@ export class EmployeesService {
       },
       include: this.include(),
     });
+
+    // Moved into a department that serves a client (with a registered site)
+    // and left without a work site? Inherit the client site — same rule as at
+    // creation, so "the whole serving team works at the client" stays true.
+    if (emp.departmentId && !emp.locationId) {
+      const servingClient = await this.prisma.client.findFirst({
+        where: { organizationId: orgId, departmentId: emp.departmentId, deletedAt: null },
+        select: { id: true },
+      });
+      const site = servingClient
+        ? await this.prisma.location.findFirst({
+            where: { organizationId: orgId, clientId: servingClient.id, deletedAt: null, isActive: true },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true },
+          })
+        : null;
+      if (site) {
+        const synced = await this.prisma.employee.update({ where: { id }, data: { locationId: site.id }, include: this.include() });
+        return this.serialize(synced, showPay);
+      }
+    }
     return this.serialize(emp, showPay);
   }
 

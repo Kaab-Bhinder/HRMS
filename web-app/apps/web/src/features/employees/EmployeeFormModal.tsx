@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, Check, Monitor, Smartphone } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
@@ -6,7 +6,7 @@ import { Input, Select, Label } from '../../components/ui/Input';
 import { DynamicCustomField, validateCustomFields } from '../../components/forms/DynamicCustomField';
 import { Skeleton } from '../../components/feedback/States';
 import { useQuery } from '../../hooks/useQuery';
-import { customFieldsService, departmentsService, designationsService, employeesService, locationsService, organizationService, rolesService } from '../../services';
+import { clientsService, customFieldsService, departmentsService, designationsService, employeesService, locationsService, organizationService, rolesService } from '../../services';
 import { useToast } from '../../store/toast';
 import { usePermission } from '../../store/auth';
 import type { Employee, Role } from '../../lib/types';
@@ -29,6 +29,8 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
   const { data: roles } = useQuery(() => rolesService.list(), []);
   const { data: org } = useQuery(() => organizationService.current(), []);
   const { data: sites } = useQuery(() => locationsService.list(), []);
+  const canSeeClients = usePermission('clients:read');
+  const { data: clients } = useQuery(() => (canSeeClients ? clientsService.list() : Promise.resolve(null)), [canSeeClients]);
   // Pay fields ride on payroll:read — without it the API masks them anyway, so
   // showing the inputs would render blanks and saving would try to write pay.
   const canSeePay = usePermission('payroll:read');
@@ -82,6 +84,33 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
   }, [open, employee, depts, desigs, org]);
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Serving-client awareness: when the chosen department is dedicated to a
+  // client, surface it and preselect the client's site as the work site (the
+  // backend would inherit it anyway — the form makes that visible/editable).
+  const servingClient = useMemo(
+    () => (clients ?? []).find((c) => c.departmentId && c.departmentId === form.departmentId) ?? null,
+    [clients, form.departmentId],
+  );
+  const clientSite = useMemo(
+    () => (servingClient ? (sites ?? []).find((s) => s.clientId === servingClient.id && s.isActive !== false) ?? null : null),
+    [servingClient, sites],
+  );
+  const prevDeptRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open) {
+      prevDeptRef.current = null;
+      return;
+    }
+    const deptChanged = prevDeptRef.current !== null && prevDeptRef.current !== form.departmentId;
+    prevDeptRef.current = form.departmentId;
+    if (!clientSite) return;
+    // Preselect on a dept switch, or when no site was chosen yet — never
+    // overwrite a site the admin picked deliberately for this employee.
+    if (deptChanged || !form.locationId) {
+      setForm((f) => (f.locationId === clientSite.id ? f : { ...f, locationId: clientSite.id }));
+    }
+  }, [open, form.departmentId, clientSite]);
   const setCf = (k: string, v: unknown) => setCustom((c) => ({ ...c, [k]: v }));
 
   const submit = async () => {
@@ -241,6 +270,14 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
                   <option key={s.id} value={s.id}>{s.name}{s.clientName ? ` — ${s.clientName}` : ''}</option>
                 ))}
               </Select>
+              {servingClient && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This department serves <span className="font-medium text-foreground">{servingClient.name}</span>
+                  {clientSite
+                    ? <> — their site is preselected as the work site.</>
+                    : <> (no client site registered yet — add one under Organization → Locations).</>}
+                </p>
+              )}
             </Field>
             {canSeePay && (
               <>

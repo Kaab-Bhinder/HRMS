@@ -56,9 +56,17 @@ export interface AttendanceSettings {
 export type AttendanceSettingsInput = AttendanceSettings;
 
 export interface AttendanceSlipDay {
+  id: string;
   workDate: string; status: string; firstInAt: string | null; lastOutAt: string | null;
   workedMinutes: number; lateMinutes: number; breakMinutes: number; overtimeMinutes: number;
   isFlagged: boolean; flagReason: string | null; selfieCaptureId: string | null;
+}
+/** One row per employee: their month's attendance scorecard. */
+export interface AttendanceEmployeeSummaryRow {
+  employeeId: string; employeeName: string; employeeCode: string;
+  departmentName: string | null; siteName: string | null;
+  presentDays: number; lateDays: number; absentDays: number; onLeaveDays: number;
+  flaggedDays: number; workedHours: number; lateMinutes: number;
 }
 export interface AttendanceSlip {
   employee: { id: string; name: string; employeeCode: string; departmentName: string | null; designationName: string | null; payPerHour: number | null };
@@ -192,6 +200,10 @@ export const attendanceService = {
     }),
   slip: (employeeId: string, from: string, to: string) =>
     api.get<AttendanceSlip>(`/attendance/slip?employeeId=${employeeId}&from=${from}&to=${to}`),
+  employeeSummary: (p: { year: number; month: number; departmentId?: string; search?: string }) => {
+    const qp = new URLSearchParams(Object.entries(p).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])).toString();
+    return api.get<{ year: number; month: number; rows: AttendanceEmployeeSummaryRow[] }>(`/attendance/employee-summary?${qp}`);
+  },
   live: () => api.get<LiveSession[]>('/attendance/live'),
   map: () => api.get<OfficeMap>('/attendance/map'),
   resolveFlag: (dayId: string, note?: string) => api.post<{ success: boolean }>(`/attendance/days/${dayId}/resolve-flag`, { note }),

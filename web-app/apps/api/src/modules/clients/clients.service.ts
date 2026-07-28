@@ -30,6 +30,7 @@ export class ClientsService {
       data: { organizationId: orgId, createdById: userId, ...dto },
       include: this.include(),
     });
+    if (created.departmentId) await this.syncTeamToClientSite(orgId, created.id);
     return this.serialize(created);
   }
 
@@ -41,7 +42,41 @@ export class ClientsService {
       data: { updatedById: userId, ...dto },
       include: this.include(),
     });
+    if (dto.departmentId) await this.syncTeamToClientSite(orgId, id);
     return this.serialize(updated);
+  }
+
+  /**
+   * Dedicating a department to a client means its people physically work at
+   * the client's premises — so when both halves exist (a serving department
+   * AND a registered client site), every member's work site moves to that
+   * site. Called whenever either half is established, in any order; individual
+   * employees can still be re-assigned afterwards from the employee form.
+   */
+  async syncTeamToClientSite(orgId: string, clientId: string): Promise<number> {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId: orgId, deletedAt: null },
+      select: { departmentId: true },
+    });
+    if (!client?.departmentId) return 0;
+    const site = await this.prisma.location.findFirst({
+      where: { organizationId: orgId, clientId, deletedAt: null, isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    if (!site) return 0;
+    // NULL-safe "not already there": `not: site.id` alone would skip rows with
+    // locationId NULL (SQL three-valued logic) — the very members to move.
+    const res = await this.prisma.employee.updateMany({
+      where: {
+        organizationId: orgId,
+        departmentId: client.departmentId,
+        deletedAt: null,
+        OR: [{ locationId: null }, { locationId: { not: site.id } }],
+      },
+      data: { locationId: site.id },
+    });
+    return res.count;
   }
 
   async remove(orgId: string, userId: string, id: string) {

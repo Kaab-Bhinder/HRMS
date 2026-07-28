@@ -3,10 +3,14 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateLocationDto, UpdateLocationDto, UpdateOrganizationDto } from './dto/organization.dto';
 import { isValidTimeZone } from '../../common/tz';
+import { ClientsService } from '../clients/clients.service';
 
 @Injectable()
 export class OrganizationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly clients: ClientsService,
+  ) {}
 
   async current(orgId: string) {
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
@@ -48,14 +52,20 @@ export class OrganizationsService {
   async createLocation(orgId: string, dto: CreateLocationDto) {
     this.assertLocationTimezone(dto);
     await this.assertClient(orgId, dto.clientId);
-    return this.prisma.location.create({ data: { organizationId: orgId, ...dto } });
+    const created = await this.prisma.location.create({ data: { organizationId: orgId, ...dto } });
+    // A client site registered after the client↔department link still moves
+    // the serving team here — the sync works whichever half lands first.
+    if (created.clientId) await this.clients.syncTeamToClientSite(orgId, created.clientId);
+    return created;
   }
 
   async updateLocation(orgId: string, id: string, dto: UpdateLocationDto) {
     this.assertLocationTimezone(dto);
     await this.assertClient(orgId, dto.clientId);
     await this.ensureLocation(orgId, id);
-    return this.prisma.location.update({ where: { id }, data: dto });
+    const updated = await this.prisma.location.update({ where: { id }, data: dto });
+    if (updated.clientId) await this.clients.syncTeamToClientSite(orgId, updated.clientId);
+    return updated;
   }
 
   async removeLocation(orgId: string, id: string) {

@@ -18,6 +18,7 @@ const RolesPage = lazy(() => import('../features/roles/RolesPage'));
 const UsersPage = lazy(() => import('../features/users/UsersPage'));
 const TasksPage = lazy(() => import('../features/tasks/TasksPage'));
 const AttendancePage = lazy(() => import('../features/attendance/AttendancePage'));
+const AttendanceEmployeePage = lazy(() => import('../features/attendance/AttendanceEmployeePage'));
 const AttendanceSettingsPage = lazy(() => import('../features/attendance/AttendanceSettingsPage'));
 const PayrollPage = lazy(() => import('../features/payroll/PayrollPage'));
 const LeavePage = lazy(() => import('../features/leave/LeavePage'));
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="/users" element={<Suspended><UsersPage /></Suspended>} />
           <Route path="/tasks" element={<Suspended><TasksPage /></Suspended>} />
           <Route path="/attendance" element={<Suspended><AttendancePage /></Suspended>} />
+          <Route path="/attendance/employee/:id" element={<Suspended><AttendanceEmployeePage /></Suspended>} />
           <Route path="/attendance/settings" element={<Suspended><AttendanceSettingsPage /></Suspended>} />
           <Route path="/payroll" element={<Suspended><PayrollPage /></Suspended>} />
           <Route path="/leave" element={<Suspended><LeavePage /></Suspended>} />

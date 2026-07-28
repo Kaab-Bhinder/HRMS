@@ -175,6 +175,84 @@ export class AttendanceService {
     return paginated(rows.map((r) => this.serializeDay(r, siteName)), total, q.page, q.limit);
   }
 
+  /**
+   * Month scorecard: ONE row per in-scope employee with their day counts
+   * (present/late/absent/on-leave/flagged) and worked hours. The org-wide
+   * attendance page reads this; the per-day log lives on the employee's own
+   * attendance page (the slip). Scoped exactly like listDays.
+   */
+  async employeeSummary(user: AuthUser, year: number, month: number, opts: { departmentId?: string; search?: string } = {}) {
+    const orgId = user.organizationId;
+    const dataScope = await this.scope.resolve(user);
+    const start = new Date(Date.UTC(year, month - 1, 1));
+    const end = new Date(Date.UTC(year, month, 0));
+
+    const employees = await this.prisma.employee.findMany({
+      where: {
+        organizationId: orgId,
+        deletedAt: null,
+        ...this.scope.employeeWhere(dataScope),
+        ...(opts.departmentId ? { departmentId: opts.departmentId } : {}),
+        ...(opts.search
+          ? {
+              OR: [
+                { firstName: { contains: opts.search, mode: 'insensitive' } },
+                { lastName: { contains: opts.search, mode: 'insensitive' } },
+                { employeeCode: { contains: opts.search, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        id: true, firstName: true, lastName: true, employeeCode: true,
+        department: { select: { name: true } }, location: { select: { name: true } },
+      },
+      orderBy: { firstName: 'asc' },
+    });
+    const ids = employees.map((e) => e.id);
+    if (ids.length === 0) return { year, month, rows: [] };
+
+    const dayWhere = { organizationId: orgId, employeeId: { in: ids }, workDate: { gte: start, lte: end } };
+    const [byStatus, flagged, worked] = await Promise.all([
+      this.prisma.attendanceDay.groupBy({ by: ['employeeId', 'status'], where: dayWhere, _count: { _all: true } }),
+      this.prisma.attendanceDay.groupBy({ by: ['employeeId'], where: { ...dayWhere, isFlagged: true }, _count: { _all: true } }),
+      this.prisma.attendanceDay.groupBy({ by: ['employeeId'], where: dayWhere, _sum: { workedMinutes: true, lateMinutes: true } }),
+    ]);
+
+    const stat = new Map<string, Record<string, number>>();
+    for (const r of byStatus) {
+      const m = stat.get(r.employeeId) ?? {};
+      m[r.status] = r._count._all;
+      stat.set(r.employeeId, m);
+    }
+    const flaggedBy = new Map(flagged.map((r) => [r.employeeId, r._count._all]));
+    const workedBy = new Map(worked.map((r) => [r.employeeId, r._sum]));
+
+    return {
+      year,
+      month,
+      rows: employees.map((e) => {
+        const s = stat.get(e.id) ?? {};
+        const presentDays = (s['present'] ?? 0) + (s['late'] ?? 0) + (s['half_day'] ?? 0);
+        const w = workedBy.get(e.id);
+        return {
+          employeeId: e.id,
+          employeeName: `${e.firstName} ${e.lastName}`,
+          employeeCode: e.employeeCode,
+          departmentName: e.department?.name ?? null,
+          siteName: e.location?.name ?? null,
+          presentDays,
+          lateDays: s['late'] ?? 0,
+          absentDays: s['absent'] ?? 0,
+          onLeaveDays: s['on_leave'] ?? 0,
+          flaggedDays: flaggedBy.get(e.id) ?? 0,
+          workedHours: Math.round(((w?.workedMinutes ?? 0) / 60) * 10) / 10,
+          lateMinutes: w?.lateMinutes ?? 0,
+        };
+      }),
+    };
+  }
+
   async summary(user: AuthUser, dateStr?: string) {
     const date = dateStr ? new Date(dateStr) : new Date();
     date.setUTCHours(0, 0, 0, 0);
@@ -312,6 +390,7 @@ export class AttendanceService {
       to: to.toISOString().slice(0, 10),
       totals: { ...totals, workedHours: round2(totals.workedMinutes / 60) },
       days: days.map((d) => ({
+        id: d.id,
         workDate: d.workDate,
         status: d.status,
         firstInAt: d.firstInAt,
