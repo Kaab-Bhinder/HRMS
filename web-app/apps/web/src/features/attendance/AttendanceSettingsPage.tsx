@@ -7,6 +7,7 @@ import { Switch } from '../../components/ui/Switch';
 import { Button } from '../../components/ui/Button';
 import { Skeleton } from '../../components/feedback/States';
 import { HolidayCalendar } from './HolidayCalendar';
+import { LocationPickerMap } from '../../components/maps/LocationPickerMap';
 import { useQuery } from '../../hooks/useQuery';
 import { attendanceService, type AttendanceSettings } from '../../services';
 import { useToast } from '../../store/toast';
@@ -176,9 +177,19 @@ export default function AttendanceSettingsPage() {
               <Label htmlFor="radius">Geofence radius (meters)</Label>
               <Input id="radius" type="number" min={20} value={form.office.radiusMeters} onChange={(e) => set('office', 'radiusMeters', num(e.target.value))} />
             </div>
+            <LocationPickerMap
+              latitude={form.office.latitude}
+              longitude={form.office.longitude}
+              radiusMeters={form.office.radiusMeters}
+              onPick={(lat, lng) => {
+                set('office', 'latitude', lat);
+                set('office', 'longitude', lng);
+              }}
+              height={280}
+            />
             <div className="flex items-start gap-2 rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
               <Info className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>A visual map picker (drop a pin to set these coordinates) turns on once the Google Maps key is added. For now, paste the office coordinates — e.g. from Google Maps “right-click → copy coordinates”.</span>
+              <span>Click the map or drag the pin — the coordinates fill in automatically. The shaded circle is the geofence: employees must check in inside it. Adjust the radius to grow or shrink the boundary live.</span>
             </div>
           </CardBody>
         </Card>

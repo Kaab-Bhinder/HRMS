@@ -13,6 +13,7 @@ import { useAuth } from '../../store/auth';
 import { useQuery } from '../../hooks/useQuery';
 import { organizationService, locationsService } from '../../services';
 import { timezoneGroups, DEFAULT_TIMEZONE } from '../../lib/timezones';
+import { LocationPickerMap } from '../../components/maps/LocationPickerMap';
 import type { OfficeLocationDto } from '../../services';
 
 
@@ -289,9 +290,16 @@ function LocationsTab() {
             <Input type="number" step="any" value={draft.longitude ?? ''} placeholder="106.84560"
               onChange={(e) => setD('longitude', num(e.target.value))} className="font-mono" />
           </Row>
-          <div className="sm:col-span-2 -mt-1">
-            <p className="text-xs text-muted-foreground">
-              Right-click the office in Google Maps and choose the coordinates to copy them.
+          <div className="sm:col-span-2">
+            <LocationPickerMap
+              latitude={draft.latitude}
+              longitude={draft.longitude}
+              radiusMeters={draft.radiusMeters}
+              onPick={(lat, lng) => setDraft((d) => ({ ...d, latitude: lat, longitude: lng }))}
+              height={220}
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Click the map or drag the pin to set the coordinates — the circle shows the geofence.
             </p>
           </div>
           <Row label="Geofence radius (m)">

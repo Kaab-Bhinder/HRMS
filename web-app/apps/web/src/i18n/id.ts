@@ -1003,4 +1003,11 @@ export const ID: Record<string, string> = {
   'Every issue and return is recorded — this trail backs offboarding clearance.': 'Setiap penyerahan dan pengembalian tercatat — jejak ini mendukung proses karyawan keluar.',
   'Remove asset?': 'Hapus aset?',
 
+  // --- Office location map picker ---
+  'Click the map to drop the office pin': 'Klik peta untuk meletakkan pin kantor',
+  'Click the map or drag the pin — the coordinates fill in automatically. The shaded circle is the geofence: employees must check in inside it. Adjust the radius to grow or shrink the boundary live.':
+    'Klik peta atau seret pin — koordinat terisi otomatis. Lingkaran berbayang adalah geofence: karyawan harus check-in di dalamnya. Ubah radius untuk memperbesar atau memperkecil batas secara langsung.',
+  'Click the map or drag the pin to set the coordinates — the circle shows the geofence.':
+    'Klik peta atau seret pin untuk mengatur koordinat — lingkaran menunjukkan geofence.',
+
 };
