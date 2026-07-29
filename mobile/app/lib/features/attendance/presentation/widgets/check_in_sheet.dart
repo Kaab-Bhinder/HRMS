@@ -11,6 +11,8 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_snackbar.dart';
+import '../../../face/data/face_repository.dart';
+import '../../../face/presentation/face_enrollment_screen.dart';
 import '../../data/location_service.dart';
 import '../../data/selfie_service.dart';
 import '../../domain/entities/geo_point.dart';
@@ -41,6 +43,19 @@ class _CheckInSheetState extends ConsumerState<CheckInSheet> {
   Future<void> _takeSelfie() async {
     setState(() => _busy = true);
     try {
+      // Face ID must exist before the first check-in — the selfie is matched
+      // against the enrolled multi-pose templates. First-time users are sent
+      // through the guided enrollment (pose challenges = liveness proof).
+      final status = await ref.read(faceStatusProvider.future);
+      if (!status.enrolled) {
+        if (!mounted) return;
+        setState(() => _busy = false);
+        final done = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(builder: (_) => const FaceEnrollmentScreen()),
+        );
+        if (done != true || !mounted) return;
+        setState(() => _busy = true);
+      }
       final Uint8List bytes = await ref.read(selfieServiceProvider).capture();
       final key = await ref.read(todayControllerProvider.notifier).uploadSelfie(bytes);
       if (!mounted) return;

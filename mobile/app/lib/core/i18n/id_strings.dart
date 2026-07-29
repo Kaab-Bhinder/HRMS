@@ -206,6 +206,27 @@ const Map<String, String> idStrings = {
   'Current rate': 'Tarif saat ini',
   'Not set by HR yet': 'Belum diatur HR',
 
+  // --- Face ID enrollment ---
+  'Set up Face ID': 'Siapkan Face ID',
+  'We take a few photos in different poses. Each pose is verified on this device — this protects your account from photos and videos of you.':
+      'Kami mengambil beberapa foto dengan pose berbeda. Setiap pose diverifikasi di perangkat ini — ini melindungi akun Anda dari foto dan video diri Anda.',
+  'Look straight at the camera': 'Tatap lurus ke kamera',
+  'Turn your head to the LEFT': 'Putar kepala Anda ke KIRI',
+  'Turn your head to the RIGHT': 'Putar kepala Anda ke KANAN',
+  'Tilt your head UP': 'Dongakkan kepala ke ATAS',
+  'Smile!': 'Senyum!',
+  'Face the camera straight on and retake.': 'Hadapkan wajah lurus ke kamera lalu ulangi.',
+  'Turn your head further and retake.': 'Putar kepala lebih jauh lalu ulangi.',
+  'That looks like the same side — turn the OTHER way.': 'Sepertinya sisi yang sama — putar ke arah SEBALIKNYA.',
+  'Tilt your head up a little more and retake.': 'Dongakkan kepala sedikit lagi lalu ulangi.',
+  'A real smile — teeth help! Retake.': 'Senyum sungguhan — tunjukkan gigi! Ulangi.',
+  'No face found — better lighting and try again.': 'Wajah tidak terdeteksi — cari cahaya lebih baik lalu coba lagi.',
+  'Only you in the frame, please.': 'Hanya Anda di dalam bingkai, ya.',
+  'Could not use the camera.': 'Tidak dapat menggunakan kamera.',
+  'Creating your Face ID…': 'Membuat Face ID Anda…',
+  'Face ID is set up — you can check in now.': 'Face ID sudah siap — Anda bisa check-in sekarang.',
+  'Enrollment failed — please try again.': 'Pendaftaran gagal — silakan coba lagi.',
+
   // --- Payslip (monthly salary) ---
   'SALARY THIS MONTH': 'GAJI BULAN INI',
   'NET PAY': 'GAJI BERSIH',
