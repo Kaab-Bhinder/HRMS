@@ -233,6 +233,8 @@ const Map<String, String> idStrings = {
   'Hold it…': 'Tahan…',
   'It captures by itself — no button to press.': 'Foto diambil otomatis — tanpa menekan tombol.',
   'Could not capture — hold still and try again.': 'Gagal mengambil — tahan posisi dan coba lagi.',
+  'Capture manually': 'Ambil manual',
+  'Face check cancelled — tap Open camera to try again.': 'Pemeriksaan wajah dibatalkan — ketuk Buka kamera untuk mencoba lagi.',
   'Face verified': 'Wajah terverifikasi',
   'checked in!': 'berhasil check-in!',
   "Checked in, but your face didn't match": 'Check-in tercatat, tetapi wajah Anda tidak cocok',

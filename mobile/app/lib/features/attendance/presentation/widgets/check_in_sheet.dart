@@ -85,7 +85,7 @@ class _CheckInSheetState extends ConsumerState<CheckInSheet> {
       });
     } on SelfieCancelled {
       if (mounted) {
-        AppSnackbar.show(context, 'A selfie is needed to check in.', tone: SnackTone.neutral);
+        AppSnackbar.show(context, context.tr('Face check cancelled — tap Open camera to try again.'), tone: SnackTone.neutral);
       }
     } on ApiException catch (e) {
       if (mounted) AppSnackbar.show(context, e.message, tone: SnackTone.danger);

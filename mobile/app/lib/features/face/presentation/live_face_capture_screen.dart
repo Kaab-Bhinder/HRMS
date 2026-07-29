@@ -45,9 +45,12 @@ class _LiveFaceCaptureScreenState extends State<LiveFaceCaptureScreen> {
   bool _capturing = false; // takePicture in flight
   bool _justCaptured = false; // showing the green "captured" confirmation
   int _holdCount = 0; // consecutive good detections before we snap
-  double? _sideYawSign; // sign of the first accepted side-turn
+  double? _sideYawSign; // sign of the side-turn already captured
+  double _lastYaw = 0; // most recent measured yaw, used when locking the side
   String? _hint;
   String? _fatal;
+  Timer? _stallTimer;
+  bool _showManual = false; // escape hatch when detection struggles
 
   // A pose must be HELD, not brushed past: enough consecutive good frames to
   // read as deliberate (~1s at typical stream rates). Capturing on the first
@@ -88,14 +91,27 @@ class _LiveFaceCaptureScreenState extends State<LiveFaceCaptureScreen> {
       if (!mounted) return;
       _camera = controller;
       await controller.startImageStream(_onFrame);
+      _armStallTimer();
       setState(() {});
     } catch (_) {
       if (mounted) setState(() => _fatal = context.tr('Could not use the camera.'));
     }
   }
 
+  /// Nobody should ever be trapped in front of a camera that won't fire.
+  /// If a pose hasn't been captured in 12s (bad light, an unusual device,
+  /// damped head angles), offer a manual shutter for this pose.
+  void _armStallTimer() {
+    _stallTimer?.cancel();
+    _showManual = false;
+    _stallTimer = Timer(const Duration(seconds: 12), () {
+      if (mounted && !_capturing) setState(() => _showManual = true);
+    });
+  }
+
   @override
   void dispose() {
+    _stallTimer?.cancel();
     _camera?.dispose();
     _detector.close();
     super.dispose();
@@ -150,7 +166,12 @@ class _LiveFaceCaptureScreenState extends State<LiveFaceCaptureScreen> {
       if (mounted) setState(() {}); // drive the hold progress ring
       if (_holdCount >= _holdNeeded) {
         _holdCount = 0;
-        await _snap();
+        // Fire-and-forget ON PURPOSE: _snap() stops the image stream, and the
+        // camera cannot finish stopping until this callback returns. Awaiting
+        // it here deadlocks the preview on the first capture — the session
+        // freezes and no later pose is ever detected.
+        _capturing = true; // gate further frames immediately
+        unawaited(_snap());
       }
     } catch (_) {
       // Skip a bad frame; the stream keeps flowing.
@@ -164,24 +185,29 @@ class _LiveFaceCaptureScreenState extends State<LiveFaceCaptureScreen> {
     final yaw = face.headEulerAngleY ?? 0;
     final pitch = face.headEulerAngleX ?? 0;
     final smile = face.smilingProbability ?? 0;
+    _lastYaw = yaw;
     switch (pose) {
       case FacePose.center:
         if (yaw.abs() > 14 || pitch.abs() > 14) return context.tr('Look straight at the camera');
         return null;
       case FacePose.left:
       case FacePose.right:
-        if (yaw.abs() < 16) return _turnHint(pose);
-        // Second side must be the opposite sign of the first accepted one.
+        // 12° is a clear, comfortable turn. Anything stricter reads as "it
+        // doesn't work" on phones whose front camera reports damped angles.
+        if (yaw.abs() < 12) return _turnHint(pose);
+        // A second side-turn must be the OPPOSITE way from the one already
+        // captured. The sign is locked at capture time (see _snap), never on
+        // a passing frame — otherwise a wobble mid-turn could lock the wrong
+        // side and then reject the real pose forever.
         if (_sideYawSign != null && yaw.sign == _sideYawSign) {
           return context.tr('That looks like the same side — turn the OTHER way.');
         }
-        _sideYawSign ??= yaw.sign;
         return null;
       case FacePose.up:
-        if (pitch.abs() < 10) return context.tr('Tilt your head UP');
+        if (pitch.abs() < 8) return context.tr('Tilt your head UP');
         return null;
       case FacePose.smile:
-        if (smile < 0.65) return context.tr('Smile!');
+        if (smile < 0.55) return context.tr('Smile!');
         return null;
     }
   }
@@ -191,8 +217,10 @@ class _LiveFaceCaptureScreenState extends State<LiveFaceCaptureScreen> {
 
   Future<void> _snap() async {
     final camera = _camera;
-    if (camera == null || _capturing) return;
+    if (camera == null) return;
     _capturing = true;
+    _stallTimer?.cancel();
+    if (mounted && _showManual) setState(() => _showManual = false);
     try {
       // Some devices refuse takePicture while streaming — pause the stream
       // for the shot, then resume for the next pose.
@@ -200,6 +228,10 @@ class _LiveFaceCaptureScreenState extends State<LiveFaceCaptureScreen> {
       final shot = await camera.takePicture();
       final bytes = await shot.readAsBytes();
       _frames.add(bytes);
+      // Remember which way this turn went, so a following side-pose must be
+      // the other way. Locked here (on a real capture), not on a live frame.
+      final done = widget.poses[_current];
+      if (done == FacePose.left || done == FacePose.right) _sideYawSign = _lastYaw.sign;
 
       if (!mounted) return;
       // Visible confirmation so the user sees each pose land.
@@ -217,6 +249,7 @@ class _LiveFaceCaptureScreenState extends State<LiveFaceCaptureScreen> {
         _hint = null;
       });
       await camera.startImageStream(_onFrame);
+      _armStallTimer();
     } catch (_) {
       if (mounted) {
         setState(() => _hint = context.tr('Could not capture — hold still and try again.'));
@@ -355,6 +388,23 @@ class _LiveFaceCaptureScreenState extends State<LiveFaceCaptureScreen> {
                               style: const TextStyle(color: Colors.white70, fontSize: 13),
                               textAlign: TextAlign.center,
                             ),
+                            if (_showManual) ...[
+                              const SizedBox(height: AppSpacing.md),
+                              OutlinedButton.icon(
+                                onPressed: _capturing
+                                    ? null
+                                    : () {
+                                        _capturing = true;
+                                        unawaited(_snap());
+                                      },
+                                icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                                label: Text(context.tr('Capture manually')),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  side: const BorderSide(color: Colors.white54),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
