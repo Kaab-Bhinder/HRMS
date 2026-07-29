@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'api_exception.dart';
 
@@ -19,6 +21,17 @@ class ApiClient {
 
   Future<dynamic> delete(String path, {Object? body}) =>
       _send(() => _dio.delete(path, data: body));
+
+  /// Fetches a RAW binary body (images streamed by the API, which don't use
+  /// the JSON envelope). Authentication still flows through the interceptors.
+  Future<Uint8List> getBytes(String path) async {
+    try {
+      final res = await _dio.get<List<int>>(path, options: Options(responseType: ResponseType.bytes));
+      return Uint8List.fromList(res.data ?? const []);
+    } on DioException catch (e) {
+      throw ApiException('Could not load image', statusCode: e.response?.statusCode);
+    }
+  }
 
   /// Multipart upload of raw bytes under [field]. Returns the unwrapped `data`.
   /// Multipart upload. [fields] carries any extra form values the endpoint

@@ -237,6 +237,21 @@ const Map<String, String> idStrings = {
   'checked in!': 'berhasil check-in!',
   "Checked in, but your face didn't match": 'Check-in tercatat, tetapi wajah Anda tidak cocok',
   'HR will review it.': 'HR akan meninjaunya.',
+  // --- Check-in result screen ---
+  'Check-in result': 'Hasil check-in',
+  'Attendance Photo': 'Foto Kehadiran',
+  'Base Photo': 'Foto Dasar',
+  'Match Check': 'Pemeriksaan Kecocokan',
+  'Liveness Check': 'Pemeriksaan Keaslian',
+  'Passed': 'Lolos',
+  'Failed': 'Gagal',
+  'Match': 'Kecocokan',
+  'Location': 'Lokasi',
+  'Outside the office area — flagged for review': 'Di luar area kantor — ditandai untuk ditinjau',
+  'You are checked in. Have a great day!': 'Anda sudah check-in. Semoga harimu menyenangkan!',
+  'Your check-in was recorded and sent to HR for review. Nothing is deducted automatically.':
+      'Check-in Anda tercatat dan dikirim ke HR untuk ditinjau. Tidak ada potongan otomatis.',
+  'Retake photo': 'Ambil ulang foto',
   'Face ID is set up — you can check in now.': 'Face ID sudah siap — Anda bisa check-in sekarang.',
   'Enrollment failed — please try again.': 'Pendaftaran gagal — silakan coba lagi.',
 

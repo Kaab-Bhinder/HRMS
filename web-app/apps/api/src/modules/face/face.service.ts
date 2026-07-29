@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { FACE_RECOGNITION_PROVIDER, FaceRecognitionProvider } from './face-recognition.interface';
 
@@ -48,6 +48,7 @@ export class FaceService {
             employeeId,
             provider: result.provider,
             externalTemplateId: result.externalTemplateId,
+            imageStorageKey: key,
             embedding: result.embedding,
             quality: result.quality,
             isActive: true,
@@ -76,6 +77,23 @@ export class FaceService {
       throw new ConflictException('Face ID is already set up. Ask HR to re-enroll you if your reference photos need updating.');
     }
     return this.enrollMany(orgId, emp.id, imageStorageKeys);
+  }
+
+  /** The signed-in employee's reference photo (first active template frame),
+   *  so the app can show it beside a check-in selfie. Self-scoped by identity. */
+  async myBasePhotoKey(orgId: string, userId: string): Promise<string> {
+    const emp = await this.prisma.employee.findFirst({
+      where: { organizationId: orgId, userId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!emp) throw new NotFoundException('No employee record is linked to your account');
+    const tpl = await this.prisma.faceTemplate.findFirst({
+      where: { employeeId: emp.id, isActive: true, imageStorageKey: { not: null } },
+      orderBy: { createdAt: 'asc' },
+      select: { imageStorageKey: true },
+    });
+    if (!tpl?.imageStorageKey) throw new NotFoundException('No enrollment photo on file');
+    return tpl.imageStorageKey;
   }
 
   /** Enrollment gate for the mobile app: is Face ID set up for this login? */

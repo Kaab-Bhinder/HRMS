@@ -14,6 +14,7 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_snackbar.dart';
 import '../../../face/data/face_repository.dart';
 import '../../../face/presentation/face_enrollment_screen.dart';
+import '../../../face/presentation/face_result_screen.dart';
 import '../../../face/presentation/live_face_capture_screen.dart';
 import '../../data/location_service.dart';
 import '../../data/selfie_service.dart';
@@ -39,6 +40,7 @@ class _CheckInSheetState extends ConsumerState<CheckInSheet> {
   bool _busy = false;
 
   String? _faceKey;
+  Uint8List? _selfieBytes; // kept to show beside the base photo afterwards
   GeoPoint? _fix;
   _OfficeCheck? _office;
 
@@ -64,12 +66,17 @@ class _CheckInSheetState extends ConsumerState<CheckInSheet> {
       setState(() => _busy = false);
       final frames = await Navigator.of(context).push<List<Uint8List>>(
         MaterialPageRoute(
-          builder: (_) => LiveFaceCaptureScreen(poses: const [FacePose.center], title: context.tr('Check-in selfie')),
+          // Every check-in runs its own liveness challenge — a frontal frame
+          // for matching plus two random poses a photo of you can't perform.
+          builder: (_) => LiveFaceCaptureScreen(poses: checkInPoses(), title: context.tr('Check-in selfie')),
         ),
       );
       if (frames == null || frames.isEmpty || !mounted) throw SelfieCancelled();
       setState(() => _busy = true);
+      // The frontal frame is what gets matched; the challenge frames were the
+      // liveness proof and are not uploaded.
       final Uint8List bytes = frames.first;
+      _selfieBytes = bytes;
       final key = await ref.read(todayControllerProvider.notifier).uploadSelfie(bytes);
       if (!mounted) return;
       setState(() {
@@ -157,17 +164,19 @@ class _CheckInSheetState extends ConsumerState<CheckInSheet> {
       // Tell the employee what the biometric check decided. A weak match is
       // recorded and flagged for HR — they should know it happened, not find
       // out days later from a payroll query.
-      if (face != null && !face.matched) {
-        AppSnackbar.show(
-          context,
-          '${context.tr('Checked in, but your face didn\'t match')} (${face.confidence}%) — ${context.tr('HR will review it.')}',
-          tone: SnackTone.danger,
-        );
-      } else if (face != null) {
-        AppSnackbar.show(
-          context,
-          '${context.tr('Face verified')} (${face.confidence}%) — ${context.tr('checked in!')}',
-          tone: SnackTone.success,
+      if (face != null && _selfieBytes != null) {
+        // Show the verdict properly: both faces, both checks, in writing.
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => FaceResultScreen(
+              selfie: _selfieBytes!,
+              result: face,
+              capturedAt: DateTime.now(),
+              locationNote: _office?.inside == false
+                  ? context.tr('Outside the office area — flagged for review')
+                  : _office?.name,
+            ),
+          ),
         );
       } else {
         AppSnackbar.show(context, context.tr('Checked in — have a great day!'), tone: SnackTone.success);

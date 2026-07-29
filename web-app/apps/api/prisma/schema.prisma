@@ -969,6 +969,10 @@ model FaceTemplate {
   employeeId         String   @map("employee_id") @db.Uuid
   provider           String   @db.VarChar(60)
   externalTemplateId String?  @map("external_template_id") @db.VarChar(160)
+  // The enrollment frame this template came from. Kept so the app can show
+  // the employee their BASE PHOTO next to a check-in selfie — a match verdict
+  // without the two faces side by side is unreviewable.
+  imageStorageKey    String?  @map("image_storage_key")
   embedding          Bytes?
   quality            Decimal? @db.Decimal(5, 2)
   isActive           Boolean  @default(true) @map("is_active")

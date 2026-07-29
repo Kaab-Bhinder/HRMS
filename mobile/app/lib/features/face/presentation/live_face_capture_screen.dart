@@ -43,12 +43,18 @@ class _LiveFaceCaptureScreenState extends State<LiveFaceCaptureScreen> {
   int _current = 0;
   bool _processing = false; // one ML Kit pass at a time
   bool _capturing = false; // takePicture in flight
+  bool _justCaptured = false; // showing the green "captured" confirmation
   int _holdCount = 0; // consecutive good detections before we snap
   double? _sideYawSign; // sign of the first accepted side-turn
   String? _hint;
   String? _fatal;
 
-  static const _holdNeeded = 2; // ~2 consecutive good frames ≈ pose is held
+  // A pose must be HELD, not brushed past: enough consecutive good frames to
+  // read as deliberate (~1s at typical stream rates). Capturing on the first
+  // matching frame made the whole session finish in milliseconds, which felt
+  // broken and gave the user no chance to see what was happening.
+  static const _holdNeeded = 8;
+  static const _confirmPause = Duration(milliseconds: 700); // "captured ✓" beat
 
   @override
   void initState() {
@@ -141,6 +147,7 @@ class _LiveFaceCaptureScreenState extends State<LiveFaceCaptureScreen> {
 
       _holdCount += 1;
       _setHint(context.tr('Hold it…'));
+      if (mounted) setState(() {}); // drive the hold progress ring
       if (_holdCount >= _holdNeeded) {
         _holdCount = 0;
         await _snap();
@@ -195,12 +202,18 @@ class _LiveFaceCaptureScreenState extends State<LiveFaceCaptureScreen> {
       _frames.add(bytes);
 
       if (!mounted) return;
+      // Visible confirmation so the user sees each pose land.
+      setState(() => _justCaptured = true);
+      await Future<void>.delayed(_confirmPause);
+      if (!mounted) return;
+
       if (_current + 1 >= widget.poses.length) {
         Navigator.of(context).pop(List<Uint8List>.unmodifiable(_frames));
         return;
       }
       setState(() {
         _current += 1;
+        _justCaptured = false;
         _hint = null;
       });
       await camera.startImageStream(_onFrame);
@@ -269,19 +282,36 @@ class _LiveFaceCaptureScreenState extends State<LiveFaceCaptureScreen> {
                             fit: StackFit.expand,
                             children: [
                               CameraPreview(camera),
-                              // face oval guide
+                              // face oval guide — turns green as the pose is held
                               IgnorePointer(
                                 child: Center(
-                                  child: Container(
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 150),
                                     width: 230,
                                     height: 300,
                                     decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.white.withValues(alpha: 0.85), width: 3),
+                                      border: Border.all(
+                                        color: _justCaptured
+                                            ? const Color(0xFF22C55E)
+                                            : Color.lerp(Colors.white.withValues(alpha: 0.85), const Color(0xFF22C55E),
+                                                (_holdCount / _holdNeeded).clamp(0.0, 1.0))!,
+                                        width: _justCaptured ? 5 : 3,
+                                      ),
                                       borderRadius: const BorderRadius.all(Radius.elliptical(230, 300)),
                                     ),
                                   ),
                                 ),
                               ),
+                              if (_justCaptured)
+                                IgnorePointer(
+                                  child: Center(
+                                    child: Container(
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: const BoxDecoration(color: Color(0xFF22C55E), shape: BoxShape.circle),
+                                      child: const Icon(Icons.check_rounded, color: Colors.white, size: 40),
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -340,4 +370,13 @@ class _LiveFaceCaptureScreenState extends State<LiveFaceCaptureScreen> {
 List<FacePose> enrollmentPoses() {
   final challenges = [FacePose.left, FacePose.right, FacePose.up, FacePose.smile]..shuffle(Random());
   return [FacePose.center, ...challenges];
+}
+
+/// Check-in sequence: the frontal frame that gets MATCHED, plus two random
+/// challenges so every check-in proves liveness — a photo of the employee
+/// can't smile or turn on demand, and the random order defeats a replay.
+/// Deliberately shorter than enrollment: this runs every single day.
+List<FacePose> checkInPoses() {
+  final challenges = [FacePose.left, FacePose.right, FacePose.smile]..shuffle(Random());
+  return [FacePose.center, ...challenges.take(2)];
 }

@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Res } from '@nestjs/common';
+import { Response } from 'express';
+import { StorageService } from '../files/storage.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsOptional, IsString, IsUUID } from 'class-validator';
 import { FaceService } from './face.service';
@@ -19,7 +21,10 @@ class SelfEnrollDto {
 @ApiBearerAuth()
 @Controller('face')
 export class FaceController {
-  constructor(private readonly service: FaceService) {}
+  constructor(
+    private readonly service: FaceService,
+    private readonly storage: StorageService,
+  ) {}
 
   /** HR (re-)enrollment — single frame or a multi-pose set. */
   @Post('templates')
@@ -35,6 +40,17 @@ export class FaceController {
   @ApiOperation({ summary: 'Multi-pose self-enrollment (first time only; min 3 frames)' })
   selfEnroll(@CurrentUser() user: AuthUser, @Body() dto: SelfEnrollDto) {
     return this.service.selfEnroll(user.organizationId, user.id, dto.imageStorageKeys);
+  }
+
+  /** Own reference photo — shown beside the check-in selfie in the app. */
+  @Get('my-base-photo')
+  @ApiOperation({ summary: 'Stream the signed-in employee\'s enrollment photo' })
+  async myBasePhoto(@CurrentUser() user: AuthUser, @Res() res: Response) {
+    const key = await this.service.myBasePhotoKey(user.organizationId, user.id);
+    const bytes = await this.storage.read(key);
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(bytes);
   }
 
   /** Enrollment gate for the mobile app. */
