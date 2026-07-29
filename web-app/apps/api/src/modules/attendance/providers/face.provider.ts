@@ -29,8 +29,12 @@ export class FaceAttendanceProvider implements AttendanceProvider {
       lng: ctx.payload.longitude,
     });
 
+    // Liveness failure is a hard stop — it means the anti-spoof gate itself
+    // failed. A below-threshold MATCH is allow-but-flag instead: the punch is
+    // recorded, the day gets flagged, and HR reviews the side-by-side (same
+    // philosophy as geofence violations — never lock a real worker out over
+    // a bad camera angle, but never let it pass silently either).
     if (!verify.livenessPassed) throw new BadRequestException('Liveness check failed — please try again');
-    if (!verify.matched) throw new BadRequestException('Face did not match the enrolled employee');
 
     // Same site resolution + geofence marker as GPS punches, so a face punch
     // with coordinates is location-verified too, not just identity-verified.
@@ -50,7 +54,11 @@ export class FaceAttendanceProvider implements AttendanceProvider {
       faceCaptureId: capture.id,
       isOffline: ctx.payload.isOffline ?? false,
       clientCreatedAt: ctx.payload.clientCreatedAt ? new Date(ctx.payload.clientCreatedAt) : undefined,
-      raw: { ...(ctx.payload.metadata ?? {}), ...(geofence ? { geofence } : {}) },
+      raw: {
+        ...(ctx.payload.metadata ?? {}),
+        ...(geofence ? { geofence } : {}),
+        ...(!verify.matched ? { faceMismatch: { confidence: verify.confidence, captureId: capture.id } } : {}),
+      },
     };
   }
 }

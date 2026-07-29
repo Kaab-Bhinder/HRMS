@@ -135,6 +135,8 @@ export class AttendanceRecomputeService {
       reasons.push(`Checked in ${g?.distanceMeters ?? '?'}m from ${g?.locationName ?? 'office'} (limit ${g?.radiusMeters ?? '?'}m)`);
     }
     if (mockLocation) reasons.push('Mock/fake GPS location detected on device');
+    const faceMiss = punches.map((p) => (p.rawPayload as any)?.faceMismatch).find((x) => x);
+    if (faceMiss) reasons.push(`Face match ${faceMiss.confidence ?? '?'}% — below threshold, review the selfie`);
     if (timeSkew) reasons.push(`Device clock off by ${Math.round((timeSkew.skewSeconds ?? 0) / 60)}m vs server`);
     if (breakOver) reasons.push(`Break ${breakMinutes}m exceeds allowed ${allowedBreak}m`);
 
