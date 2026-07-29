@@ -1003,6 +1003,18 @@ export const ID: Record<string, string> = {
   'Every issue and return is recorded — this trail backs offboarding clearance.': 'Setiap penyerahan dan pengembalian tercatat — jejak ini mendukung proses karyawan keluar.',
   'Remove asset?': 'Hapus aset?',
 
+  // --- Off-site check-in policy + face enforcement ---
+  'If someone checks in outside every work site': 'Jika seseorang check-in di luar semua lokasi kerja',
+  'If someone checks in outside this site': 'Jika seseorang check-in di luar lokasi ini',
+  'Allow it — never flagged': 'Izinkan — tidak pernah ditandai',
+  'Flag it for review (recommended)': 'Tandai untuk ditinjau (disarankan)',
+  'Flag it for review': 'Tandai untuk ditinjau',
+  'Mark the day absent': 'Tandai hari sebagai absen',
+  'A flagged or absent day always records the distance and site, so HR can regularize it.':
+    'Hari yang ditandai atau absen selalu mencatat jarak dan lokasi, sehingga HR dapat memperbaikinya.',
+  'Mark absent when the face doesn’t match': 'Tandai absen jika wajah tidak cocok',
+  'Off: the check-in is recorded and flagged for review': 'Nonaktif: check-in tetap tercatat dan ditandai untuk ditinjau',
+
   // --- Per-site rules (Attendance Settings) ---
   'Work sites & their rules': 'Lokasi kerja & aturannya',
   'Each site inherits the defaults unless you give it custom settings': 'Setiap lokasi mewarisi aturan bawaan kecuali Anda memberi pengaturan khusus',

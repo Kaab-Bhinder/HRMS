@@ -1,10 +1,11 @@
-import { Mail, Phone, Building2, Briefcase, MapPin, CalendarDays, Trash2 } from 'lucide-react';
+import { Mail, Phone, Building2, Briefcase, MapPin, CalendarDays, Trash2, Paperclip } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useQuery } from '../../hooks/useQuery';
-import { customFieldsService } from '../../services';
+import { customFieldsService, filesService } from '../../services';
+import type { CustomFieldDefinition, FileAttachment } from '../../lib/types';
 import { formatDate } from '../../lib/format';
 import type { Employee } from '../../lib/types';
 
@@ -57,16 +58,12 @@ export function EmployeeDetailModal({ open, onClose, employee, onEdit, onDelete 
           <div>
             <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Custom Fields</h4>
             <div className="grid grid-cols-1 gap-x-6 gap-y-3.5 sm:grid-cols-2">
-              {cfDefs.filter((d) => d.isVisible).map((d) => {
-                const v = employee.customFields[d.fieldKey];
-                const shown = d.isEncrypted && v ? '••••••••' : Array.isArray(v) ? v.join(', ') : (v as string) || '—';
-                return (
-                  <div key={d.id}>
-                    <p className="text-xs text-muted-foreground">{d.label}{d.isEncrypted && ' 🔒'}</p>
-                    <p className="text-sm font-medium text-foreground">{shown || '—'}</p>
-                  </div>
-                );
-              })}
+              {cfDefs.filter((d) => d.isVisible).map((d) => (
+                <div key={d.id}>
+                  <p className="text-xs text-muted-foreground">{d.label}{d.isEncrypted && ' 🔒'}</p>
+                  <CustomFieldValue def={d} value={employee.customFields[d.fieldKey]} />
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -85,4 +82,41 @@ function Detail({ icon, label, value }: { icon: React.ReactNode; label: string; 
       </div>
     </div>
   );
+}
+
+/**
+ * Renders a stored custom-field value by its declared type — a file shows as a
+ * download link (never a raw reference object), booleans read Yes/No, dates
+ * format, and JSON pretty-prints. Encrypted fields are masked regardless.
+ */
+function CustomFieldValue({ def, value }: { def: CustomFieldDefinition; value: unknown }) {
+  if (def.isEncrypted && value) return <p className="text-sm font-medium text-foreground">••••••••</p>;
+  if (value === null || value === undefined || value === '') return <p className="text-sm font-medium text-foreground">—</p>;
+
+  switch (def.dataType) {
+    case 'file': {
+      const f = value as { fileId?: string; fileName?: string; mimeType?: string; sizeBytes?: number };
+      if (!f?.fileId) return <p className="text-sm font-medium text-foreground">—</p>;
+      return (
+        <button
+          type="button"
+          className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+          onClick={() => filesService.download({ id: f.fileId!, fileName: f.fileName ?? 'file', mimeType: f.mimeType ?? '', sizeBytes: f.sizeBytes ?? 0, url: '', createdAt: '' } as FileAttachment)}
+        >
+          <Paperclip className="h-3.5 w-3.5" /> {f.fileName ?? 'Download'}
+        </button>
+      );
+    }
+    case 'boolean':
+      return <p className="text-sm font-medium text-foreground">{value ? 'Yes' : 'No'}</p>;
+    case 'multiselect':
+      return <p className="text-sm font-medium text-foreground">{Array.isArray(value) ? value.join(', ') : String(value)}</p>;
+    case 'date':
+    case 'datetime':
+      return <p className="text-sm font-medium text-foreground">{formatDate(String(value))}</p>;
+    case 'json':
+      return <pre className="max-h-32 overflow-auto rounded bg-surface-2/60 p-2 font-mono text-xs text-foreground">{JSON.stringify(value, null, 2)}</pre>;
+    default:
+      return <p className="text-sm font-medium text-foreground">{String(value)}</p>;
+  }
 }

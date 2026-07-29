@@ -8,6 +8,7 @@ import '../../data/location_service.dart';
 import '../../data/selfie_service.dart';
 import '../../domain/entities/today_status.dart';
 import '../../domain/repositories/attendance_repository.dart';
+import '../../domain/entities/face_match_result.dart';
 import '../../domain/entities/geo_point.dart';
 
 final attendanceRepositoryProvider = Provider<AttendanceRepository>((ref) {
@@ -65,13 +66,15 @@ class TodayController extends AsyncNotifier<TodayStatus> {
   /// single tap. The guided flow collects them across three screens and needs to
   /// commit what the user already reviewed — re-capturing at the end would
   /// re-open the camera after they had confirmed.
-  Future<void> commitCheckIn({required String faceImageKey, required GeoPoint fix}) async {
+  Future<FaceMatchResult?> commitCheckIn({required String faceImageKey, required GeoPoint fix}) async {
     final updated = await _repo.punch(
       kind: PunchKind.checkIn,
       location: fix,
       faceImageKey: faceImageKey,
     );
     state = AsyncData(updated);
+    // The face verdict for THIS punch — the sheet shows it to the employee.
+    return (_repo is AttendanceRepositoryImpl) ? (_repo as AttendanceRepositoryImpl).lastFaceResult : null;
   }
 
   /// Uploads a captured selfie and returns its storage key.

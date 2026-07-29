@@ -63,6 +63,20 @@ export class CustomFieldValidatorService {
       out[def.fieldKey] = value;
     }
 
+    // Cross-tenant guard for file references: a fileId must belong to THIS
+    // organization. Without it, a crafted payload could attach (and later
+    // download) another tenant's document through a custom field.
+    for (const def of defs) {
+      if (def.dataType !== 'file') continue;
+      const ref = out[def.fieldKey] as { fileId?: string } | undefined;
+      if (!ref?.fileId) continue;
+      const file = await this.prisma.fileObject.findFirst({
+        where: { id: ref.fileId, organizationId: orgId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!file) errors[def.fieldKey] = `${def.label}: uploaded file not found`;
+    }
+
     if (Object.keys(errors).length) {
       throw new BadRequestException({ message: 'Custom field validation failed', fields: errors });
     }
@@ -108,10 +122,39 @@ export class CustomFieldValidatorService {
         const allowed = new Set(opts.map((o) => o.value));
         return arr.every((v) => allowed.has(v)) ? [arr, null] : [null, `${label} has an invalid option`];
       }
-      case 'json':
-        return [raw, null];
+      case 'json': {
+        // Accept an object/array as-is, or a JSON string that parses to one —
+        // storing unparseable text under a "json" field makes the value
+        // unusable to every consumer downstream.
+        if (raw && typeof raw === 'object') return [raw, null];
+        try {
+          return [JSON.parse(String(raw)), null];
+        } catch {
+          return [null, `${label} must be valid JSON`];
+        }
+      }
+      case 'file': {
+        // A file field stores a REFERENCE to an uploaded FileObject, not a
+        // filename: { fileId, fileName, mimeType, sizeBytes }. The upload
+        // itself happens through /files/upload, so the bytes live in S3 with
+        // the rest of the app's documents. Ownership is verified in validate()
+        // (a reference to another org's file is rejected there).
+        if (raw && typeof raw === 'object' && 'fileId' in (raw as Record<string, unknown>)) {
+          const r = raw as Record<string, unknown>;
+          return [
+            {
+              fileId: String(r.fileId),
+              fileName: r.fileName != null ? String(r.fileName) : '',
+              mimeType: r.mimeType != null ? String(r.mimeType) : '',
+              sizeBytes: r.sizeBytes != null ? Number(r.sizeBytes) : 0,
+            },
+            null,
+          ];
+        }
+        return [null, `${label} must be an uploaded file`];
+      }
       default: {
-        // text / textarea / phone / file (store filename/key)
+        // text / textarea / phone
         const s = String(raw);
         if (def.minLength != null && s.length < def.minLength) return [null, `${label} must be ≥ ${def.minLength} chars`];
         if (def.maxLength != null && s.length > def.maxLength) return [null, `${label} must be ≤ ${def.maxLength} chars`];

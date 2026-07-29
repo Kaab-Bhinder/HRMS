@@ -137,6 +137,18 @@ export class AttendanceRecomputeService {
     if (mockLocation) reasons.push('Mock/fake GPS location detected on device');
     const faceMiss = punches.map((p) => (p.rawPayload as any)?.faceMismatch).find((x) => x);
     if (faceMiss) reasons.push(`Face match ${faceMiss.confidence ?? '?'}% — below threshold, review the selfie`);
+
+    // Strict enforcement (per policy, org-wide or per-site): a violation makes
+    // the day ABSENT instead of a flagged-but-present day. Still flagged, so
+    // HR sees why — and can regularize it if the employee was legitimate.
+    if (outOfGeofence && policy?.offSiteCheckIn === 'absent') {
+      status = 'absent';
+      reasons.push('Marked absent: check-in outside the allowed work site');
+    }
+    if (faceMiss && policy?.absentOnFaceMismatch) {
+      status = 'absent';
+      reasons.push('Marked absent: face did not match the enrolled employee');
+    }
     if (timeSkew) reasons.push(`Device clock off by ${Math.round((timeSkew.skewSeconds ?? 0) / 60)}m vs server`);
     if (breakOver) reasons.push(`Break ${breakMinutes}m exceeds allowed ${allowedBreak}m`);
 

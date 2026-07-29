@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min, ValidateNested } from 'class-validator';
-import { CheckInScope } from '@prisma/client';
+import { CheckInScope, OffSitePolicy } from '@prisma/client';
 
 class OfficeHoursDto {
   @ApiPropertyOptional({ example: '09:00' }) @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) startTime?: string;
@@ -13,8 +13,10 @@ class OfficeHoursDto {
 class PolicyDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(240) lateAfterMinutes?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(720) halfDayMinutes?: number;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() enforceGeofence?: boolean;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() allowRemote?: boolean;
+  @ApiPropertyOptional({ enum: OffSitePolicy, description: 'Off-site check-in: allowed | flag (default) | absent' })
+  @IsOptional() @IsEnum(OffSitePolicy) offSiteCheckIn?: OffSitePolicy;
+  @ApiPropertyOptional({ description: 'Face mismatch marks the day ABSENT (default: flag only)' })
+  @IsOptional() @IsBoolean() absentOnFaceMismatch?: boolean;
   @ApiPropertyOptional({ description: '0=Sun … 6=Sat' }) @IsOptional() @IsArray() @IsInt({ each: true }) weeklyOffDays?: number[];
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(30) @Max(3600) trackingIntervalSec?: number;
   @ApiPropertyOptional({ enum: CheckInScope, description: 'any_site: nearest work site validates · assigned_only: employees answer to their assigned site' })
@@ -39,8 +41,10 @@ class LeaveDto {
 class SitePolicyDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(240) lateAfterMinutes?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(720) halfDayMinutes?: number;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() enforceGeofence?: boolean;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() allowRemote?: boolean;
+  @ApiPropertyOptional({ enum: OffSitePolicy, description: 'Off-site check-in: allowed | flag (default) | absent' })
+  @IsOptional() @IsEnum(OffSitePolicy) offSiteCheckIn?: OffSitePolicy;
+  @ApiPropertyOptional({ description: 'Face mismatch marks the day ABSENT (default: flag only)' })
+  @IsOptional() @IsBoolean() absentOnFaceMismatch?: boolean;
   @ApiPropertyOptional({ description: '0=Sun … 6=Sat' }) @IsOptional() @IsArray() @IsInt({ each: true }) weeklyOffDays?: number[];
 }
 

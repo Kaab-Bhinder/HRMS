@@ -120,7 +120,12 @@ export class AttendanceService {
     }
 
     const day = await this.recompute.recompute(orgId, employeeId, normalized.occurredAt);
-    return { punch, day, sessionId, trackingIntervalSec: policy?.trackingIntervalSec ?? 120 };
+    // Surface the biometric verdict to the caller: the app tells the employee
+    // whether their face matched (and by how much) instead of silently
+    // recording a flagged day they never learn about.
+    const face = (normalized.raw as Record<string, any> | undefined)?.face ?? null;
+    const geofence = (normalized.raw as Record<string, any> | undefined)?.geofence ?? null;
+    return { punch, day, sessionId, face, geofence, trackingIntervalSec: policy?.trackingIntervalSec ?? 120 };
   }
 
   /** Admin manual entry — creates in/out punches for a date and recomputes. */
@@ -587,7 +592,7 @@ export class AttendanceService {
   private async effectivePolicy(orgId: string): Promise<EffectivePolicy | null> {
     const p = await this.prisma.attendancePolicy.findFirst({ where: { organizationId: orgId, isDefault: true, deletedAt: null } });
     if (!p) return null;
-    return { enforceGeofence: p.enforceGeofence, allowRemote: p.allowRemote, allowedMethods: p.allowedMethods, trackingIntervalSec: p.trackingIntervalSec, checkInScope: p.checkInScope };
+    return { offSiteCheckIn: p.offSiteCheckIn, allowedMethods: p.allowedMethods, trackingIntervalSec: p.trackingIntervalSec, checkInScope: p.checkInScope };
   }
 
   private serializeDay(r: any, siteName?: Map<string, string>) {

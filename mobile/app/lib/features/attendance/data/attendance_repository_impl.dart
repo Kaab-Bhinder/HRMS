@@ -1,10 +1,14 @@
 import '../../../core/network/api_client.dart';
+import '../domain/entities/face_match_result.dart';
 import '../domain/entities/geo_point.dart';
 import '../domain/entities/today_status.dart';
 import '../domain/repositories/attendance_repository.dart';
 import 'models/today_status_model.dart';
 
 class AttendanceRepositoryImpl implements AttendanceRepository {
+  /// Verdict from the most recent face punch (null when none / not a face punch).
+  FaceMatchResult? lastFaceResult;
+
   AttendanceRepositoryImpl(this._api);
   final ApiClient _api;
 
@@ -16,7 +20,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
 
   @override
   Future<TodayStatus> punch({required PunchKind kind, required GeoPoint location, String? faceImageKey}) async {
-    await _api.post('/attendance/punch', body: {
+    final res = await _api.post('/attendance/punch', body: {
       'type': kind.wire,
       // A selfie makes it a biometric (face) punch; otherwise plain GPS.
       'method': faceImageKey != null ? 'mobile_face' : 'mobile_gps',
@@ -29,6 +33,9 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       'clientCreatedAt': DateTime.now().toUtc().toIso8601String(),
       'faceImageKey': ?faceImageKey,
     });
+    // Biometric verdict from this punch (null for non-face punches) — the UI
+    // shows the employee whether their face matched instead of failing quietly.
+    lastFaceResult = FaceMatchResult.fromJson((res as Map<String, dynamic>)['face']);
     // Re-read the derived day so the UI reflects recomputed worked time.
     return getToday();
   }

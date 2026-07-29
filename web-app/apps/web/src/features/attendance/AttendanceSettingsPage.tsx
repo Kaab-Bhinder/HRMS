@@ -146,9 +146,18 @@ export default function AttendanceSettingsPage() {
                 <Input id="halfDay" type="number" min={0} value={form.policy.halfDayMinutes} onChange={(e) => set('policy', 'halfDayMinutes', num(e.target.value))} />
               </div>
             </div>
-            <Row label="Enforce geofence" hint="Flag check-ins outside the office radius">
-              <Switch checked={form.policy.enforceGeofence} onChange={(v) => set('policy', 'enforceGeofence', v)} />
-            </Row>
+            {/* ONE control for the whole off-site decision. It replaced an
+                enforce/allow-remote pair that were logical inverses plus a
+                separate strictness switch — three settings for one choice. */}
+            <div>
+              <Label htmlFor="offsite">If someone checks in outside every work site</Label>
+              <Select id="offsite" value={form.policy.offSiteCheckIn ?? 'flag'} onChange={(e) => set('policy', 'offSiteCheckIn', e.target.value)}>
+                <option value="allowed">Allow it — never flagged</option>
+                <option value="flag">Flag it for review (recommended)</option>
+                <option value="absent">Mark the day absent</option>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">A flagged or absent day always records the distance and site, so HR can regularize it.</p>
+            </div>
             <div>
               <Label htmlFor="scope">Check-in scope</Label>
               <Select id="scope" value={form.policy.checkInScope ?? 'any_site'} onChange={(e) => set('policy', 'checkInScope', e.target.value)}>
@@ -157,8 +166,8 @@ export default function AttendanceSettingsPage() {
               </Select>
               <p className="mt-1 text-xs text-muted-foreground">Employees without an assigned work site are always validated at the nearest site.</p>
             </div>
-            <Row label="Allow remote check-in" hint="If on, out-of-range check-ins are NOT flagged">
-              <Switch checked={form.policy.allowRemote} onChange={(v) => set('policy', 'allowRemote', v)} />
+            <Row label="Mark absent when the face doesn’t match" hint="Off: the check-in is recorded and flagged for review">
+              <Switch checked={form.policy.absentOnFaceMismatch ?? false} onChange={(v) => set('policy', 'absentOnFaceMismatch', v)} />
             </Row>
             <div>
               <Label htmlFor="track">Live-location interval (sec)</Label>
@@ -198,7 +207,7 @@ export default function AttendanceSettingsPage() {
                         {s.effective.officeHours.startTime}–{s.effective.officeHours.endTime}
                         {' · '}late after {s.effective.policy.lateAfterMinutes}m
                         {' · '}off: {s.effective.policy.weeklyOffDays.map((d) => DAYS[d]).join(' ')}
-                        {s.effective.policy.allowRemote ? ' · remote OK' : ''}
+                        {s.effective.policy.offSiteCheckIn === 'allowed' ? ' · off-site OK' : s.effective.policy.offSiteCheckIn === 'absent' ? ' · off-site = absent' : ''}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
@@ -290,7 +299,7 @@ export default function AttendanceSettingsPage() {
  */
 function SiteRulesModal({ site, onClose, onSaved }: { site: SiteSettings | null; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
-  const [f, setF] = useState({ startTime: '09:00', endTime: '17:00', graceMinutes: 10, breakMinutes: 60, lateAfterMinutes: 15, halfDayMinutes: 240, allowRemote: false, enforceGeofence: true, weeklyOffDays: [0, 6] as number[] });
+  const [f, setF] = useState({ startTime: '09:00', endTime: '17:00', graceMinutes: 10, breakMinutes: 60, lateAfterMinutes: 15, halfDayMinutes: 240, offSiteCheckIn: 'flag' as 'allowed' | 'flag' | 'absent', absentOnFaceMismatch: false, weeklyOffDays: [0, 6] as number[] });
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -302,8 +311,8 @@ function SiteRulesModal({ site, onClose, onSaved }: { site: SiteSettings | null;
         breakMinutes: site.effective.officeHours.breakMinutes,
         lateAfterMinutes: site.effective.policy.lateAfterMinutes,
         halfDayMinutes: site.effective.policy.halfDayMinutes,
-        allowRemote: site.effective.policy.allowRemote,
-        enforceGeofence: site.effective.policy.enforceGeofence,
+        offSiteCheckIn: site.effective.policy.offSiteCheckIn ?? 'flag',
+        absentOnFaceMismatch: site.effective.policy.absentOnFaceMismatch ?? false,
         weeklyOffDays: [...site.effective.policy.weeklyOffDays],
       });
     }
@@ -318,7 +327,7 @@ function SiteRulesModal({ site, onClose, onSaved }: { site: SiteSettings | null;
     try {
       await attendanceService.upsertSiteSettings(site.locationId, {
         officeHours: { startTime: f.startTime, endTime: f.endTime, graceMinutes: f.graceMinutes, breakMinutes: f.breakMinutes },
-        policy: { lateAfterMinutes: f.lateAfterMinutes, halfDayMinutes: f.halfDayMinutes, allowRemote: f.allowRemote, enforceGeofence: f.enforceGeofence, weeklyOffDays: f.weeklyOffDays },
+        policy: { lateAfterMinutes: f.lateAfterMinutes, halfDayMinutes: f.halfDayMinutes, offSiteCheckIn: f.offSiteCheckIn, absentOnFaceMismatch: f.absentOnFaceMismatch, weeklyOffDays: f.weeklyOffDays },
       });
       toast.success('Site rules saved', `${site.name} now has custom settings.`);
       onSaved();
@@ -373,11 +382,16 @@ function SiteRulesModal({ site, onClose, onSaved }: { site: SiteSettings | null;
             <Input type="number" min={0} value={f.halfDayMinutes} onChange={(e) => set('halfDayMinutes', Number(e.target.value) || 0)} />
           </div>
         </div>
-        <Row label="Enforce geofence" hint="Flag check-ins outside this site's radius">
-          <Switch checked={f.enforceGeofence} onChange={(v) => set('enforceGeofence', v)} />
-        </Row>
-        <Row label="Allow remote check-in" hint="Out-of-range check-ins at this site are NOT flagged">
-          <Switch checked={f.allowRemote} onChange={(v) => set('allowRemote', v)} />
+        <div>
+          <Label>If someone checks in outside this site</Label>
+          <Select value={f.offSiteCheckIn} onChange={(e) => set('offSiteCheckIn', e.target.value)}>
+            <option value="allowed">Allow it — never flagged</option>
+            <option value="flag">Flag it for review</option>
+            <option value="absent">Mark the day absent</option>
+          </Select>
+        </div>
+        <Row label="Mark absent when the face doesn’t match" hint="Off: recorded and flagged for review">
+          <Switch checked={f.absentOnFaceMismatch} onChange={(v) => set('absentOnFaceMismatch', v)} />
         </Row>
         <div>
           <Label>Weekly off days</Label>

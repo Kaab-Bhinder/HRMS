@@ -35,9 +35,9 @@ export class AttendanceSettingsService {
       policy: {
         lateAfterMinutes: policy.lateAfterMinutes ?? 15,
         halfDayMinutes: policy.halfDayMinutes ?? 240,
-        enforceGeofence: policy.enforceGeofence,
-        allowRemote: policy.allowRemote,
+        offSiteCheckIn: policy.offSiteCheckIn,
         checkInScope: policy.checkInScope,
+        absentOnFaceMismatch: policy.absentOnFaceMismatch,
         weeklyOffDays: policy.weeklyOffDays,
         trackingIntervalSec: policy.trackingIntervalSec,
       },
@@ -82,9 +82,9 @@ export class AttendanceSettingsService {
         data: {
           lateAfterMinutes: dto.policy.lateAfterMinutes ?? policy.lateAfterMinutes,
           halfDayMinutes: dto.policy.halfDayMinutes ?? policy.halfDayMinutes,
-          enforceGeofence: dto.policy.enforceGeofence ?? policy.enforceGeofence,
-          allowRemote: dto.policy.allowRemote ?? policy.allowRemote,
+          offSiteCheckIn: dto.policy.offSiteCheckIn ?? policy.offSiteCheckIn,
           checkInScope: dto.policy.checkInScope ?? policy.checkInScope,
+          absentOnFaceMismatch: dto.policy.absentOnFaceMismatch ?? policy.absentOnFaceMismatch,
           weeklyOffDays: dto.policy.weeklyOffDays ?? policy.weeklyOffDays,
           trackingIntervalSec: dto.policy.trackingIntervalSec ?? policy.trackingIntervalSec,
         },
@@ -159,8 +159,8 @@ export class AttendanceSettingsService {
           policy: {
             lateAfterMinutes: effPolicy.lateAfterMinutes ?? 15,
             halfDayMinutes: effPolicy.halfDayMinutes ?? 240,
-            enforceGeofence: effPolicy.enforceGeofence,
-            allowRemote: effPolicy.allowRemote,
+            offSiteCheckIn: effPolicy.offSiteCheckIn,
+            absentOnFaceMismatch: effPolicy.absentOnFaceMismatch,
             weeklyOffDays: effPolicy.weeklyOffDays,
           },
         },
@@ -200,8 +200,8 @@ export class AttendanceSettingsService {
       const data = {
         lateAfterMinutes: dto.policy.lateAfterMinutes ?? base.lateAfterMinutes,
         halfDayMinutes: dto.policy.halfDayMinutes ?? base.halfDayMinutes,
-        enforceGeofence: dto.policy.enforceGeofence ?? base.enforceGeofence,
-        allowRemote: dto.policy.allowRemote ?? base.allowRemote,
+        offSiteCheckIn: dto.policy.offSiteCheckIn ?? base.offSiteCheckIn,
+        absentOnFaceMismatch: dto.policy.absentOnFaceMismatch ?? base.absentOnFaceMismatch,
         weeklyOffDays: dto.policy.weeklyOffDays ?? base.weeklyOffDays,
       };
       if (existing) await this.prisma.attendancePolicy.update({ where: { id: existing.id }, data });
@@ -246,7 +246,7 @@ export class AttendanceSettingsService {
     const existing = await this.prisma.attendancePolicy.findFirst({ where: { organizationId: orgId, deletedAt: null, locationId: null }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }] });
     if (existing) return existing;
     return this.prisma.attendancePolicy.create({
-      data: { organizationId: orgId, name: 'Default Policy', isDefault: true, graceMinutes: 10, lateAfterMinutes: 15, halfDayMinutes: 240, enforceGeofence: true, allowRemote: false, weeklyOffDays: [0, 6], trackingIntervalSec: 120 },
+      data: { organizationId: orgId, name: 'Default Policy', isDefault: true, graceMinutes: 10, lateAfterMinutes: 15, halfDayMinutes: 240, weeklyOffDays: [0, 6], trackingIntervalSec: 120 },
     });
   }
 
@@ -277,13 +277,13 @@ function workMinutes(start: string, end: string, breakMin: number): number {
 
 export interface SiteSettingsInput {
   officeHours?: { startTime?: string; endTime?: string; graceMinutes?: number; breakMinutes?: number };
-  policy?: { lateAfterMinutes?: number; halfDayMinutes?: number; enforceGeofence?: boolean; allowRemote?: boolean; weeklyOffDays?: number[] };
+  policy?: { lateAfterMinutes?: number; halfDayMinutes?: number; offSiteCheckIn?: 'allowed' | 'flag' | 'absent'; absentOnFaceMismatch?: boolean; weeklyOffDays?: number[] };
 }
 
 export interface AttendanceSettingsInput {
   timezone?: string;
   officeHours?: { startTime?: string; endTime?: string; graceMinutes?: number; breakMinutes?: number };
-  policy?: { lateAfterMinutes?: number; halfDayMinutes?: number; enforceGeofence?: boolean; allowRemote?: boolean; checkInScope?: 'any_site' | 'assigned_only'; weeklyOffDays?: number[]; trackingIntervalSec?: number };
+  policy?: { lateAfterMinutes?: number; halfDayMinutes?: number; offSiteCheckIn?: 'allowed' | 'flag' | 'absent'; checkInScope?: 'any_site' | 'assigned_only'; absentOnFaceMismatch?: boolean; weeklyOffDays?: number[]; trackingIntervalSec?: number };
   office?: { name?: string; address?: string; latitude?: number; longitude?: number; radiusMeters?: number };
   leave?: { annualLeaveDays?: number };
 }

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/providers.dart';
+import '../../../../core/i18n/app_i18n.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/json_num.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -13,6 +14,7 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_snackbar.dart';
 import '../../../face/data/face_repository.dart';
 import '../../../face/presentation/face_enrollment_screen.dart';
+import '../../../face/presentation/live_face_capture_screen.dart';
 import '../../data/location_service.dart';
 import '../../data/selfie_service.dart';
 import '../../domain/entities/geo_point.dart';
@@ -56,7 +58,18 @@ class _CheckInSheetState extends ConsumerState<CheckInSheet> {
         if (done != true || !mounted) return;
         setState(() => _busy = true);
       }
-      final Uint8List bytes = await ref.read(selfieServiceProvider).capture();
+      // In-app live capture: the camera watches for a straight-on face and
+      // snaps by itself — no system camera app, no shutter button.
+      if (!mounted) return;
+      setState(() => _busy = false);
+      final frames = await Navigator.of(context).push<List<Uint8List>>(
+        MaterialPageRoute(
+          builder: (_) => LiveFaceCaptureScreen(poses: const [FacePose.center], title: context.tr('Check-in selfie')),
+        ),
+      );
+      if (frames == null || frames.isEmpty || !mounted) throw SelfieCancelled();
+      setState(() => _busy = true);
+      final Uint8List bytes = frames.first;
       final key = await ref.read(todayControllerProvider.notifier).uploadSelfie(bytes);
       if (!mounted) return;
       setState(() {
@@ -135,13 +148,30 @@ class _CheckInSheetState extends ConsumerState<CheckInSheet> {
     if (_faceKey == null || _fix == null) return;
     setState(() => _busy = true);
     try {
-      await ref
+      final face = await ref
           .read(todayControllerProvider.notifier)
           .commitCheckIn(faceImageKey: _faceKey!, fix: _fix!);
       if (!mounted) return;
       HapticFeedback.mediumImpact();
       Navigator.of(context).pop(true);
-      AppSnackbar.show(context, 'Checked in — have a great day!', tone: SnackTone.success);
+      // Tell the employee what the biometric check decided. A weak match is
+      // recorded and flagged for HR — they should know it happened, not find
+      // out days later from a payroll query.
+      if (face != null && !face.matched) {
+        AppSnackbar.show(
+          context,
+          '${context.tr('Checked in, but your face didn\'t match')} (${face.confidence}%) — ${context.tr('HR will review it.')}',
+          tone: SnackTone.danger,
+        );
+      } else if (face != null) {
+        AppSnackbar.show(
+          context,
+          '${context.tr('Face verified')} (${face.confidence}%) — ${context.tr('checked in!')}',
+          tone: SnackTone.success,
+        );
+      } else {
+        AppSnackbar.show(context, context.tr('Checked in — have a great day!'), tone: SnackTone.success);
+      }
     } on ApiException catch (e) {
       if (mounted) AppSnackbar.show(context, e.message, tone: SnackTone.danger);
     } catch (_) {

@@ -38,15 +38,14 @@ export class SiteResolverService {
     }
     const distance = Math.round(haversineMeters(lat, lng, Number(site.latitude), Number(site.longitude)));
 
-    // Per-site policy override: a site with its own attendance policy decides
-    // its own geofence leniency (e.g. a client site that allows remote
-    // check-in while the org default doesn't). Falls back to the org policy.
+    // Per-site policy override: a site can be more or less strict about
+    // off-site check-ins than the org default (e.g. a client site that treats
+    // them as normal). Falls back to the org policy.
     const sitePolicy = await this.prisma.attendancePolicy.findFirst({
       where: { organizationId: ctx.orgId, locationId: site.id, deletedAt: null },
-      select: { allowRemote: true, enforceGeofence: true },
+      select: { offSiteCheckIn: true },
     });
-    const allowRemote = sitePolicy?.allowRemote ?? ctx.policy?.allowRemote ?? false;
-    const enforce = sitePolicy?.enforceGeofence ?? ctx.policy?.enforceGeofence ?? true;
+    const offSite = sitePolicy?.offSiteCheckIn ?? ctx.policy?.offSiteCheckIn ?? 'flag';
 
     return {
       site,
@@ -55,8 +54,8 @@ export class SiteResolverService {
         locationName: site.name,
         distanceMeters: distance,
         radiusMeters: site.radiusMeters,
-        // Remote-allowed (or unenforced) sites never count as out of range.
-        outOfRange: enforce && !allowRemote && distance > site.radiusMeters,
+        // 'allowed' sites treat the geofence as advisory — never out of range.
+        outOfRange: offSite !== 'allowed' && distance > site.radiusMeters,
       },
     };
   }

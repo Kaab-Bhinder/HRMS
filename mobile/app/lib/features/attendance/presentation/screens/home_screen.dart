@@ -22,6 +22,8 @@ import '../../../auth/presentation/providers/auth_controller.dart';
 import '../../../access/access_providers.dart';
 import '../../../leave/leave_providers.dart';
 import '../../../payroll/presentation/screens/payslip_screen.dart';
+import '../../../face/data/face_repository.dart';
+import '../../../face/presentation/face_enrollment_screen.dart';
 import '../providers/records_provider.dart';
 import '../../data/location_service.dart';
 import '../../data/selfie_service.dart';
@@ -44,6 +46,30 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _punching = false;
   bool _breaking = false;
+  static bool _enrollPrompted = false; // once per app session
+
+  @override
+  void initState() {
+    super.initState();
+    // First-login Face ID gate — the mobile twin of the web's setup wizard:
+    // no reference face on file → enrollment opens before anything else.
+    // Backing out is allowed (browsing is fine), but check-in stays locked
+    // until enrollment succeeds.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (_enrollPrompted || !mounted) return;
+      try {
+        final status = await ref.read(faceStatusProvider.future);
+        if (!status.enrolled && mounted && !_enrollPrompted) {
+          _enrollPrompted = true;
+          await Navigator.of(context).push<bool>(
+            MaterialPageRoute(builder: (_) => const FaceEnrollmentScreen()),
+          );
+        }
+      } catch (_) {
+        // Offline or old server — the check-in gate still enforces enrollment.
+      }
+    });
+  }
 
   Future<void> _punch() async {
     // Checking IN is the guided three-step flow: a selfie and a GPS fix are both

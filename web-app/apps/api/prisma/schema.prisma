@@ -198,6 +198,16 @@ enum CheckInScope {
   assigned_only
 }
 
+/// What happens when someone checks in outside every allowed work site.
+/// One setting replaces the old enforceGeofence/allowRemote/absentOnGeofenceFail
+/// trio, which encoded the same decision three times and allowed
+/// self-contradictory combinations.
+enum OffSitePolicy {
+  allowed // never flagged — the site's geofence is advisory
+  flag    // recorded and flagged for HR review (default)
+  absent  // the day is marked absent (still flagged, with the reason)
+}
+
 enum CustomFieldType {
   text
   textarea
@@ -730,13 +740,16 @@ model AttendancePolicy {
   halfDayMinutes       Int?      @map("half_day_minutes")
   fullDayMinutes       Int?      @map("full_day_minutes")
   overtimeAfterMinutes Int?      @map("overtime_after_minutes")
-  enforceGeofence      Boolean   @default(true) @map("enforce_geofence")
-  allowRemote          Boolean   @default(false) @map("allow_remote")
+  // What an out-of-site check-in costs: nothing / a flag / the whole day.
+  offSiteCheckIn       OffSitePolicy @default(flag) @map("off_site_check_in")
   // any_site: validate against the nearest active work site the employee is
   // inside. assigned_only: an employee WITH an assigned site must be inside
   // that one; unassigned employees fall back to nearest-site so a fresh
   // rollout never flags the whole workforce.
   checkInScope         CheckInScope @default(any_site) @map("check_in_scope")
+  // Face mismatch stays a boolean: unlike location there is no sensible
+  // "allowed" level — not enrolling is how you opt out of face matching.
+  absentOnFaceMismatch Boolean      @default(false) @map("absent_on_face_mismatch")
   allowedMethods       String[]  @default([]) @map("allowed_methods")
   weeklyOffDays        Int[]     @default([0, 6]) @map("weekly_off_days")
   trackingIntervalSec  Int       @default(120) @map("tracking_interval_sec")

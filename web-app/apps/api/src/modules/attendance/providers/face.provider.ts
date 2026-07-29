@@ -57,6 +57,14 @@ export class FaceAttendanceProvider implements AttendanceProvider {
       raw: {
         ...(ctx.payload.metadata ?? {}),
         ...(geofence ? { geofence } : {}),
+        // Always recorded — the app shows the employee this verdict, and HR
+        // reads it on review. `faceMismatch` additionally drives the day flag.
+        face: {
+          matched: verify.matched,
+          confidence: verify.confidence,
+          livenessPassed: verify.livenessPassed,
+          captureId: capture.id,
+        },
         ...(!verify.matched ? { faceMismatch: { confidence: verify.confidence, captureId: capture.id } } : {}),
       },
     };

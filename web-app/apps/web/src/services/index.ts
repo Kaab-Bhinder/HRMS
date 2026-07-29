@@ -46,10 +46,13 @@ export const accessService = {
 // --- Attendance settings / slips / live / payroll ---
 type DeepPartial<T> = { [K in keyof T]?: DeepPartial<T[K]> };
 
+/** What an out-of-site check-in costs. One setting, three levels. */
+export type OffSitePolicy = 'allowed' | 'flag' | 'absent';
+
 export interface AttendanceSettings {
   timezone: string;
   officeHours: { startTime: string; endTime: string; graceMinutes: number; breakMinutes: number };
-  policy: { lateAfterMinutes: number; halfDayMinutes: number; enforceGeofence: boolean; allowRemote: boolean; checkInScope: 'any_site' | 'assigned_only'; weeklyOffDays: number[]; trackingIntervalSec: number };
+  policy: { lateAfterMinutes: number; halfDayMinutes: number; offSiteCheckIn: OffSitePolicy; checkInScope: 'any_site' | 'assigned_only'; absentOnFaceMismatch: boolean; weeklyOffDays: number[]; trackingIntervalSec: number };
   office: { id: string; name: string; address: string | null; latitude: number | null; longitude: number | null; radiusMeters: number };
   leave: { annualLeaveDays: number };
 }
@@ -73,7 +76,7 @@ export interface SiteSettings {
   hasOverride: boolean;
   effective: {
     officeHours: { startTime: string; endTime: string; graceMinutes: number; breakMinutes: number };
-    policy: { lateAfterMinutes: number; halfDayMinutes: number; enforceGeofence: boolean; allowRemote: boolean; weeklyOffDays: number[] };
+    policy: { lateAfterMinutes: number; halfDayMinutes: number; offSiteCheckIn: OffSitePolicy; absentOnFaceMismatch: boolean; weeklyOffDays: number[] };
   };
 }
 
@@ -205,7 +208,8 @@ export const attendanceService = {
         ? {
             policy: pick(dto.policy, [
               'lateAfterMinutes', 'halfDayMinutes', 'enforceGeofence',
-              'allowRemote', 'checkInScope', 'weeklyOffDays', 'trackingIntervalSec',
+              'offSiteCheckIn', 'checkInScope', 'absentOnFaceMismatch',
+              'weeklyOffDays', 'trackingIntervalSec',
             ]),
           }
         : {}),

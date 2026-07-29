@@ -16,8 +16,8 @@ export interface PunchPayload {
 }
 
 export interface EffectivePolicy {
-  enforceGeofence: boolean;
-  allowRemote: boolean;
+  /** What an out-of-site check-in costs: allowed | flag | absent. */
+  offSiteCheckIn: 'allowed' | 'flag' | 'absent';
   allowedMethods: string[];
   trackingIntervalSec: number;
   /** any_site: nearest active work site wins · assigned_only: employees with an
