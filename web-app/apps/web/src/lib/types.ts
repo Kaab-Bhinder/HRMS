@@ -315,6 +315,9 @@ export interface DashboardStats {
   onLeave: { value: number; delta: number };
   openTasks: { value: number; delta: number };
   attritionRate: { value: number; delta: number };
+  /** Client-side of the business: how many clients, their sites, and how many
+   *  of our people are deployed on client premises rather than an own branch. */
+  clients?: { active: number; total: number; sites: number; staffDeployed: number };
   pendingApprovals: number;
   attendanceTrend: { date: string; present: number; absent: number; late: number }[];
   departmentHeadcount: { department: string; count: number }[];

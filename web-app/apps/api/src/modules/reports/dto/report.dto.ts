@@ -45,6 +45,14 @@ export class RunReportQueryDto {
   @IsIn(EXPORT_FORMATS as unknown as string[])
   format: ExportFormat = 'csv';
 
+  /** Specific report from the catalogue. When set it selects that report's own
+   *  dataset; without it the request falls back to the generic module dump. */
+  @ApiPropertyOptional({ description: 'Catalogue report key, e.g. att-daily' })
+  @IsOptional() @IsString() report?: string;
+
+  /** Single-day reports (the daily register). */
+  @ApiPropertyOptional() @IsOptional() @IsString() date?: string;
+
   @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() departmentId?: string;

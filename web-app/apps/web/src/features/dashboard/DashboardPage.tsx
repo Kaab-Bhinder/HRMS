@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import {
   Users, UserCheck, CalendarOff, ListChecks, TrendingDown, Plus, FileDown,
-  CalendarPlus, UserPlus, ArrowRight, CheckCircle2, Clock,
+  CalendarPlus, UserPlus, ArrowRight, CheckCircle2, Clock, Briefcase,
 } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { SetupWizard } from './SetupWizard';
@@ -48,12 +48,22 @@ export default function DashboardPage() {
       />
 
       {/* KPI row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <StatCard loading={loading} label="Total Headcount" value={formatNumber(stats?.headcount.value ?? 0)} delta={stats?.headcount.delta} icon={<Users />} accent="accent" />
         <StatCard loading={loading} label="Present Today" value={`${stats?.presentToday.value ?? 0}/${stats?.presentToday.total ?? 0}`} icon={<UserCheck />} accent="success" hint="Live attendance" />
         <StatCard loading={loading} label="On Leave" value={formatNumber(stats?.onLeave.value ?? 0)} delta={stats?.onLeave.delta} icon={<CalendarOff />} accent="warning" />
         <StatCard loading={loading} label="Open Tasks" value={formatNumber(stats?.openTasks.value ?? 0)} delta={stats?.openTasks.delta} icon={<ListChecks />} accent="info" />
         <StatCard loading={loading} label="Attrition Rate" value={`${stats?.attritionRate.value ?? 0}%`} delta={stats?.attritionRate.delta} icon={<TrendingDown />} accent="danger" />
+        {(stats?.clients?.total ?? 0) > 0 && (
+          <StatCard
+            loading={loading}
+            label="Active Clients"
+            value={formatNumber(stats?.clients?.active ?? 0)}
+            icon={<Briefcase />}
+            accent="primary"
+            hint={`${stats?.clients?.staffDeployed ?? 0} staff on ${stats?.clients?.sites ?? 0} client sites`}
+          />
+        )}
       </div>
 
       {/* Live office map + workforce mix */}

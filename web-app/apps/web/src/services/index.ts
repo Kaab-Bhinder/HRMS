@@ -238,8 +238,21 @@ export const attendanceService = {
 };
 
 export interface MapEmployee { id: string; name: string; employeeCode: string; departmentName: string | null; lat: number; lng: number; since: string }
+export interface MapSite {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  radiusMeters: number;
+  isDefault: boolean;
+  /** Set when this site is a client's premises rather than an own branch. */
+  clientName?: string | null;
+}
 export interface OfficeMap {
-  office: { name: string; lat: number; lng: number; radiusMeters: number } | null;
+  /** Every mapped work site — branches and client premises. */
+  sites: MapSite[];
+  /** The default site. Kept for older callers; prefer `sites`. */
+  office: MapSite | null;
   count: number;
   employees: MapEmployee[];
 }
@@ -270,6 +283,29 @@ export interface SavedReport {
 
 const SAVED_REPORT_FIELDS = ['name', 'module', 'definition', 'scheduleCron', 'recipients'];
 
+export interface AssistantAnswer {
+  reply: string;
+  /** Which vendor answered — surfaced so a failover is visible, not silent. */
+  provider: string;
+  /** Tool names the assistant actually ran to answer. */
+  toolsUsed: string[];
+}
+export const assistantService = {
+  /** Whether any provider is configured — the widget hides itself if not. */
+  status: () => api.get<{ available: boolean }>('/assistant/status'),
+  ask: (question: string, history: { role: 'user' | 'assistant'; content: string }[]) =>
+    api.post<AssistantAnswer>('/assistant/chat', { question, history }),
+};
+
+export type ReportParam = 'date' | 'month' | 'range' | 'department' | 'status';
+export interface CatalogReport {
+  key: string;
+  title: string;
+  description: string;
+  module: string;
+  params: ReportParam[];
+}
+
 export const reportsService = {
   /** Saved report definitions. Note: no scheduler runs these yet — a stored
    *  scheduleCron is a preference, not an active job. */
@@ -280,10 +316,15 @@ export const reportsService = {
     api.patch<SavedReport>(`/reports/${id}`, pick(payload, SAVED_REPORT_FIELDS)),
   removeSaved: (id: string) => api.del<{ success: boolean }>(`/reports/${id}`),
 
-  /** Runs a report on the server and downloads the file (authenticated blob). */
-  export: (backendModule: string, format = 'csv', filters: Record<string, string> = {}) => {
-    const qp = new URLSearchParams({ module: backendModule, format, ...filters }).toString();
-    return downloadFile(`/reports/export?${qp}`, `${backendModule}-report.${format}`);
+  /** The server's report catalogue — titles, modules, and the parameters each
+   *  report needs. The page renders this instead of a hardcoded list. */
+  catalog: () => api.get<CatalogReport[]>('/reports/catalog'),
+
+  /** Runs one catalogue report with its parameters and downloads the file. */
+  run: (reportKey: string, format: string, params: Record<string, string> = {}) => {
+    const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v));
+    const qp = new URLSearchParams({ module: 'employees', report: reportKey, format, ...clean }).toString();
+    return downloadFile(`/reports/export?${qp}`, `${reportKey}.${format}`);
   },
 };
 

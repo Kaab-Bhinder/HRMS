@@ -330,11 +330,17 @@ export class AttendanceService {
   async mapData(user: AuthUser) {
     const orgId = user.organizationId;
     const dataScope = await this.scope.resolve(user);
-    const [office, sessions] = await Promise.all([
-      this.prisma.location.findFirst({
+    const [sites, sessions] = await Promise.all([
+      // Every mapped site, not just the default one — an organisation can run
+      // several branches plus client premises, and the live map has to show
+      // where people actually are, not only head office.
+      this.prisma.location.findMany({
         where: { organizationId: orgId, deletedAt: null, latitude: { not: null }, longitude: { not: null } },
         orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-        select: { name: true, latitude: true, longitude: true, radiusMeters: true },
+        select: {
+          id: true, name: true, latitude: true, longitude: true, radiusMeters: true, isDefault: true,
+          client: { select: { name: true } },
+        },
       }),
       this.prisma.attendanceSession.findMany({
         where: { organizationId: orgId, status: 'active', ...(this.scope.byEmployee(dataScope) as Prisma.AttendanceSessionWhereInput) },
@@ -363,8 +369,20 @@ export class AttendanceService {
       })
       .filter(Boolean);
 
+    const mapped = sites.map((s) => ({
+      id: s.id,
+      name: s.name,
+      lat: Number(s.latitude),
+      lng: Number(s.longitude),
+      radiusMeters: s.radiusMeters ?? 200,
+      isDefault: s.isDefault,
+      clientName: s.client?.name ?? null,
+    }));
     return {
-      office: office?.latitude != null ? { name: office.name, lat: Number(office.latitude), lng: Number(office.longitude), radiusMeters: office.radiusMeters ?? 200 } : null,
+      sites: mapped,
+      // Kept so older clients (and the mobile app) keep working: the default
+      // site, or the first one. New callers should read `sites`.
+      office: mapped[0] ?? null,
       count: employees.length,
       employees,
     };

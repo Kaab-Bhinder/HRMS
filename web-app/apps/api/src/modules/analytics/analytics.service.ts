@@ -21,6 +21,10 @@ export class AnalyticsService {
       openTasks,
       attrition,
       pendingApprovals,
+      activeClients,
+      totalClients,
+      clientSites,
+      staffOnClientSites,
     ] = await Promise.all([
       this.prisma.employee.count({ where: { ...empWhere, status: 'active' } }),
       this.prisma.employee.count({ where: empWhere }),
@@ -30,6 +34,12 @@ export class AnalyticsService {
       this.prisma.task.count({ where: this.taskWhere(orgId, q, { status: { notIn: ['done', 'cancelled'] } }) }),
       this.prisma.employee.count({ where: { ...empWhere, status: { in: ['resigned', 'terminated'] } } }),
       this.prisma.leaveRequest.count({ where: { organizationId: orgId, deletedAt: null, status: 'pending' } }),
+      this.prisma.client.count({ where: { organizationId: orgId, deletedAt: null, status: 'active' } }),
+      this.prisma.client.count({ where: { organizationId: orgId, deletedAt: null } }),
+      this.prisma.location.count({ where: { organizationId: orgId, deletedAt: null, clientId: { not: null } } }),
+      // How much of the workforce is deployed on client premises rather than
+      // an own branch — the number a staffing business actually watches.
+      this.prisma.employee.count({ where: { ...empWhere, location: { clientId: { not: null } } } }),
     ]);
 
     const attritionRate = total > 0 ? Math.round((attrition / total) * 1000) / 10 : 0;
@@ -48,6 +58,7 @@ export class AnalyticsService {
       onLeave: { value: onLeaveByStatus + onLeaveToday, delta: 0 },
       openTasks: { value: openTasks, delta: 0 },
       attritionRate: { value: attritionRate, delta: 0 },
+      clients: { active: activeClients, total: totalClients, sites: clientSites, staffDeployed: staffOnClientSites },
       pendingApprovals,
       attendanceTrend,
       departmentHeadcount,

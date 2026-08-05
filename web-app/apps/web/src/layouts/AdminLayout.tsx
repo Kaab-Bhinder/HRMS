@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
+import { AssistantWidget } from '../components/AssistantWidget';
 import { Sidebar, MobileSidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { CommandPalette } from './CommandPalette';
@@ -30,6 +31,7 @@ export function AdminLayout() {
         </main>
       </div>
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
+      <AssistantWidget />
     </div>
   );
 }

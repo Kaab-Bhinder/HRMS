@@ -14,7 +14,7 @@ import { Input, Select, Label } from '../../components/ui/Input';
 import { Checkbox } from '../../components/ui/Switch';
 import { Dropdown, DropdownItem, DropdownSeparator } from '../../components/ui/Dropdown';
 import { EmptyState } from '../../components/feedback/States';
-import { reportsService, REPORT_BACKEND_MODULES, type SavedReport } from '../../services';
+import { reportsService, departmentsService, type SavedReport, type CatalogReport } from '../../services';
 import { useQuery } from '../../hooks/useQuery';
 import { useToast } from '../../store/toast';
 import { useI18n } from '../../store/i18n';
@@ -24,13 +24,6 @@ import { relativeTime, pluralize } from '../../lib/format';
 
 type ReportModule = 'Attendance' | 'Payroll' | 'Leave' | 'Employees' | 'Performance';
 type ReportFormat = 'PDF' | 'Excel' | 'CSV';
-
-interface ReportDef {
-  id: string;
-  title: string;
-  description: string;
-  module: ReportModule;
-}
 
 interface ScheduledReport {
   id: string;
@@ -62,21 +55,6 @@ const FORMAT_TONE: Record<ReportFormat, 'danger' | 'success' | 'info'> = {
   CSV: 'info',
 };
 
-const REPORT_CATALOG: ReportDef[] = [
-  { id: 'att-daily', title: 'Daily Attendance Register', description: 'Check-in/out times, late marks and flagged records for a given day.', module: 'Attendance' },
-  { id: 'att-monthly', title: 'Monthly Attendance Summary', description: 'Per-employee present, absent and overtime totals across the month.', module: 'Attendance' },
-  { id: 'att-biometric', title: 'Biometric Exceptions', description: 'Low face-match scores and manual overrides requiring review.', module: 'Attendance' },
-  { id: 'pay-register', title: 'Payroll Register (PKR)', description: 'Gross, deductions and net pay by employee for the pay cycle.', module: 'Payroll' },
-  { id: 'pay-tax', title: 'Tax Withholding Statement', description: 'FBR-aligned income tax deductions and YTD contributions.', module: 'Payroll' },
-  { id: 'pay-bank', title: 'Bank Disbursement File', description: 'Account-wise salary transfer schedule for treasury upload.', module: 'Payroll' },
-  { id: 'lv-balance', title: 'Leave Balance Sheet', description: 'Accrued, availed and carried-forward balances by leave type.', module: 'Leave' },
-  { id: 'lv-liability', title: 'Leave Liability Report', description: 'Encashment exposure of outstanding leave across departments.', module: 'Leave' },
-  { id: 'emp-directory', title: 'Employee Directory', description: 'Master roster with department, designation and contact details.', module: 'Employees' },
-  { id: 'emp-headcount', title: 'Headcount Movement', description: 'Joiners, leavers and net change by department and grade.', module: 'Employees' },
-  { id: 'emp-diversity', title: 'Diversity & Inclusion', description: 'Gender split, tenure bands and location distribution.', module: 'Employees' },
-  { id: 'perf-cycle', title: 'Appraisal Cycle Status', description: 'Review completion and average scores by reviewer.', module: 'Performance' },
-  { id: 'perf-goals', title: 'Goal Attainment', description: 'On-track vs at-risk objectives across the organization.', module: 'Performance' },
-];
 
 const COLUMN_OPTIONS = ['Employee', 'Department', 'Designation', 'Date', 'Status', 'Amount', 'Manager'];
 const SCHEDULE_OPTIONS = ['None', 'Daily', 'Weekly', 'Monthly'];
@@ -94,6 +72,10 @@ export default function ReportsPage() {
     useQuery(() => reportsService.listSaved({ limit: 100 }), []);
   const saved = savedData?.data ?? [];
 
+  // The catalogue is the server's — every entry is a report that really runs.
+  const { data: catalog, loading: catalogLoading } = useQuery(() => reportsService.catalog(), []);
+  const [runTarget, setRunTarget] = useState<CatalogReport | null>(null);
+
   const deleteSaved = async (r: SavedReport) => {
     try {
       await reportsService.removeSaved(r.id);
@@ -105,34 +87,29 @@ export default function ReportsPage() {
   };
 
   const filtered = useMemo(() => {
+    const all = catalog ?? [];
     const q = debounced.trim().toLowerCase();
-    if (!q) return REPORT_CATALOG;
-    return REPORT_CATALOG.filter(
+    if (!q) return all;
+    return all.filter(
       (r) => r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.module.toLowerCase().includes(q),
     );
-  }, [debounced]);
+  }, [debounced, catalog]);
 
   const grouped = useMemo(
     () => MODULES.map((m) => ({ module: m, reports: filtered.filter((r) => r.module === m) })).filter((g) => g.reports.length > 0),
     [filtered],
   );
 
-  // Real export for modules with a backend data source; the rest are honest about status.
-  const exportReport = async (title: string, module: string) => {
-    const backend = REPORT_BACKEND_MODULES[module];
-    if (!backend) {
-      toast.success(`${module} reports coming soon`, `The data source for “${title}” isn’t connected yet.`);
-      return;
-    }
+  /** Runs one catalogue report with the parameters chosen in the dialog. */
+  const runNow = async (report: CatalogReport, format: string, params: Record<string, string>) => {
     try {
-      toast.success('Generating report', `Preparing ${title}…`);
-      await reportsService.export(backend);
+      toast.success('Generating report', `Preparing ${report.title}…`);
+      await reportsService.run(report.key, format, params);
+      setRunTarget(null);
     } catch (e) {
       toast.error('Export failed', (e as Error).message);
     }
   };
-  const runReport = (title: string, module: string) => exportReport(title, module);
-  const downloadReport = (title: string, module: string) => exportReport(title, module);
 
   return (
     <div className="space-y-5">
@@ -144,7 +121,7 @@ export default function ReportsPage() {
 
       <Tabs
         tabs={[
-          { value: 'catalog', label: 'Catalog', count: REPORT_CATALOG.length },
+          { value: 'catalog', label: 'Catalog', count: catalog?.length ?? 0 },
           { value: 'scheduled', label: 'Saved', count: saved.length },
         ]}
         value={tab}
@@ -159,18 +136,18 @@ export default function ReportsPage() {
             <Card>
               <EmptyState
                 icon={<FileText className="h-6 w-6" />}
-                title="No reports found"
+                title={catalogLoading ? 'Loading reports…' : 'No reports found'}
                 description="No reports match your search. Try a different keyword or create a new report."
                 action={canCreate ? <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" /> New Report</Button> : undefined}
               />
             </Card>
           ) : (
             grouped.map((g) => {
-              const Icon = MODULE_META[g.module].icon;
+              const Icon = MODULE_META[g.module as ReportModule].icon;
               return (
                 <section key={g.module} className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <span className={`flex h-6 w-6 items-center justify-center rounded-md ${MODULE_META[g.module].iconClass} [&>svg]:h-3.5 [&>svg]:w-3.5`}>
+                    <span className={`flex h-6 w-6 items-center justify-center rounded-md ${MODULE_META[g.module as ReportModule].iconClass} [&>svg]:h-3.5 [&>svg]:w-3.5`}>
                       <Icon />
                     </span>
                     <h2 className="text-sm font-semibold text-foreground">{g.module}</h2>
@@ -178,20 +155,19 @@ export default function ReportsPage() {
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {g.reports.map((r) => (
-                      <Card key={r.id} className="flex flex-col p-5">
+                      <Card key={r.key} className="flex flex-col p-5">
                         <div className="flex items-start gap-3">
-                          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${MODULE_META[r.module].iconClass} [&>svg]:h-5 [&>svg]:w-5`}>
+                          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${MODULE_META[r.module as ReportModule].iconClass} [&>svg]:h-5 [&>svg]:w-5`}>
                             <Icon />
                           </span>
                           <div className="min-w-0">
                             <h3 className="truncate text-sm font-semibold text-foreground">{r.title}</h3>
-                            <Badge tone={MODULE_META[r.module].tone} className="mt-1">{r.module}</Badge>
+                            <Badge tone={MODULE_META[r.module as ReportModule].tone} className="mt-1">{r.module}</Badge>
                           </div>
                         </div>
                         <p className="mt-3 flex-1 text-sm text-muted-foreground">{r.description}</p>
                         <div className="mt-4 flex items-center gap-2">
-                          <Button size="sm" className="flex-1" onClick={() => runReport(r.title, r.module)}><Play className="h-3.5 w-3.5" /> Run</Button>
-                          <Button variant="outline" size="sm" onClick={() => downloadReport(r.title, r.module)}><Download className="h-3.5 w-3.5" /> Download</Button>
+                          <Button size="sm" className="flex-1" onClick={() => setRunTarget(r)}><Play className="h-3.5 w-3.5" /> Run report</Button>
                         </div>
                       </Card>
                     ))}
@@ -201,6 +177,14 @@ export default function ReportsPage() {
             })
           )}
         </div>
+      )}
+
+      {runTarget && (
+        <RunReportModal
+          report={runTarget}
+          onClose={() => setRunTarget(null)}
+          onRun={(format, params) => runNow(runTarget, format, params)}
+        />
       )}
 
       {tab === 'scheduled' && (
@@ -246,7 +230,16 @@ export default function ReportsPage() {
                     <td className="px-5 py-3.5 text-muted-foreground">{relativeTime(s2.createdAt)}</td>
                     <td className="px-5 py-3.5 text-right">
                       <Dropdown trigger={<Button variant="ghost" size="icon" aria-label="Actions"><MoreHorizontal className="h-4 w-4" /></Button>}>
-                        <DropdownItem icon={<Play />} onClick={() => exportReport(s2.name, capitalize(s2.module))}>Run now</DropdownItem>
+                        <DropdownItem
+                          icon={<Play />}
+                          onClick={() => {
+                            // A saved definition names a module; run its first
+                            // catalogue report so the parameters still apply.
+                            const target = (catalog ?? []).find((c) => c.module.toLowerCase() === s2.module.toLowerCase());
+                            if (target) setRunTarget(target);
+                            else toast.error('Cannot run', `No report is available for ${s2.module}.`);
+                          }}
+                        >Run now</DropdownItem>
                         <DropdownSeparator />
                         <DropdownItem icon={<Trash2 />} danger onClick={() => deleteSaved(s2)}>Delete</DropdownItem>
                       </Dropdown>
@@ -299,18 +292,12 @@ function NewReportModal({ open, onClose, onSaved }: { open: boolean; onClose: ()
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
-    const backend = REPORT_BACKEND_MODULES[module];
-    // Only three modules have a server-side data source; saving a definition
-    // for the others would create a report that can never run.
-    if (!backend) {
-      toast.error('Module not available', `${module} reports have no data source yet. Choose Attendance, Employees or Leave.`);
-      return;
-    }
+
     setSaving(true);
     try {
       await reportsService.createSaved({
         name: name.trim(),
-        module: backend,
+        module: module.toLowerCase(),
         definition: { columns, format },
         scheduleCron: SCHEDULE_CRON[schedule],
       });
@@ -386,6 +373,96 @@ function NewReportModal({ open, onClose, onSaved }: { open: boolean; onClose: ()
           <p className="mt-1.5 text-xs text-muted-foreground">
             {schedule === 'None' ? 'This report will run on demand only.' : `Recipients will receive this report ${schedule.toLowerCase()}.`}
           </p>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Collects exactly the parameters a report declares before running it.
+ * Previously every report downloaded the whole table with no period at all —
+ * a "Daily Attendance Register" that ignored the date.
+ */
+function RunReportModal({
+  report, onClose, onRun,
+}: {
+  report: CatalogReport;
+  onClose: () => void;
+  onRun: (format: string, params: Record<string, string>) => Promise<void>;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const monthStart = today.slice(0, 8) + '01';
+  const { data: depts } = useQuery(() => departmentsService.tree(), []);
+  const [format, setFormat] = useState('csv');
+  const [date, setDate] = useState(today);
+  const [from, setFrom] = useState(monthStart);
+  const [to, setTo] = useState(today);
+  const [departmentId, setDepartmentId] = useState('');
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const needs = (p: string) => report.params.includes(p as never);
+
+  const submit = async () => {
+    setBusy(true);
+    const params: Record<string, string> = {};
+    if (needs('date')) params.date = date;
+    if (needs('range') || needs('month')) { params.from = from; params.to = to; }
+    if (needs('department') && departmentId) params.departmentId = departmentId;
+    if (needs('status') && status) params.status = status;
+    try { await onRun(format, params); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal open onClose={onClose} title={report.title} description={report.description} size="md">
+      <div className="space-y-4">
+        {needs('date') && (
+          <div>
+            <Label>Date</Label>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+        )}
+        {(needs('range') || needs('month')) && (
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>From</Label><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
+            <div><Label>To</Label><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
+          </div>
+        )}
+        {needs('department') && (
+          <div>
+            <Label>Department</Label>
+            <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+              <option value="">All departments</option>
+              {(depts ?? []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </Select>
+          </div>
+        )}
+        {needs('status') && (
+          <div>
+            <Label>Status</Label>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">Any status</option>
+              {['pending', 'approved', 'rejected', 'cancelled'].map((v) => <option key={v} value={v}>{v}</option>)}
+            </Select>
+          </div>
+        )}
+        {report.params.length === 0 && (
+          <p className="text-sm text-muted-foreground">This report takes no parameters — it covers everything you can see.</p>
+        )}
+        <div>
+          <Label>Format</Label>
+          <Select value={format} onChange={(e) => setFormat(e.target.value)}>
+            <option value="csv">CSV</option>
+            <option value="xlsx">Excel (.xlsx)</option>
+            <option value="pdf">PDF</option>
+          </Select>
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button onClick={submit} disabled={busy}>
+            <Download className="h-4 w-4" /> {busy ? 'Generating…' : 'Generate & download'}
+          </Button>
         </div>
       </div>
     </Modal>

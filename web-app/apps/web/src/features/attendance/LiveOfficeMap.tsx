@@ -4,7 +4,7 @@ import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { RefreshCw, Users } from 'lucide-react';
-import { attendanceService, type OfficeMap, type MapEmployee } from '../../services';
+import { attendanceService, type OfficeMap, type MapEmployee, type MapSite } from '../../services';
 import { useTheme } from '../../store/theme';
 import { EmptyState, Skeleton } from '../../components/feedback/States';
 
@@ -45,13 +45,26 @@ function clusterIcon(cluster: { getChildCount: () => number }): L.DivIcon {
   });
 }
 
-/** Recenters the map when the office coordinates first load. */
-function Recenter({ lat, lng }: { lat: number; lng: number }) {
+/**
+ * Frames the map on whatever is selected: one site zooms to it, "All sites"
+ * fits every one in view. Re-runs on selection change — unlike the old
+ * one-shot recentre, which could only ever show head office.
+ */
+function FitSites({ sites, selectedId }: { sites: MapSite[]; selectedId: string }) {
   const map = useMap();
-  const done = useRef(false);
   useEffect(() => {
-    if (!done.current) { map.setView([lat, lng], 16); done.current = true; }
-  }, [lat, lng, map]);
+    if (!sites.length) return;
+    const shown = selectedId === 'all' ? sites : sites.filter((s) => s.id === selectedId);
+    if (!shown.length) return;
+    if (shown.length === 1) {
+      map.setView([shown[0].lat, shown[0].lng], 16);
+      return;
+    }
+    map.fitBounds(L.latLngBounds(shown.map((s) => [s.lat, s.lng] as [number, number])), {
+      padding: [48, 48],
+      maxZoom: 16,
+    });
+  }, [sites, selectedId, map]);
   return null;
 }
 
@@ -60,6 +73,8 @@ export function LiveOfficeMap({ height = 380 }: { height?: number }) {
   const [data, setData] = useState<OfficeMap | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  /** 'all' shows every site at once; otherwise one site's id. */
+  const [selected, setSelected] = useState<string>('all');
 
   const load = async (initial = false) => {
     if (!initial) setRefreshing(true);
@@ -76,16 +91,36 @@ export function LiveOfficeMap({ height = 380 }: { height?: number }) {
   }, []);
 
   const tiles = theme === 'dark' ? TILES.dark : TILES.light;
-  const office = data?.office;
-  const center = useMemo<[number, number]>(() => (office ? [office.lat, office.lng] : [0, 0]), [office]);
+  // Tolerate the older single-office payload so a stale API can't blank the map.
+  const sites: MapSite[] = data?.sites?.length ? data.sites : data?.office ? [data.office] : [];
+  const shown = selected === 'all' ? sites : sites.filter((s) => s.id === selected);
+  const center = useMemo<[number, number]>(
+    () => (shown[0] ? [shown[0].lat, shown[0].lng] : sites[0] ? [sites[0].lat, sites[0].lng] : [0, 0]),
+    [shown, sites],
+  );
 
   if (loading) return <div style={{ height }}><Skeleton className="h-full w-full" /></div>;
-  if (!office) return <div style={{ height }}><EmptyState icon={<Users className="h-6 w-6" />} title="Set the office location" description="Add office coordinates in Attendance Settings to see the live map." /></div>;
+  if (!sites.length) return <div style={{ height }}><EmptyState icon={<Users className="h-6 w-6" />} title="No work sites mapped" description="Add coordinates to a location in Organization → Locations to see the live map." /></div>;
 
   return (
     // `isolate` traps Leaflet's internal z-indexes (up to ~1000) inside this
     // box so the map can never bleed over app modals (z-50).
     <div className="relative isolate overflow-hidden rounded-xl border border-border" style={{ height }}>
+      {sites.length > 1 && (
+        <div className="absolute left-3 top-3 z-[500]">
+          <select
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            className="rounded-full border border-border bg-surface/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-card backdrop-blur focus:outline-none focus:ring-2 focus:ring-primary/40"
+            aria-label="Work site"
+          >
+            <option value="all">All sites ({sites.length})</option>
+            {sites.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}{s.clientName ? ` — ${s.clientName}` : ''}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="pointer-events-none absolute right-3 top-3 z-[500] flex items-center gap-2 rounded-full bg-surface/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-card backdrop-blur">
         <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success/70" /><span className="relative inline-flex h-2 w-2 rounded-full bg-success" /></span>
         {data?.count ?? 0} checked in
@@ -94,11 +129,31 @@ export function LiveOfficeMap({ height = 380 }: { height?: number }) {
 
       <MapContainer center={center} zoom={16} style={{ height: '100%', width: '100%' }} scrollWheelZoom preferCanvas>
         <TileLayer url={tiles.url} attribution={tiles.attribution} />
-        <Recenter lat={office.lat} lng={office.lng} />
-        <Circle center={center} radius={office.radiusMeters} pathOptions={{ color: 'hsl(256 50% 62%)', fillColor: 'hsl(256 50% 62%)', fillOpacity: 0.1, weight: 1.5 }} />
-        <Marker position={center} icon={L.divIcon({ className: '', html: `<div style="width:18px;height:18px;border-radius:50%;background:hsl(40 9% 15%);border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>`, iconSize: [18, 18], iconAnchor: [9, 9] })}>
-          <Popup><b>{office.name}</b><br />Office · {office.radiusMeters}m geofence</Popup>
-        </Marker>
+        <FitSites sites={sites} selectedId={selected} />
+        {shown.map((s) => (
+          <div key={s.id}>
+            <Circle
+              center={[s.lat, s.lng]}
+              radius={s.radiusMeters}
+              pathOptions={{
+                // Client premises read differently from an own branch at a glance.
+                color: s.clientName ? 'hsl(28 80% 52%)' : 'hsl(256 50% 62%)',
+                fillColor: s.clientName ? 'hsl(28 80% 52%)' : 'hsl(256 50% 62%)',
+                fillOpacity: 0.1, weight: 1.5,
+              }}
+            />
+            <Marker
+              position={[s.lat, s.lng]}
+              icon={L.divIcon({ className: '', html: `<div style="width:18px;height:18px;border-radius:50%;background:${s.clientName ? 'hsl(28 80% 42%)' : 'hsl(40 9% 15%)'};border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>`, iconSize: [18, 18], iconAnchor: [9, 9] })}
+            >
+              <Popup>
+                <b>{s.name}</b><br />
+                {s.clientName ? `Client site · ${s.clientName}` : 'Own site'}{s.isDefault ? ' · default' : ''}<br />
+                {s.radiusMeters}m geofence
+              </Popup>
+            </Marker>
+          </div>
+        ))}
 
         <MarkerClusterGroup chunkedLoading iconCreateFunction={clusterIcon} maxClusterRadius={50} showCoverageOnHover={false}>
           {(data?.employees ?? []).map((e) => (

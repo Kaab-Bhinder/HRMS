@@ -19,6 +19,14 @@ export class ReportsController {
     return this.service.list(orgId, query);
   }
 
+  /** The report catalogue, so the UI never hard-codes report titles again. */
+  @Get('catalog')
+  @RequirePermissions('reports:read')
+  @ApiOperation({ summary: 'List available reports and the parameters each needs' })
+  catalog() {
+    return this.service.listCatalog();
+  }
+
   @Get('export')
   @RequirePermissions('reports:read')
   @ApiOperation({ summary: 'Run and download a report (module + format + filters)' })

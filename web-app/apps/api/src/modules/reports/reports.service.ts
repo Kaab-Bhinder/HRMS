@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { REPORT_DEFINITIONS } from './report-definitions.service';
 import { PrismaService } from '../../database/prisma.service';
 import { paginated } from '../../common/dto/pagination.dto';
 import { ReportColumn, ReportExportService } from './report-export.service';
@@ -85,12 +86,32 @@ export class ReportsService {
 
   /** Builds a dataset for a module, applies filters, and renders it via the chosen formatter. */
   async run(orgId: string, q: RunReportQueryDto): Promise<{ filename: string; contentType: string; body: Buffer | string }> {
-    const { columns, rows } = await this.buildDataset(orgId, q.module, q);
+    // A catalogue report has its own query and columns; only an unkeyed request
+    // falls back to the generic per-module dump.
+    const def = q.report ? REPORT_DEFINITIONS.find((d) => d.key === q.report) : undefined;
+    if (q.report && !def) throw new BadRequestException(`Unknown report "${q.report}"`);
+
+    const { columns, rows } = def
+      ? await def.build({
+          orgId, prisma: this.prisma,
+          date: q.date, from: q.from, to: q.to,
+          departmentId: q.departmentId, status: q.status,
+        })
+      : await this.buildDataset(orgId, q.module, q);
+
     const formatter = this.exporter.getFormatter(q.format);
     const body = formatter.render(columns, rows);
     const stamp = new Date().toISOString().slice(0, 10);
-    const filename = `${q.module}-report-${stamp}.${formatter.extension}`;
-    return { filename, contentType: formatter.contentType, body };
+    const slug = def ? def.key : `${q.module}-report`;
+    return { filename: `${slug}-${stamp}.${formatter.extension}`, contentType: formatter.contentType, body };
+  }
+
+  /** The catalogue the UI renders — titles, descriptions, and which
+   *  parameters each report actually needs. */
+  listCatalog() {
+    return REPORT_DEFINITIONS.map((d) => ({
+      key: d.key, title: d.title, description: d.description, module: d.module, params: d.params,
+    }));
   }
 
   private async buildDataset(
