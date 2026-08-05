@@ -23,6 +23,7 @@ import { EmployeesModule } from './modules/employees/employees.module';
 import { FilesModule } from './modules/files/files.module';
 import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { FaceModule } from './modules/face/face.module';
+import { AssistantModule } from './modules/assistant/assistant.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { BiometricModule } from './modules/biometric/biometric.module';
 import { LeaveModule } from './modules/leave/leave.module';
@@ -63,6 +64,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     DepartmentsModule,
     DesignationsModule,
     ClientsModule,
+    AssistantModule,
     AssetsModule,
     RolesModule,
     PermissionsModule,

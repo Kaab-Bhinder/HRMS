@@ -195,6 +195,7 @@ export class EmployeesService {
         personalEmail: dto.personalEmail?.toLowerCase(),
         phone: dto.phone,
         gender: dto.gender,
+        photoFileId: dto.photoFileId,
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
         departmentId: dto.departmentId,
         designationId: dto.designationId,
@@ -248,6 +249,20 @@ export class EmployeesService {
       })) as Prisma.InputJsonValue;
     }
 
+    // Work email IS the login email (the form says "fills from work email").
+    // Changing one without the other silently splits the two: HR searches
+    // Users by the new address and finds nothing, while the employee can only
+    // sign in with the old one. Keep the linked account in step.
+    const newEmail = dto.workEmail?.toLowerCase();
+    if (newEmail && existing.userId && newEmail !== existing.workEmail?.toLowerCase()) {
+      const clash = await this.prisma.user.findFirst({
+        where: { organizationId: orgId, email: newEmail, deletedAt: null, id: { not: existing.userId } },
+        select: { id: true },
+      });
+      if (clash) throw new ConflictException('Another user already signs in with this work email');
+      await this.prisma.user.update({ where: { id: existing.userId }, data: { email: newEmail } });
+    }
+
     const emp = await this.prisma.employee.update({
       where: { id },
       data: {
@@ -258,6 +273,7 @@ export class EmployeesService {
         personalEmail: dto.personalEmail?.toLowerCase(),
         phone: dto.phone,
         gender: dto.gender,
+        photoFileId: dto.photoFileId,
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
         departmentId: dto.departmentId,
         designationId: dto.designationId,
@@ -377,6 +393,7 @@ export class EmployeesService {
       departmentName: e.department?.name ?? null,
       designationId: e.designationId,
       designationName: e.designation?.title ?? null,
+      photoFileId: e.photoFileId ?? null,
       locationId: e.locationId ?? null,
       locationName: e.location?.name ?? null,
       managerId: e.managerId,

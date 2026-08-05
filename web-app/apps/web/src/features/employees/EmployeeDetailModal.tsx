@@ -2,6 +2,7 @@ import { Mail, Phone, Building2, Briefcase, MapPin, CalendarDays, Trash2, Paperc
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
+import { EmployeeAvatar } from '../../components/EmployeeAvatar';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useQuery } from '../../hooks/useQuery';
 import { customFieldsService, filesService } from '../../services';
@@ -35,7 +36,7 @@ export function EmployeeDetailModal({ open, onClose, employee, onEdit, onDelete 
     >
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Avatar name={employee.fullName} size="lg" />
+          <EmployeeAvatar name={employee.fullName} fileId={employee.photoFileId} size="lg" />
           <div className="min-w-0">
             <div className="flex items-center gap-2.5">
               <h3 className="text-lg font-semibold text-foreground">{employee.fullName}</h3>

@@ -425,6 +425,9 @@ model Employee {
   lastName         String           @map("last_name") @db.VarChar(80)
   displayName      String?          @map("display_name") @db.VarChar(160)
   workEmail        String?          @map("work_email") @db.VarChar(255)
+  // Profile photo, stored as a FileObject id (served through the authenticated
+  // /files/:id/download endpoint — never a public URL).
+  photoFileId      String?          @map("photo_file_id") @db.Uuid
   personalEmail    String?          @map("personal_email") @db.VarChar(255)
   phone            String?          @db.VarChar(30)
   gender           Gender?

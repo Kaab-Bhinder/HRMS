@@ -243,6 +243,7 @@ const Map<String, String> idStrings = {
   'Check-in result': 'Hasil check-in',
   'Attendance Photo': 'Foto Kehadiran',
   'Base Photo': 'Foto Dasar',
+  'No base photo': 'Belum ada foto dasar',
   'Match Check': 'Pemeriksaan Kecocokan',
   'Liveness Check': 'Pemeriksaan Keaslian',
   'Passed': 'Lolos',

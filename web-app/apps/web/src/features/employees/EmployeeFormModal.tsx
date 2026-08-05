@@ -4,6 +4,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Input, Select, Label } from '../../components/ui/Input';
 import { DynamicCustomField, validateCustomFields } from '../../components/forms/DynamicCustomField';
+import { EmployeePhoto } from '../../components/forms/EmployeePhoto';
 import { Skeleton } from '../../components/feedback/States';
 import { useQuery } from '../../hooks/useQuery';
 import { clientsService, customFieldsService, departmentsService, designationsService, employeesService, locationsService, organizationService, rolesService } from '../../services';
@@ -12,7 +13,7 @@ import { usePermission } from '../../store/auth';
 import type { Employee, Role } from '../../lib/types';
 
 const EMPTY = {
-  firstName: '', lastName: '', workEmail: '', phone: '', gender: 'male',
+  firstName: '', lastName: '', workEmail: '', phone: '', gender: 'male', photoFileId: '',
   departmentId: '', designationId: '', locationId: '', employmentType: 'full_time', status: 'probation',
   dateOfJoining: new Date().toISOString().slice(0, 10),
   compensationType: 'hourly', basicSalary: '', payPerHour: '',
@@ -51,7 +52,8 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
     if (open) {
       setForm(employee ? {
         firstName: employee.firstName, lastName: employee.lastName, workEmail: employee.workEmail,
-        phone: employee.phone, gender: employee.gender ?? 'male', departmentId: employee.departmentId,
+        phone: employee.phone, gender: employee.gender ?? 'male', photoFileId: employee.photoFileId ?? '',
+        departmentId: employee.departmentId,
         designationId: employee.designationId, locationId: employee.locationId ?? '',
         employmentType: employee.employmentType, status: employee.status,
         dateOfJoining: employee.dateOfJoining.slice(0, 10),
@@ -144,6 +146,9 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
     }
     // Except on edit: clearing the work site must persist as null, not vanish.
     if (isEdit && !form.locationId) payload.locationId = null;
+    // Photo: an id, or null to remove it (omitting would mean "unchanged").
+    payload.photoFileId = form.photoFileId || (isEdit ? null : undefined);
+    if (payload.photoFileId === undefined) delete payload.photoFileId;
     // Compensation: send only the field that matches the chosen type, and null
     // out the other so switching type doesn't leave a stale amount behind.
     // Without payroll:read the fields never loaded (masked by the API), so
@@ -221,6 +226,13 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
         <section>
           <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Basic Information</h4>
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <EmployeePhoto
+                fileId={form.photoFileId || null}
+                name={`${form.firstName} ${form.lastName}`.trim()}
+                onChange={(id) => set('photoFileId', id ?? '')}
+              />
+            </div>
             <Field label="First name" required error={errors.firstName}><Input value={form.firstName} onChange={(e) => set('firstName', e.target.value)} invalid={!!errors.firstName} /></Field>
             <Field label="Last name" required error={errors.lastName}><Input value={form.lastName} onChange={(e) => set('lastName', e.target.value)} invalid={!!errors.lastName} /></Field>
             <Field label="Work email" required error={errors.workEmail}><Input type="email" value={form.workEmail} onChange={(e) => set('workEmail', e.target.value)} invalid={!!errors.workEmail} /></Field>

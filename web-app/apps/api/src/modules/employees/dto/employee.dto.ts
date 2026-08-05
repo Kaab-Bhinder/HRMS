@@ -17,6 +17,8 @@ export class CreateEmployeeDto {
   @ApiPropertyOptional() @IsOptional() @IsEmail() workEmail?: string;
   @ApiPropertyOptional() @IsOptional() @IsEmail() personalEmail?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(30) phone?: string;
+  @ApiPropertyOptional({ description: 'Profile photo: an uploaded FileObject id.' })
+  @IsOptional() @IsUUID() photoFileId?: string;
   @ApiPropertyOptional({ enum: Gender }) @IsOptional() @IsEnum(Gender) gender?: Gender;
   @ApiPropertyOptional() @IsOptional() @IsDateString() dateOfBirth?: string;
 

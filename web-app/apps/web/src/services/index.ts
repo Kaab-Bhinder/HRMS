@@ -17,7 +17,7 @@ function pick<T extends Record<string, any>>(obj: T, keys: string[]): Record<str
   return out;
 }
 
-const EMP_FIELDS = ['firstName', 'lastName', 'employeeCode', 'workEmail', 'personalEmail', 'phone', 'gender', 'departmentId', 'designationId', 'locationId', 'managerId', 'employmentType', 'status', 'dateOfJoining', 'compensationType', 'basicSalary', 'payPerHour', 'customFields'];
+const EMP_FIELDS = ['firstName', 'lastName', 'employeeCode', 'workEmail', 'personalEmail', 'phone', 'gender', 'photoFileId', 'departmentId', 'designationId', 'locationId', 'managerId', 'employmentType', 'status', 'dateOfJoining', 'compensationType', 'basicSalary', 'payPerHour', 'customFields'];
 // account fields are only meaningful on create (a linked login is provisioned then)
 const EMP_CREATE_FIELDS = [...EMP_FIELDS, 'createAccount', 'accountRoleId', 'accountPasswordStrategy'];
 const DEPT_FIELDS = ['name', 'code', 'description', 'parentId', 'headEmployeeId', 'costCenter', 'isActive'];

@@ -5,7 +5,7 @@ import { FilterBar } from '../../components/FilterBar';
 import { DataTable, type Column } from '../../components/tables/DataTable';
 import { StatCard } from '../../components/charts/StatCard';
 import { Button } from '../../components/ui/Button';
-import { Avatar } from '../../components/ui/Avatar';
+import { EmployeeAvatar } from '../../components/EmployeeAvatar';
 import { Badge } from '../../components/ui/Badge';
 import { StatusBadge } from '../../components/StatusBadge';
 import { Dropdown, DropdownItem, DropdownSeparator } from '../../components/ui/Dropdown';
@@ -98,7 +98,7 @@ export default function EmployeesPage() {
       key: 'fullName', header: 'Employee', sortable: true,
       render: (e) => (
         <div className="flex items-center gap-3">
-          <Avatar name={e.fullName} src={e.avatarUrl} size="sm" />
+          <EmployeeAvatar name={e.fullName} fileId={e.photoFileId} size="sm" />
           <div className="min-w-0">
             <p className="truncate font-medium text-foreground">{e.fullName}</p>
             <p className="truncate text-xs text-muted-foreground">{e.workEmail}</p>

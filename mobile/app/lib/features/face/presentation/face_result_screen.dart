@@ -59,7 +59,18 @@ class FaceResultScreen extends ConsumerWidget {
             // The two faces, side by side — the whole point of this screen.
             Row(
               children: [
-                Expanded(child: _Photo(label: context.tr('Attendance Photo'), image: Image.memory(selfie, fit: BoxFit.cover))),
+                Expanded(
+                  child: _Photo(
+                    label: context.tr('Attendance Photo'),
+                    image: Image.memory(
+                      selfie,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, e, st) => Center(
+                        child: Icon(Icons.broken_image_rounded, size: 34, color: c.mutedForeground),
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(child: _Photo(label: context.tr('Base Photo'), image: _BasePhoto(ref: ref))),
               ],
@@ -161,12 +172,35 @@ class _BasePhoto extends StatelessWidget {
         if (snap.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator(strokeWidth: 2));
         }
-        if (snap.hasError || snap.data == null) {
+        if (snap.hasError || snap.data == null || snap.data!.isEmpty) {
+          // No reference photo on file (e.g. enrolled before base photos were
+          // stored). Say so instead of leaving an empty grey box.
           return Center(
-            child: Icon(Icons.person_rounded, size: 40, color: context.colors.mutedForeground),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.person_rounded, size: 34, color: context.colors.mutedForeground),
+                  const SizedBox(height: 4),
+                  Text(
+                    context.tr('No base photo'),
+                    style: context.text.labelSmall?.copyWith(color: context.colors.mutedForeground),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
           );
         }
-        return Image.memory(snap.data!, fit: BoxFit.cover);
+        // Guard against a non-image body slipping through on any platform.
+        return Image.memory(
+          snap.data!,
+          fit: BoxFit.cover,
+          errorBuilder: (context, e, st) => Center(
+            child: Icon(Icons.broken_image_rounded, size: 34, color: context.colors.mutedForeground),
+          ),
+        );
       },
     );
   }

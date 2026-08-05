@@ -27,7 +27,17 @@ class ApiClient {
   Future<Uint8List> getBytes(String path) async {
     try {
       final res = await _dio.get<List<int>>(path, options: Options(responseType: ResponseType.bytes));
-      return Uint8List.fromList(res.data ?? const []);
+      // Dio is configured with validateStatus < 500 so the auth interceptor can
+      // handle 401s — which means a 404/403 arrives here as a NORMAL response
+      // whose body is the JSON error envelope. Handing those bytes to
+      // Image.memory throws "Invalid image data", so check the status first.
+      final code = res.statusCode ?? 0;
+      if (code < 200 || code >= 300) {
+        throw ApiException('Image not available', statusCode: code);
+      }
+      final bytes = res.data;
+      if (bytes == null || bytes.isEmpty) throw ApiException('Image not available', statusCode: code);
+      return Uint8List.fromList(bytes);
     } on DioException catch (e) {
       throw ApiException('Could not load image', statusCode: e.response?.statusCode);
     }

@@ -28,6 +28,8 @@ export interface Employee {
   workEmail: string;
   phone: string;
   avatarUrl?: string;
+  /** Profile photo: an uploaded file id, fetched through the authenticated API. */
+  photoFileId?: ID | null;
   gender?: 'male' | 'female' | 'other';
   departmentId: ID;
   departmentName: string;
