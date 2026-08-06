@@ -24,6 +24,7 @@ import { FilesModule } from './modules/files/files.module';
 import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { FaceModule } from './modules/face/face.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
+import { TravelModule } from './modules/travel/travel.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { BiometricModule } from './modules/biometric/biometric.module';
 import { LeaveModule } from './modules/leave/leave.module';
@@ -65,6 +66,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     DesignationsModule,
     ClientsModule,
     AssistantModule,
+    TravelModule,
     AssetsModule,
     RolesModule,
     PermissionsModule,

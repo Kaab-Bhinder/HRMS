@@ -325,3 +325,94 @@ export interface DashboardStats {
   productivity: { week: string; completed: number; assigned: number }[];
   genderSplit: { label: string; value: number }[];
 }
+
+// --- Business travel -------------------------------------------------------
+
+export type TravelStatus =
+  | 'draft' | 'submitted' | 'approved' | 'rejected' | 'advance_paid'
+  | 'realization_submitted' | 'verified' | 'completed' | 'cancelled';
+export type TransportMode = 'flight' | 'train' | 'car' | 'bus' | 'other';
+export type TravelVerification = 'approved' | 'partially_approved' | 'rejected';
+
+export interface TravelActivity {
+  id: ID;
+  activityDate: string;
+  timeLabel: string;
+  description: string;
+}
+
+export interface TravelEvidence {
+  id: ID;
+  fileId: ID;
+  caption?: string | null;
+  createdAt: string;
+}
+
+export interface ApprovalStepView {
+  id: ID;
+  stepOrder: number;
+  status: 'pending' | 'approved' | 'rejected';
+  comment?: string | null;
+  actedAt?: string | null;
+  approverUserId?: ID | null;
+  approverEmployeeId?: ID | null;
+}
+
+export interface TravelRequest {
+  id: ID;
+  reference: string;
+  employeeId: ID;
+  employeeName: string;
+  departmentName: string;
+  destinationCity: string;
+  clientId?: ID | null;
+  clientName?: string | null;
+  purpose: string;
+  startDate: string;
+  endDate: string;
+  transportation: TransportMode;
+  hotelNeeded: boolean;
+  estimatedCost: number;
+  status: TravelStatus;
+
+  requestedTransport: number; requestedHotel: number; requestedAllowance: number;
+  approvedTransport: number; approvedHotel: number; approvedAllowance: number;
+  advanceNote?: string | null;
+  advancePaidAt?: string | null;
+  advancePaymentRef?: string | null;
+
+  actualDepartureDate?: string | null;
+  actualReturnDate?: string | null;
+  transportUsed?: string | null;
+  hotelUsed?: string | null;
+  actualTransport: number; actualHotel: number; actualAllowance: number;
+  realizationNote?: string | null;
+  realizationSubmittedAt?: string | null;
+
+  verification?: TravelVerification | null;
+  verifiedAmount?: number | null;
+  verificationNote?: string | null;
+  verifiedAt?: string | null;
+
+  /** Positive: company owes the traveller. Negative: unspent advance returns. */
+  settlementAmount?: number | null;
+  settlementPaidAt?: string | null;
+  settlementPaymentRef?: string | null;
+
+  requestedTotal: number;
+  advanceTotal: number;
+  actualTotal: number;
+  durationDays: number;
+
+  activities: TravelActivity[];
+  evidence: TravelEvidence[];
+  approvals?: ApprovalStepView[];
+  createdAt: string;
+}
+
+export interface TravelStats {
+  totalTrips: number;
+  totalCost: number;
+  pendingApprovals: number;
+  pendingReimbursements: number;
+}

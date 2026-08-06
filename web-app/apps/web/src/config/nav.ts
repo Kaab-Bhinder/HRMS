@@ -1,8 +1,7 @@
 import {
   LayoutDashboard, Users, UserCog, Building2, BriefcaseBusiness, ShieldCheck, ListChecks, CalendarClock,
   CalendarDays, TrendingUp, BarChart3, FileText, ClipboardList, Bell, ScrollText, Settings,
-  Building, SlidersHorizontal, Wallet, MapPinned, Handshake, Package, type LucideIcon,
-} from 'lucide-react';
+  Building, SlidersHorizontal, Wallet, MapPinned, Handshake, Package, type LucideIcon, Plane } from 'lucide-react';
 
 export interface NavItem {
   label: string;
@@ -40,6 +39,8 @@ export const NAV: NavSection[] = [
       { label: 'Payroll', to: '/payroll', icon: Wallet, permission: 'payroll:read' },
       { label: 'Leave', to: '/leave', icon: CalendarDays, permission: 'leave:read' },
       { label: 'Assets', to: '/assets', icon: Package, permission: 'assets:read' },
+      // No permission gate: results are role-scoped, so everyone sees their own trips.
+      { label: 'Business Travel', to: '/travel', icon: Plane },
       { label: 'Performance', to: '/performance', icon: TrendingUp, permission: 'performance:read' },
     ],
   },

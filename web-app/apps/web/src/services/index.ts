@@ -5,9 +5,9 @@
  */
 import { api, qs, downloadFile } from './client';
 import type {
-  ListParams, Paginated, Employee, Department, Designation, Role, Permission, UserAccount, SessionInfo,
+  ID,ListParams, Paginated, Employee, Department, Designation, Role, Permission, UserAccount, SessionInfo,
   CustomFieldDefinition, AttendanceRecord, LeaveRequest, Task, PerformanceReview, Goal,
-  AppNotification, AuditLog, ActivityItem, CurrentUser, DashboardStats, WorkReport, FileAttachment,
+  AppNotification, AuditLog, ActivityItem, CurrentUser, DashboardStats, WorkReport, FileAttachment, TravelRequest, TravelStats,
 } from '../lib/types';
 
 // pick only defined keys (so we never send disallowed/undefined fields to DTOs)
@@ -290,6 +290,57 @@ export interface AssistantAnswer {
   /** Tool names the assistant actually ran to answer. */
   toolsUsed: string[];
 }
+export const travelService = {
+  list: (p?: ListParams & { status?: string; employeeId?: string }) =>
+    api.get<Paginated<TravelRequest>>(`/travel${qs(p as ListParams)}`),
+  get: (id: string) => api.get<TravelRequest>(`/travel/${id}`),
+  stats: () => api.get<TravelStats>('/travel/stats'),
+
+  create: (payload: Record<string, unknown>) => api.post<TravelRequest>('/travel', payload),
+  submit: (id: string) => api.post<TravelRequest>(`/travel/${id}/submit`, {}),
+  cancel: (id: string) => api.post<TravelRequest>(`/travel/${id}/cancel`, {}),
+
+  approve: (id: string, stepId: string, comment?: string) =>
+    api.post<TravelRequest>(`/travel/${id}/approve`, { stepId, comment }),
+  reject: (id: string, stepId: string, comment?: string) =>
+    api.post<TravelRequest>(`/travel/${id}/reject`, { stepId, comment }),
+
+  setAdvance: (id: string, payload: Record<string, unknown>) =>
+    api.patch<TravelRequest>(`/travel/${id}/advance`, payload),
+  payAdvance: (id: string, payload: Record<string, unknown>) =>
+    api.post<TravelRequest>(`/travel/${id}/advance/pay`, payload),
+
+  submitRealization: (id: string, payload: Record<string, unknown>) =>
+    api.post<TravelRequest>(`/travel/${id}/realization`, payload),
+  addEvidence: (id: string, fileId: string, caption?: string) =>
+    api.post<TravelRequest>(`/travel/${id}/evidence`, { fileId, caption }),
+  removeEvidence: (id: string, evidenceId: string) =>
+    api.del<TravelRequest>(`/travel/${id}/evidence/${evidenceId}`),
+
+  verify: (id: string, payload: Record<string, unknown>) =>
+    api.post<TravelRequest>(`/travel/${id}/verify`, payload),
+  settle: (id: string, payload: Record<string, unknown>) =>
+    api.post<TravelRequest>(`/travel/${id}/settle`, payload),
+};
+
+export interface TravelRule {
+  id: ID;
+  name: string;
+  minLevel: number;
+  maxLevel: number;
+  steps: ('supervisor' | 'department_head' | 'finance')[];
+  isActive: boolean;
+}
+
+export const travelRulesService = {
+  list: () => api.get<TravelRule[]>('/travel/rules'),
+  create: (payload: Partial<TravelRule>) => api.post<TravelRule>('/travel/rules', payload),
+  update: (id: string, payload: Partial<TravelRule>) => api.patch<TravelRule>(`/travel/rules/${id}`, payload),
+  remove: (id: string) => api.del<{ success: boolean }>(`/travel/rules/${id}`),
+  preview: (employeeId: string) =>
+    api.get<{ steps: { name: string; role: string }[] }>(`/travel/rules/preview/${employeeId}`),
+};
+
 export const assistantService = {
   /** Whether any provider is configured — the widget hides itself if not. */
   status: () => api.get<{ available: boolean }>('/assistant/status'),

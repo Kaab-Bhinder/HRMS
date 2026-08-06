@@ -14,6 +14,7 @@ const DepartmentsPage = lazy(() => import('../features/departments/DepartmentsPa
 const DesignationsPage = lazy(() => import('../features/designations/DesignationsPage'));
 const ClientsPage = lazy(() => import('../features/clients/ClientsPage'));
 const AssetsPage = lazy(() => import('../features/assets/AssetsPage'));
+const TravelPage = lazy(() => import('../features/travel/TravelPage'));
 const RolesPage = lazy(() => import('../features/roles/RolesPage'));
 const UsersPage = lazy(() => import('../features/users/UsersPage'));
 const TasksPage = lazy(() => import('../features/tasks/TasksPage'));
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="/designations" element={<Suspended><DesignationsPage /></Suspended>} />
           <Route path="/clients" element={<Suspended><ClientsPage /></Suspended>} />
           <Route path="/assets" element={<Suspended><AssetsPage /></Suspended>} />
+          <Route path="/travel" element={<Suspended><TravelPage /></Suspended>} />
           <Route path="/roles" element={<Suspended><RolesPage /></Suspended>} />
           <Route path="/users" element={<Suspended><UsersPage /></Suspended>} />
           <Route path="/tasks" element={<Suspended><TasksPage /></Suspended>} />

@@ -10,3 +10,6 @@ coverage/
 .vite/
 .DS_Store
 prisma/*.db
+
+# TypeScript incremental build cache — machine-specific, never useful in git
+*.tsbuildinfo

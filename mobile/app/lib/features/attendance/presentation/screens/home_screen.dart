@@ -33,6 +33,7 @@ import '../providers/shift_provider.dart';
 import '../widgets/punch_button.dart';
 import '../widgets/check_in_sheet.dart';
 import '../../../notifications/notifications_screen.dart';
+import '../../../travel/travel_screen.dart';
 import 'attendance_records_screen.dart';
 import '../../../../core/i18n/app_i18n.dart';
 
@@ -605,11 +606,11 @@ class _QuickActions extends ConsumerWidget {
           onTap: () => go(const PayslipScreen()),
         ),
         SoftTile(
-          icon: Icons.folder_open_rounded,
-          title: 'Documents',
+          icon: Icons.flight_takeoff_rounded,
+          title: 'Business Travel',
           tone: AppColors.swatches[4],
-          caption: 'coming soon',
-          onTap: () => AppSnackbar.show(context, 'Documents are coming soon.'),
+          caption: 'request and report trips',
+          onTap: () => go(const TravelScreen()),
         ),
       ],
     );

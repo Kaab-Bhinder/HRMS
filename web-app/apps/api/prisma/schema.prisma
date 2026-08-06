@@ -397,6 +397,7 @@ model Client {
   @@index([organizationId, status])
   @@index([departmentId])
   @@map("clients")
+  travelRequests TravelRequest[]
 }
 
 model Designation {
@@ -483,6 +484,7 @@ model Employee {
   @@index([departmentId])
   @@index([managerId])
   @@map("employees")
+  travelRequests TravelRequest[]
 }
 
 /// Immutable snapshot of one employee's pay for one finalized month. Written
@@ -1467,4 +1469,162 @@ model Setting {
 
   @@id([organizationId, key])
   @@map("settings")
+}
+
+// ---------------------------------------------------------------------------
+// Business travel: request -> approval -> advance -> realization -> settlement
+// ---------------------------------------------------------------------------
+
+enum TravelStatus {
+  draft
+  submitted            // waiting on the approval chain
+  approved             // chain cleared; advance may be paid
+  rejected
+  advance_paid
+  realization_submitted // employee filed the accountability report
+  verified             // finance checked the report
+  completed            // settled and paid out / recovered
+  cancelled
+}
+
+enum TransportMode {
+  flight
+  train
+  car
+  bus
+  other
+}
+
+/// Finance's verdict on the accountability report.
+enum TravelVerification {
+  approved
+  partially_approved
+  rejected
+}
+
+/// Which role fills a step of the approval chain, resolved per employee.
+enum TravelApprover {
+  supervisor
+  department_head
+  finance
+}
+
+model TravelRequest {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  employeeId     String   @map("employee_id") @db.Uuid
+  reference      String   @db.VarChar(40)
+
+  // --- Step 1: the request
+  destinationCity String        @map("destination_city") @db.VarChar(160)
+  clientId        String?       @map("client_id") @db.Uuid
+  clientName      String?       @map("client_name") @db.VarChar(200)
+  purpose         String
+  startDate       DateTime      @map("start_date") @db.Date
+  endDate         DateTime      @map("end_date") @db.Date
+  transportation  TransportMode
+  hotelNeeded     Boolean       @default(false) @map("hotel_needed")
+  estimatedCost   Decimal       @default(0) @map("estimated_cost") @db.Decimal(14, 2)
+
+  status TravelStatus @default(draft)
+
+  // --- Step 3: advance. "requested" is what the employee asked for;
+  // "approved" is what finance actually released, which may be lower.
+  requestedTransport Decimal @default(0) @map("requested_transport") @db.Decimal(14, 2)
+  requestedHotel     Decimal @default(0) @map("requested_hotel") @db.Decimal(14, 2)
+  requestedAllowance Decimal @default(0) @map("requested_allowance") @db.Decimal(14, 2)
+  approvedTransport  Decimal @default(0) @map("approved_transport") @db.Decimal(14, 2)
+  approvedHotel      Decimal @default(0) @map("approved_hotel") @db.Decimal(14, 2)
+  approvedAllowance  Decimal @default(0) @map("approved_allowance") @db.Decimal(14, 2)
+  advanceNote        String? @map("advance_note")
+  advancePaidAt      DateTime? @map("advance_paid_at")
+  advancePaymentRef  String?   @map("advance_payment_ref") @db.VarChar(120)
+
+  // --- Step 4: realization (what actually happened)
+  actualDepartureDate   DateTime? @map("actual_departure_date") @db.Date
+  actualReturnDate      DateTime? @map("actual_return_date") @db.Date
+  transportUsed         String?   @map("transport_used") @db.VarChar(200)
+  hotelUsed             String?   @map("hotel_used") @db.VarChar(200)
+  actualTransport       Decimal   @default(0) @map("actual_transport") @db.Decimal(14, 2)
+  actualHotel           Decimal   @default(0) @map("actual_hotel") @db.Decimal(14, 2)
+  actualAllowance       Decimal   @default(0) @map("actual_allowance") @db.Decimal(14, 2)
+  realizationNote       String?   @map("realization_note")
+  realizationSubmittedAt DateTime? @map("realization_submitted_at")
+
+  // --- Step 5: finance verification
+  verification      TravelVerification?
+  verifiedAmount    Decimal?  @map("verified_amount") @db.Decimal(14, 2)
+  verificationNote  String?   @map("verification_note")
+  verifiedByUserId  String?   @map("verified_by_user_id") @db.Uuid
+  verifiedAt        DateTime? @map("verified_at")
+
+  // --- Settlement. Positive => the company still owes the employee;
+  // negative => the employee must return unspent advance. Frozen at
+  // verification so later edits cannot silently change what was paid.
+  settlementAmount    Decimal?  @map("settlement_amount") @db.Decimal(14, 2)
+  settlementPaidAt    DateTime? @map("settlement_paid_at")
+  settlementPaymentRef String?  @map("settlement_payment_ref") @db.VarChar(120)
+
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  employee   Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  client     Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  activities TravelActivity[]
+  evidence   TravelEvidence[]
+
+  @@unique([organizationId, reference])
+  @@index([organizationId, status])
+  @@index([employeeId, startDate])
+  @@map("travel_requests")
+}
+
+/// One line of the day-by-day activity log on the accountability report.
+model TravelActivity {
+  id              String   @id @default(uuid()) @db.Uuid
+  travelRequestId String   @map("travel_request_id") @db.Uuid
+  activityDate    DateTime @map("activity_date") @db.Date
+  timeLabel       String   @map("time_label") @db.VarChar(20)
+  description     String
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  request TravelRequest @relation(fields: [travelRequestId], references: [id], onDelete: Cascade)
+
+  @@index([travelRequestId, activityDate])
+  @@map("travel_activities")
+}
+
+/// Supporting document attached to the accountability report.
+model TravelEvidence {
+  id              String   @id @default(uuid()) @db.Uuid
+  travelRequestId String   @map("travel_request_id") @db.Uuid
+  fileId          String   @map("file_id") @db.Uuid
+  caption         String?  @db.VarChar(200)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  request TravelRequest @relation(fields: [travelRequestId], references: [id], onDelete: Cascade)
+
+  @@index([travelRequestId])
+  @@map("travel_evidence")
+}
+
+///
+/// Who approves, by seniority. The chain varies with position level, so it is
+/// data rather than code: a rule matches a designation level range and lists
+/// the approver roles in order.
+model TravelApprovalRule {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  name           String          @db.VarChar(120)
+  minLevel       Int             @default(0) @map("min_level")
+  maxLevel       Int             @default(999) @map("max_level")
+  steps          TravelApprover[]
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  @@index([organizationId, isActive])
+  @@map("travel_approval_rules")
 }

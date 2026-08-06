@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/i18n/app_i18n.dart';
@@ -7,20 +8,22 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_shadows.dart';
 import '../attendance/presentation/screens/attendance_records_screen.dart';
 import '../attendance/presentation/screens/home_screen.dart';
+import '../assistant/assistant_providers.dart';
+import '../assistant/assistant_sheet.dart';
 import '../leave/leave_screen.dart';
 import '../profile/presentation/profile_screen.dart';
 import '../tasks/presentation/tasks_screen.dart';
 
 /// The authenticated app frame: a bottom-nav shell that keeps each tab alive via
 /// an IndexedStack. Every tab is a real feature.
-class AppShell extends StatefulWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends ConsumerState<AppShell> {
   int _index = 0;
 
   static const _tabs = <_TabSpec>[
@@ -51,6 +54,25 @@ class _AppShellState extends State<AppShell> {
             ProfileScreen(),
           ],
         ),
+        // Sits above the floating nav so it never covers a tab.
+        floatingActionButton: ref.watch(assistantAvailableProvider).maybeWhen(
+              data: (available) => available
+                  ? Padding(
+                      padding: const EdgeInsets.only(bottom: 72),
+                      child: FloatingActionButton(
+                        heroTag: 'assistant',
+                        onPressed: () => showModalBottomSheet<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => const AssistantSheet(),
+                        ),
+                        child: const Icon(Icons.smart_toy_rounded),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+              orElse: () => const SizedBox.shrink(),
+            ),
         bottomNavigationBar: _BottomNav(
           tabs: _tabs,
           index: _index,
