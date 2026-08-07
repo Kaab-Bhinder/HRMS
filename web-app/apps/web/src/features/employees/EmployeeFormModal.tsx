@@ -13,7 +13,7 @@ import { usePermission } from '../../store/auth';
 import type { Employee, Role } from '../../lib/types';
 
 const EMPTY = {
-  firstName: '', lastName: '', workEmail: '', phone: '', gender: 'male', photoFileId: '',
+  firstName: '', lastName: '', workEmail: '', personalEmail: '', phone: '', gender: 'male', photoFileId: '',
   departmentId: '', designationId: '', locationId: '', employmentType: 'full_time', status: 'probation',
   dateOfJoining: new Date().toISOString().slice(0, 10),
   compensationType: 'hourly', basicSalary: '', payPerHour: '',
@@ -52,7 +52,8 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
     if (open) {
       setForm(employee ? {
         firstName: employee.firstName, lastName: employee.lastName, workEmail: employee.workEmail,
-        phone: employee.phone, gender: employee.gender ?? 'male', photoFileId: employee.photoFileId ?? '',
+        phone: employee.phone, personalEmail: employee.personalEmail ?? '',
+        gender: employee.gender ?? 'male', photoFileId: employee.photoFileId ?? '',
         departmentId: employee.departmentId,
         designationId: employee.designationId, locationId: employee.locationId ?? '',
         employmentType: employee.employmentType, status: employee.status,
@@ -236,6 +237,9 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
             <Field label="First name" required error={errors.firstName}><Input value={form.firstName} onChange={(e) => set('firstName', e.target.value)} invalid={!!errors.firstName} /></Field>
             <Field label="Last name" required error={errors.lastName}><Input value={form.lastName} onChange={(e) => set('lastName', e.target.value)} invalid={!!errors.lastName} /></Field>
             <Field label="Work email" required error={errors.workEmail}><Input type="email" value={form.workEmail} onChange={(e) => set('workEmail', e.target.value)} invalid={!!errors.workEmail} /></Field>
+            <Field label="Personal email" hint="Where the invitation is sent — a new hire rarely has a working company mailbox yet.">
+              <Input type="email" value={form.personalEmail} onChange={(e) => set('personalEmail', e.target.value)} placeholder="name@gmail.com" />
+            </Field>
             <Field label="Phone"><Input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+92 3xx-xxxxxxx" /></Field>
             <Field label="Gender">
               <Select value={form.gender} onChange={(e) => set('gender', e.target.value)}>
@@ -428,11 +432,12 @@ function AccountCreated({ info }: { info: CreatedAccount }) {
   );
 }
 
-function Field({ label, required, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
+function Field({ label, required, error, hint, children }: { label: string; required?: boolean; error?: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
       <Label required={required}>{label}</Label>
       {children}
+      {hint && !error && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
       {error && <p className="mt-1 text-xs text-danger">{error}</p>}
     </div>
   );

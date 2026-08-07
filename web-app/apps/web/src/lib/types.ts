@@ -26,6 +26,8 @@ export interface Employee {
   lastName: string;
   fullName: string;
   workEmail: string;
+  /** Where invitations are sent — often the only reachable address on day one. */
+  personalEmail?: string;
   phone: string;
   avatarUrl?: string;
   /** Profile photo: an uploaded file id, fetched through the authenticated API. */

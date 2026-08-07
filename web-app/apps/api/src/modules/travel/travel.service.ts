@@ -113,7 +113,7 @@ export class TravelService {
       select: {
         managerId: true,
         designation: { select: { level: true } },
-        department: { select: { headEmployeeId: true } },
+        department: { select: { id: true, headEmployeeId: true, parentId: true } },
       },
     });
     if (!emp) throw new NotFoundException('Employee not found');
@@ -125,14 +125,30 @@ export class TravelService {
     });
     const steps = rule?.steps ?? [TravelApprover.supervisor, TravelApprover.department_head, TravelApprover.finance];
 
+    // An approver who has left must not be handed a step — the request would
+    // sit forever waiting on someone who can no longer sign in.
+    const stillEmployed = async (employeeId: string | null | undefined) => {
+      if (!employeeId) return false;
+      const found = await this.prisma.employee.findFirst({
+        where: { id: employeeId, organizationId: orgId, deletedAt: null, userId: { not: null } },
+        select: { id: true },
+      });
+      return !!found;
+    };
+
     const chain: ApproverRef[] = [];
     const seen = new Set<string>();
     for (const step of steps) {
       let ref: ApproverRef | null = null;
-      if (step === TravelApprover.supervisor && emp.managerId) {
-        ref = { employeeId: emp.managerId };
-      } else if (step === TravelApprover.department_head && emp.department?.headEmployeeId) {
-        ref = { employeeId: emp.department.headEmployeeId };
+      if (step === TravelApprover.supervisor && (await stillEmployed(emp.managerId))) {
+        ref = { employeeId: emp.managerId! };
+      } else if (step === TravelApprover.department_head) {
+        // A head cannot approve their own trip, and heads travel the most —
+        // so escalate up the department tree to the first head who isn't the
+        // traveller. Without this, a head's own request deadlocks: the step is
+        // assigned to them and self-approval is (rightly) refused.
+        const approver = await this.resolveHead(orgId, emp.department, employeeId);
+        if (approver) ref = { employeeId: approver };
       } else if (step === TravelApprover.finance) {
         const finance = await this.prisma.user.findFirst({
           where: {
@@ -150,12 +166,42 @@ export class TravelService {
     return chain;
   }
 
+  /**
+   * Finds the department head who should approve, walking up the parent
+   * departments when the obvious head is the traveller themselves. Bounded so
+   * a mis-configured cycle in the tree cannot loop forever.
+   */
+  private async resolveHead(
+    orgId: string,
+    dept: { id: string; headEmployeeId: string | null; parentId: string | null } | null,
+    travellerId: string,
+  ): Promise<string | null> {
+    let current = dept;
+    for (let hops = 0; current && hops < 10; hops++) {
+      const head = current.headEmployeeId;
+      if (head && head !== travellerId) {
+        const alive = await this.prisma.employee.findFirst({
+          where: { id: head, organizationId: orgId, deletedAt: null, userId: { not: null } },
+          select: { id: true },
+        });
+        if (alive) return alive.id;
+      }
+      if (!current.parentId) break;
+      current = await this.prisma.department.findFirst({
+        where: { id: current.parentId, organizationId: orgId, deletedAt: null },
+        select: { id: true, headEmployeeId: true, parentId: true },
+      });
+    }
+    return null;
+  }
+
   /** Approve or reject the current step of the chain. */
   async decide(user: AuthUser, id: string, stepId: string, decision: 'approved' | 'rejected', comment?: string) {
     const req = await this.get(user, id);
     if (req.status !== TravelStatus.submitted) {
       throw new BadRequestException('This request is not awaiting approval');
     }
+    await this.assertMayAction(user, req, stepId);
     const outcome = await this.approvals.act(SUBJECT, id, stepId, decision, comment);
 
     let status: TravelStatus = TravelStatus.submitted;
@@ -178,6 +224,41 @@ export class TravelService {
       }
     }
     return updated;
+  }
+
+  /**
+   * Guards WHO may action a step. The approval engine enforces the order of
+   * the chain but not the identity of the approver, so without this any user
+   * who can see a request could action any pending step — including the
+   * traveller approving their own trip and its advance.
+   *
+   * Two rules:
+   *  - Nobody approves their own travel request, ever. Not even an admin.
+   *  - Otherwise the step must be assigned to you; an admin may act as a
+   *    delegate so a vacant post cannot deadlock the workflow.
+   */
+  private async assertMayAction(user: AuthUser, req: { employeeId: string }, stepId: string) {
+    const me = await this.prisma.employee.findFirst({
+      where: { userId: user.id, organizationId: user.organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (me && me.id === req.employeeId) {
+      throw new ForbiddenException('You cannot approve your own travel request');
+    }
+
+    const step = await this.prisma.approvalStep.findFirst({
+      where: { id: stepId, subjectType: SUBJECT },
+      select: { approverUserId: true, approverEmployeeId: true },
+    });
+    if (!step) throw new NotFoundException('Approval step not found');
+
+    const isMine =
+      (step.approverUserId && step.approverUserId === user.id) ||
+      (step.approverEmployeeId && me && step.approverEmployeeId === me.id);
+    const isDelegate = user.isSuperAdmin || user.permissions.includes('*') || user.permissions.includes('travel:manage');
+    if (!isMine && !isDelegate) {
+      throw new ForbiddenException('This approval step is assigned to someone else');
+    }
   }
 
   // ---------------------------------------------------------------- advance

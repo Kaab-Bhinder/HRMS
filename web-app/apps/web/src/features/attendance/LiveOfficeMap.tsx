@@ -106,12 +106,14 @@ export function LiveOfficeMap({ height = 380 }: { height?: number }) {
     // `isolate` traps Leaflet's internal z-indexes (up to ~1000) inside this
     // box so the map can never bleed over app modals (z-50).
     <div className="relative isolate overflow-hidden rounded-xl border border-border" style={{ height }}>
+      {/* Sits under the live-count pill on the RIGHT: Leaflet pins its zoom
+          control to the top-left, and the two were overlapping. */}
       {sites.length > 1 && (
-        <div className="absolute left-3 top-3 z-[500]">
+        <div className="absolute right-3 top-14 z-[500]">
           <select
             value={selected}
             onChange={(e) => setSelected(e.target.value)}
-            className="rounded-full border border-border bg-surface/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-card backdrop-blur focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="max-w-[13rem] truncate rounded-full border border-border bg-surface/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-card backdrop-blur focus:outline-none focus:ring-2 focus:ring-primary/40"
             aria-label="Work site"
           >
             <option value="all">All sites ({sites.length})</option>

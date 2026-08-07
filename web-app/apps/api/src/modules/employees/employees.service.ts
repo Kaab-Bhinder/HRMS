@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, UserStatus } from '@prisma/client';
+import { AccountTokenPurpose, Prisma, UserStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../../database/prisma.service';
 import { CustomFieldValidatorService } from '../custom-fields/custom-field-validator.service';
@@ -8,6 +8,7 @@ import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { paginated } from '../../common/dto/pagination.dto';
 import { generatePassword } from '../../common/utils/password.util';
 import { canSeePay } from '../../common/utils/pay-visibility.util';
+import { AccountSetupService } from '../auth/account-setup.service';
 import { CreateEmployeeDto, QueryEmployeesDto, UpdateEmployeeDto } from './dto/employee.dto';
 
 const SORTABLE: Record<string, string> = {
@@ -27,6 +28,7 @@ export class EmployeesService {
     private readonly prisma: PrismaService,
     private readonly customFields: CustomFieldValidatorService,
     private readonly scope: ScopeService,
+    private readonly accountSetup: AccountSetupService,
   ) {}
 
   /** Role-scoped list: admins/HR see all; a department head sees only their
@@ -82,8 +84,20 @@ export class EmployeesService {
   async create(orgId: string, actorId: string, dto: CreateEmployeeDto, showPay = true) {
     const { customFields, plan, generatedPassword } = await this.prepareCreate(orgId, dto);
     const emp = await this.prisma.$transaction((tx) => this.insertEmployeeTx(tx, orgId, actorId, dto, customFields, plan));
+
+    // "Send invitation" used to create an account with no password and no way
+    // to obtain one. Now it actually issues a single-use set-password link —
+    // sent to the PERSONAL address when given, since a new hire rarely has a
+    // working company mailbox on day one.
+    let invite: { sentTo: string; expiresInHours: number; link: string } | null = null;
+    if (plan && dto.accountPasswordStrategy === 'invite' && emp.userId) {
+      invite = await this.accountSetup
+        .issue(orgId, emp.userId, AccountTokenPurpose.invite, dto.personalEmail)
+        .catch(() => null);
+    }
+
     // The generated password is returned once so HR can hand it over; never stored in plaintext.
-    return { ...this.serialize(emp, showPay), generatedPassword };
+    return { ...this.serialize(emp, showPay), generatedPassword, invite };
   }
 
   /** All pre-transaction work (custom-field validation + account prep). Lets

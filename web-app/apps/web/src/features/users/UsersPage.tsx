@@ -13,7 +13,7 @@ import { ConfirmDialog } from '../../components/ui/Modal';
 import { UserFormModal } from './UserFormModal';
 import { ResetPasswordModal } from './ResetPasswordModal';
 import { useQuery } from '../../hooks/useQuery';
-import { usersService, rolesService, sessionsService } from '../../services';
+import { usersService, rolesService, sessionsService , accountService } from '../../services';
 import { useToast } from '../../store/toast';
 import { useAuth, usePermission } from '../../store/auth';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
@@ -40,6 +40,20 @@ export default function UsersPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+
+  /** Issues a fresh single-use link and e-mails it. The link comes back in the
+   *  response so HR can copy it when SMTP isn't configured yet — otherwise a
+   *  missing mail server would silently strand the new employee. */
+  const sendInvite = async (u: UserAccount) => {
+    try {
+      const res = await accountService.invite(u.id);
+      toast.success('Invitation sent', `To ${res.sentTo} · valid ${res.expiresInHours}h`);
+      // eslint-disable-next-line no-console
+      console.info('Set-password link:', res.link);
+    } catch (e) {
+      toast.error('Could not send invitation', (e as Error).message);
+    }
+  };
   const [selected, setSelected] = useState<UserAccount | null>(null);
   const [toDelete, setToDelete] = useState<UserAccount | null>(null);
   const [busy, setBusy] = useState(false);
@@ -132,6 +146,11 @@ export default function UsersPage() {
         <Dropdown trigger={<Button variant="ghost" size="icon" aria-label="Actions"><MoreHorizontal className="h-4 w-4" /></Button>}>
           {canUpdate && <DropdownItem icon={<Pencil />} onClick={() => { setSelected(u); setFormOpen(true); }}>Edit &amp; roles</DropdownItem>}
           {canUpdate && <DropdownItem icon={<KeyRound />} onClick={() => { setSelected(u); setResetOpen(true); }}>Reset password</DropdownItem>}
+          {canUpdate && (
+            <DropdownItem icon={<Mail />} onClick={() => void sendInvite(u)}>
+              {u.status === 'invited' ? 'Resend invitation' : 'Send set-password link'}
+            </DropdownItem>
+          )}
           {canUpdate && <DropdownItem icon={<LogOut />} onClick={() => signOutAll(u)}>Sign out all sessions</DropdownItem>}
           {canUpdate && me?.id !== u.id && (
             u.status === 'suspended'

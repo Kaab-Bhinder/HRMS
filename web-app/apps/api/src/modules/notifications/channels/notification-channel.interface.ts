@@ -6,6 +6,10 @@ export interface OutboundMessage {
   body?: string;
   data?: Record<string, unknown>;
   organizationId: string;
+  /** Destination for off-app channels. E-mail cannot be delivered without it. */
+  email?: string;
+  /** Optional rich body; channels that can't render it fall back to `body`. */
+  html?: string;
 }
 
 export interface DeliveryResult {

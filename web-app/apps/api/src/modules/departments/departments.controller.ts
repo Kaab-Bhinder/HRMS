@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { DepartmentsService } from './departments.service';
+import { ReportingLineService } from './reporting-line.service';
 import { CreateDepartmentDto, UpdateDepartmentDto } from './dto/department.dto';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
@@ -10,7 +11,9 @@ import { canSeePay, stripPayFields } from '../../common/utils/pay-visibility.uti
 @ApiBearerAuth()
 @Controller('departments')
 export class DepartmentsController {
-  constructor(private readonly service: DepartmentsService) {}
+  constructor(private readonly service: DepartmentsService,
+    private readonly reportingLine: ReportingLineService,
+  ) {}
 
   @Get()
   @RequirePermissions('departments:read')
@@ -49,5 +52,18 @@ export class DepartmentsController {
   @RequirePermissions('departments:delete')
   remove(@CurrentUser('organizationId') orgId: string, @Param('id') id: string) {
     return this.service.remove(orgId, id);
+  }
+
+  /**
+   * Re-points everyone at the correct manager: your department's head, and a
+   * head at the parent department's head. Only fills gaps unless `force`.
+   * Heads with no manager produce an EMPTY leave approval chain, so this is a
+   * repair as much as a convenience.
+   */
+  @Post('sync-reporting-line')
+  @RequirePermissions('organizations:update')
+  @ApiOperation({ summary: 'Align every employee\'s manager with the org chart' })
+  syncReportingLine(@CurrentUser('organizationId') orgId: string, @Query('force') force?: string) {
+    return this.reportingLine.syncOrganization(orgId, { force: force === 'true' });
   }
 }

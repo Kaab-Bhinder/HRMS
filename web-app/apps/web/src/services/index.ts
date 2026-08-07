@@ -290,6 +290,17 @@ export interface AssistantAnswer {
   /** Tool names the assistant actually ran to answer. */
   toolsUsed: string[];
 }
+export const accountService = {
+  /** HR sends or resends an invitation; `email` targets a personal address. */
+  invite: (userId: string, email?: string) =>
+    api.post<{ sentTo: string; expiresInHours: number; link: string }>('/auth/invite', { userId, email }),
+  /** Public — names the account a link belongs to before asking for a password. */
+  inspectInvite: (token: string) =>
+    api.get<{ email: string; fullName: string; purpose: string }>(`/auth/invite/${token}`),
+  setPassword: (token: string, password: string) =>
+    api.post<{ success: boolean }>('/auth/set-password', { token, password }),
+};
+
 export const travelService = {
   list: (p?: ListParams & { status?: string; employeeId?: string }) =>
     api.get<Paginated<TravelRequest>>(`/travel${qs(p as ListParams)}`),

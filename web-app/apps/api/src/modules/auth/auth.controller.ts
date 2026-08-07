@@ -1,15 +1,18 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AccountTokenPurpose } from '@prisma/client';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
+import { AccountSetupService } from './account-setup.service';
 import { TokenService } from './token.service';
 import { SessionsService } from './sessions.service';
 import { ChangePasswordDto, LoginDto } from './dto/login.dto';
-import { RefreshDto } from './dto/refresh.dto';
+import { InviteDto, RefreshDto, SetPasswordDto } from './dto/refresh.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -19,6 +22,7 @@ export class AuthController {
     private readonly config: ConfigService,
     private readonly tokens: TokenService,
     private readonly sessions: SessionsService,
+    private readonly setup: AccountSetupService,
   ) {}
 
   private cookieName() {
@@ -139,5 +143,30 @@ export class AuthController {
   @ApiOperation({ summary: 'Revoke a specific session by id' })
   async revokeSession(@CurrentUser('id') userId: string, @Param('id') id: string) {
     return this.sessions.revoke(userId, id);
+  }
+
+  /** HR sends or resends an invitation. `email` lets it go to a personal
+   *  address, which is usually the only one that works before first login. */
+  @Post('invite')
+  @RequirePermissions('users:update')
+  @ApiOperation({ summary: 'Send or resend an account invitation' })
+  invite(@CurrentUser('organizationId') orgId: string, @Body() dto: InviteDto) {
+    return this.setup.issue(orgId, dto.userId, AccountTokenPurpose.invite, dto.email);
+  }
+
+  /** Public: lets the set-password page name the account before asking for a
+   *  password, so people can tell a wrong or stale link at a glance. */
+  @Public()
+  @Get('invite/:token')
+  @ApiOperation({ summary: 'Check an invitation link and reveal who it is for' })
+  inspect(@Param('token') token: string) {
+    return this.setup.inspect(token);
+  }
+
+  @Public()
+  @Post('set-password')
+  @ApiOperation({ summary: 'Redeem an invitation or reset link and set a password' })
+  setPassword(@Body() dto: SetPasswordDto) {
+    return this.setup.setPassword(dto.token, dto.password);
   }
 }

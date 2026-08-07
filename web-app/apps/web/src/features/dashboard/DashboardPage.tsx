@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, UserCheck, CalendarOff, ListChecks, TrendingDown, Plus, FileDown,
@@ -7,6 +8,8 @@ import { PageHeader } from '../../components/PageHeader';
 import { SetupWizard } from './SetupWizard';
 import { Card, CardHeader, CardBody } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { reportsService } from '../../services';
+import { useToast } from '../../store/toast';
 import { Avatar } from '../../components/ui/Avatar';
 import { StatusBadge } from '../../components/StatusBadge';
 import { StatCard } from '../../components/charts/StatCard';
@@ -21,6 +24,22 @@ import { formatNumber, relativeTime, formatDate } from '../../lib/format';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const toast = useToast();
+  const [exporting, setExporting] = useState(false);
+
+  /** The button was inert. It now runs the real employee-directory report,
+   *  scoped by the server to whatever this user is allowed to see. */
+  const exportDirectory = async () => {
+    setExporting(true);
+    try {
+      await reportsService.run('emp-directory', 'csv');
+      toast.success('Export ready', 'Employee directory downloaded.');
+    } catch (e) {
+      toast.error('Export failed', (e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
   const { user, can } = useAuth();
   const canTrack = can('attendance:track');
   const { data: stats, loading } = useQuery(() => analyticsService.overview(), []);
@@ -41,7 +60,9 @@ export default function DashboardPage() {
         description="Here’s what’s happening across your organization today."
         actions={
           <>
-            <Button variant="outline" size="sm"><FileDown className="h-4 w-4" /> Export</Button>
+            <Button variant="outline" size="sm" disabled={exporting} onClick={() => void exportDirectory()}>
+              <FileDown className="h-4 w-4" /> {exporting ? 'Exporting…' : 'Export'}
+            </Button>
             <Button size="sm" onClick={() => navigate('/employees')}><Plus className="h-4 w-4" /> Add Employee</Button>
           </>
         }

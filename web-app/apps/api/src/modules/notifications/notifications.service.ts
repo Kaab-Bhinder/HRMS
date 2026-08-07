@@ -13,6 +13,9 @@ export interface NotifyOptions {
   locale?: string;
   title?: string; // used when no template resolves
   body?: string;
+  /** Overrides the recipient's login address for off-app channels. */
+  email?: string;
+  html?: string;
 }
 
 /**
@@ -44,6 +47,11 @@ export class NotificationsService {
         title: rendered.title,
         body: rendered.body,
         data: opts.data,
+        // Off-app channels need somewhere to deliver to. Prefer an explicit
+        // override (an invite goes to a PERSONAL address, which is often the
+        // only one that works before the person has a company mailbox).
+        email: opts.email ?? (await this.addressFor(recipientUserId)),
+        html: opts.html,
       });
       if (channel === Channel.in_app && result.providerRef) inAppId = result.providerRef;
 
@@ -59,6 +67,12 @@ export class NotificationsService {
       });
     }
     return { delivered: enabled, inAppId };
+  }
+
+  /** The login address, used when the caller doesn't override it. */
+  private async addressFor(userId: string): Promise<string | undefined> {
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    return u?.email;
   }
 
   // --- in-app inbox ---

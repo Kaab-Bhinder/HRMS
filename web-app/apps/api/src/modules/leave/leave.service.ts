@@ -250,17 +250,31 @@ export class LeaveService {
       update: { pending: { increment: days } },
     });
 
-    // Route to the employee's manager if one exists, otherwise no approval chain.
-    const chain = employee.manager?.userId ? [{ userId: employee.manager.userId }] : [];
+    // Route to the employee's manager. If they have none — a department head
+    // at the top of the chart — fall back to HR rather than creating an EMPTY
+    // chain, which produced a request nobody was able to approve.
+    let approverUserId = employee.manager?.userId ?? null;
+    if (!approverUserId) {
+      const hr = await this.prisma.employee.findFirst({
+        where: {
+          organizationId: orgId, deletedAt: null, id: { not: employee.id },
+          user: { deletedAt: null, status: 'active', roles: { some: { role: { slug: 'hr-manager' } } } },
+        },
+        select: { userId: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      approverUserId = hr?.userId ?? null;
+    }
+    const chain = approverUserId ? [{ userId: approverUserId }] : [];
     await this.approvals.start(orgId, SUBJECT, request.id, chain);
 
     // Tell the approver there is something waiting. Best-effort: a notification
     // failure must never roll back a leave request the employee successfully
     // filed — they would see an error for work that actually succeeded.
-    if (employee.manager?.userId) {
+    if (approverUserId) {
       const name = `${employee.firstName} ${employee.lastName}`;
       await this.notifications
-        .notify(orgId, employee.manager.userId, {}, {
+        .notify(orgId, approverUserId, {}, {
           eventKey: 'leave.requested',
           category: 'leave',
           title: 'Leave request awaiting your approval',

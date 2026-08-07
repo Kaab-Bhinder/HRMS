@@ -15,6 +15,7 @@ const DesignationsPage = lazy(() => import('../features/designations/Designation
 const ClientsPage = lazy(() => import('../features/clients/ClientsPage'));
 const AssetsPage = lazy(() => import('../features/assets/AssetsPage'));
 const TravelPage = lazy(() => import('../features/travel/TravelPage'));
+const SetPasswordPage = lazy(() => import('../features/auth/SetPasswordPage'));
 const RolesPage = lazy(() => import('../features/roles/RolesPage'));
 const UsersPage = lazy(() => import('../features/users/UsersPage'));
 const TasksPage = lazy(() => import('../features/tasks/TasksPage'));
@@ -47,6 +48,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      {/* Public by design: the person has no password yet, so they cannot be
+          asked to sign in before setting one. */}
+      <Route path="/set-password" element={<Suspended><SetPasswordPage /></Suspended>} />
       <Route element={<ProtectedRoute />}>
         <Route
           element={<AdminLayout />}

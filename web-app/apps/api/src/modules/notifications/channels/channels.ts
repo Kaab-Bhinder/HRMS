@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { createTransport, type Transporter } from 'nodemailer';
+import { Injectable, Logger } from '@nestjs/common';
 import { NotificationChannel as Channel } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { DeliveryResult, NotificationChannelProvider, OutboundMessage } from './notification-channel.interface';
@@ -38,9 +39,63 @@ abstract class StubChannel implements NotificationChannelProvider {
 export class PushChannel extends StubChannel {
   readonly channel = Channel.push; // Firebase Cloud Messaging
 }
+/**
+ * Real e-mail delivery over SMTP — works with SES, Brevo, Postmark, Gmail, or
+ * any provider, so switching vendor is a config change rather than a code one.
+ *
+ * With no SMTP configured it does NOT silently swallow the message: it logs
+ * the full body (including any action link) and reports `queued`, so invites
+ * are still usable in development instead of vanishing.
+ */
 @Injectable()
-export class EmailChannel extends StubChannel {
-  readonly channel = Channel.email; // AWS SES / SMTP
+export class EmailChannel implements NotificationChannelProvider {
+  readonly channel = Channel.email;
+  private readonly log = new Logger(EmailChannel.name);
+  private readonly transport: Transporter | null;
+  private readonly from: string;
+
+  constructor() {
+    const host = process.env.SMTP_HOST;
+    this.from = process.env.SMTP_FROM || 'no-reply@localhost';
+    this.transport = host
+      ? createTransport({
+          host,
+          port: Number(process.env.SMTP_PORT ?? 587),
+          secure: process.env.SMTP_SECURE === 'true',
+          auth: process.env.SMTP_USER
+            ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD ?? '' }
+            : undefined,
+        })
+      : null;
+    if (!this.transport) this.log.warn('SMTP_HOST not set — e-mails will be logged, not sent');
+  }
+
+  get ready(): boolean {
+    return this.transport !== null;
+  }
+
+  async send(message: OutboundMessage): Promise<DeliveryResult> {
+    const to = message.email;
+    if (!to) return { status: 'failed', error: 'No e-mail address for this recipient' };
+
+    if (!this.transport) {
+      this.log.warn(`[dev] e-mail to ${to}: ${message.title}\n${message.body ?? ''}`);
+      return { status: 'queued' };
+    }
+    try {
+      const info = await this.transport.sendMail({
+        from: this.from,
+        to,
+        subject: message.title,
+        text: message.body ?? '',
+        html: message.html,
+      });
+      return { status: 'sent', providerRef: info.messageId };
+    } catch (e) {
+      this.log.error(`e-mail to ${to} failed: ${(e as Error).message}`);
+      return { status: 'failed', error: (e as Error).message };
+    }
+  }
 }
 @Injectable()
 export class SmsChannel extends StubChannel {
