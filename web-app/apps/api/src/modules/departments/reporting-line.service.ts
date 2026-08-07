@@ -103,12 +103,16 @@ export class ReportingLineService {
   async syncOrganization(orgId: string, opts: { force?: boolean } = {}) {
     const all = await this.prisma.employee.findMany({
       where: { organizationId: orgId, deletedAt: null },
-      select: { id: true, managerId: true },
+      select: { id: true, managerId: true, manager: { select: { deletedAt: true } } },
     });
     let fixed = 0;
     for (const e of all) {
       const selfReferencing = e.managerId === e.id;
-      if (!opts.force && e.managerId && !selfReferencing) continue;
+      // A manager who has left is a broken pointer, not a deliberate choice —
+      // requests would route to someone who can no longer act. Repair those
+      // even in gap-fill mode, alongside genuinely empty ones.
+      const managerGone = !!e.managerId && !!e.manager?.deletedAt;
+      if (!opts.force && e.managerId && !selfReferencing && !managerGone) continue;
       const should = await this.managerFor(orgId, e.id);
       if (should !== e.managerId) {
         await this.prisma.employee.update({ where: { id: e.id }, data: { managerId: should } });
