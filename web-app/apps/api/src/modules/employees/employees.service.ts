@@ -337,8 +337,21 @@ export class EmployeesService {
     await this.prisma.$transaction(async (tx) => {
       await tx.employee.update({ where: { id }, data: { deletedAt: now, updatedById: userId } });
       if (emp.userId) {
-        await tx.user.update({ where: { id: emp.userId }, data: { status: UserStatus.disabled } });
+        // Soft-delete the login too, not just disable it. A merely disabled
+        // account still occupies its e-mail address, so the same person could
+        // never be re-hired and a mistyped address could never be reused.
+        // The row is kept for the audit trail; the partial unique indexes mean
+        // it no longer reserves the address.
+        await tx.user.update({
+          where: { id: emp.userId },
+          data: { status: UserStatus.disabled, deletedAt: now },
+        });
         await tx.refreshToken.updateMany({ where: { userId: emp.userId, revokedAt: null }, data: { revokedAt: now } });
+        // Any outstanding invitation or reset link dies with the account.
+        await tx.accountToken.updateMany({
+          where: { userId: emp.userId, usedAt: null },
+          data: { usedAt: now },
+        });
       }
     });
     return { success: true };
@@ -347,10 +360,31 @@ export class EmployeesService {
   async restore(orgId: string, id: string) {
     const emp = await this.prisma.employee.findFirst({ where: { id, organizationId: orgId, deletedAt: { not: null } } });
     if (!emp) throw new NotFoundException('Deleted employee not found');
+
+    // Their address may have been reissued to somebody else while they were
+    // gone. Restoring on top of that would resurrect a duplicate, so say so
+    // plainly instead of failing on a constraint deep in the transaction.
+    if (emp.workEmail) {
+      const taken = await this.prisma.employee.findFirst({
+        where: { organizationId: orgId, deletedAt: null, workEmail: emp.workEmail, id: { not: id } },
+        select: { id: true },
+      });
+      if (taken) {
+        throw new ConflictException(
+          `Cannot restore: ${emp.workEmail} now belongs to another employee. Change that address first.`,
+        );
+      }
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.employee.update({ where: { id }, data: { deletedAt: null } });
-      // Re-enable the login that delete disabled (they must sign in again).
-      if (emp.userId) await tx.user.update({ where: { id: emp.userId }, data: { status: UserStatus.active } });
+      // Bring the login back with the employee (they must sign in again).
+      if (emp.userId) {
+        await tx.user.update({
+          where: { id: emp.userId },
+          data: { status: UserStatus.active, deletedAt: null },
+        });
+      }
     });
     return { success: true };
   }

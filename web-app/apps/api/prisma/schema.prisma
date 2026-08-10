@@ -484,7 +484,10 @@ model Employee {
   assetAssignments   AssetAssignment[]   @relation("AssetAssignments")
 
   @@unique([organizationId, employeeCode])
-  @@unique([organizationId, workEmail])
+  // NOTE: uniqueness of workEmail is a PARTIAL index (only where deletedAt IS
+  // NULL) created in migration 13 — Prisma cannot express that, so it is not
+  // declared here. A soft-deleted employee must release their address so the
+  // person can be re-hired.
   @@index([organizationId, status])
   @@index([departmentId])
   @@index([managerId])
