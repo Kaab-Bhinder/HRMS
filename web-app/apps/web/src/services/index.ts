@@ -301,6 +301,18 @@ export const accountService = {
     api.post<{ success: boolean }>('/auth/set-password', { token, password }),
 };
 
+export const workEmailService = {
+  /** A free work address built from a name, plus the domain it used. */
+  suggest: (firstName: string, lastName: string) =>
+    api.get<{ email: string | null; domain: string | null; available: boolean }>(
+      `/employees/suggest-email?firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`,
+    ),
+  check: (email: string, employeeId?: string) =>
+    api.get<{ available: boolean }>(
+      `/employees/check-email?email=${encodeURIComponent(email)}${employeeId ? `&employeeId=${employeeId}` : ''}`,
+    ),
+};
+
 export const travelService = {
   list: (p?: ListParams & { status?: string; employeeId?: string }) =>
     api.get<Paginated<TravelRequest>>(`/travel${qs(p as ListParams)}`),

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Check, Monitor, Smartphone } from 'lucide-react';
+import { Copy, Check, Monitor, Smartphone, Lock, Pencil } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { Input, Select, Label } from '../../components/ui/Input';
@@ -7,7 +7,8 @@ import { DynamicCustomField, validateCustomFields } from '../../components/forms
 import { EmployeePhoto } from '../../components/forms/EmployeePhoto';
 import { Skeleton } from '../../components/feedback/States';
 import { useQuery } from '../../hooks/useQuery';
-import { clientsService, customFieldsService, departmentsService, designationsService, employeesService, locationsService, organizationService, rolesService } from '../../services';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { workEmailService, clientsService, customFieldsService, departmentsService, designationsService, employeesService, locationsService, organizationService, rolesService } from '../../services';
 import { useToast } from '../../store/toast';
 import { usePermission } from '../../store/auth';
 import type { Employee, Role } from '../../lib/types';
@@ -64,6 +65,9 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
       } : { ...EMPTY, compensationType: org?.defaultCompensationType ?? 'hourly', departmentId: depts?.[0]?.id ?? '', designationId: desigs?.[0]?.id ?? '' });
       setCustom(employee ? { ...employee.customFields } : {});
       setErrors({});
+      setEmailTouched(false);
+      setEmailLocked(!employee);
+      setEmailTaken(false);
       setAccountRoleId('');
       setPasswordStrategy('generate');
       setCreated(null);
@@ -87,6 +91,42 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
   }, [open, employee, depts, desigs, org]);
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  // --- work e-mail: proposed from the name, then checked for collisions ------
+  // Only ever auto-fills on CREATE, and only while the field is untouched —
+  // silently rewriting an address someone typed would be worse than useless.
+  const [emailTouched, setEmailTouched] = useState(false);
+  /** Locked on create so nothing — browser autofill included — can overwrite
+   *  the generated address by accident. Unlocked when editing an existing
+   *  employee, whose address is already deliberate. */
+  const [emailLocked, setEmailLocked] = useState(true);
+  const [emailTaken, setEmailTaken] = useState(false);
+  const debouncedName = useDebouncedValue(`${form.firstName}|${form.lastName}`, 400);
+
+  useEffect(() => {
+    // Only while the field is still locked (i.e. system-owned) and untouched.
+    if (isEdit || emailTouched || !emailLocked) return;
+    const [first, last] = debouncedName.split('|');
+    if (!first?.trim() || !last?.trim()) return;
+    let alive = true;
+    workEmailService.suggest(first, last)
+      .then((r) => { if (alive && r.email) setForm((f) => ({ ...f, workEmail: r.email! })); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [debouncedName, isEdit, emailTouched, emailLocked]);
+
+  // Live collision check, so a duplicate is caught before saving rather than
+  // as a 409 from the server.
+  const debouncedEmail = useDebouncedValue(form.workEmail, 400);
+  useEffect(() => {
+    const value = debouncedEmail.trim();
+    if (!value || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) { setEmailTaken(false); return; }
+    let alive = true;
+    workEmailService.check(value, employee?.id)
+      .then((r) => { if (alive) setEmailTaken(!r.available); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [debouncedEmail, employee?.id]);
 
   // Serving-client awareness: when the chosen department is dedicated to a
   // client, surface it and preselect the client's site as the work site (the
@@ -121,6 +161,7 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
     if (!form.firstName.trim()) errs.firstName = 'First name is required';
     if (!form.lastName.trim()) errs.lastName = 'Last name is required';
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.workEmail)) errs.workEmail = 'Valid work email required';
+    else if (emailTaken) errs.workEmail = 'That address is already in use.';
     // On edit, don't force required custom fields that were never filled — you
     // shouldn't have to complete an unrelated field just to save a change.
     const cfErrs = isEdit ? {} : validateCustomFields(cfDefs ?? [], custom);
@@ -236,9 +277,52 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
             </div>
             <Field label="First name" required error={errors.firstName}><Input value={form.firstName} onChange={(e) => set('firstName', e.target.value)} invalid={!!errors.firstName} /></Field>
             <Field label="Last name" required error={errors.lastName}><Input value={form.lastName} onChange={(e) => set('lastName', e.target.value)} invalid={!!errors.lastName} /></Field>
-            <Field label="Work email" required error={errors.workEmail}><Input type="email" value={form.workEmail} onChange={(e) => set('workEmail', e.target.value)} invalid={!!errors.workEmail} /></Field>
+            <Field
+              label="Work email"
+              required
+              error={errors.workEmail || (emailTaken ? 'That address is already in use.' : undefined)}
+              hint={
+                emailLocked
+                  ? 'Generated from the name. Unlock to set it yourself.'
+                  : 'Must be unique across the organisation.'
+              }
+            >
+              <div className="flex gap-2">
+                <Input
+                  // A distinct, non-standard name and autoComplete value stops
+                  // the browser filling this the moment someone accepts an
+                  // autofill suggestion in the personal e-mail field below —
+                  // Chrome otherwise treats every type="email" input alike.
+                  name="employee-work-address"
+                  autoComplete="off"
+                  data-lpignore="true"
+                  type="email"
+                  className="flex-1"
+                  readOnly={emailLocked}
+                  value={form.workEmail}
+                  onChange={(e) => { setEmailTouched(true); set('workEmail', e.target.value); }}
+                  invalid={!!errors.workEmail || emailTaken}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setEmailLocked((v) => !v); setEmailTouched(true); }}
+                >
+                  {emailLocked ? <><Pencil className="h-3.5 w-3.5" /> Edit</> : <><Lock className="h-3.5 w-3.5" /> Lock</>}
+                </Button>
+              </div>
+            </Field>
             <Field label="Personal email" hint="Where the invitation is sent — a new hire rarely has a working company mailbox yet.">
-              <Input type="email" value={form.personalEmail} onChange={(e) => set('personalEmail', e.target.value)} placeholder="name@gmail.com" />
+              <Input
+                name="employee-personal-address"
+                autoComplete="off"
+                data-lpignore="true"
+                type="email"
+                value={form.personalEmail}
+                onChange={(e) => set('personalEmail', e.target.value)}
+                placeholder="name@gmail.com"
+              />
             </Field>
             <Field label="Phone"><Input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+92 3xx-xxxxxxx" /></Field>
             <Field label="Gender">

@@ -25,6 +25,9 @@ model Organization {
   slug                    String           @unique
   logoUrl                 String?          @map("logo_url")
   timezone                String           @default("UTC") @db.VarChar(64)
+  /// Domain work e-mails are built from, e.g. "bankmas.co.id". When unset the
+  /// system infers it from existing employees rather than guessing.
+  emailDomain             String?          @map("email_domain") @db.VarChar(120)
   locale                  String           @default("en") @db.VarChar(16)
   currency                String           @default("USD") @db.Char(3)
   // Org-wide default pay model, chosen at setup. New employees inherit it as
@@ -481,6 +484,7 @@ model Employee {
   assetAssignments   AssetAssignment[]   @relation("AssetAssignments")
 
   @@unique([organizationId, employeeCode])
+  @@unique([organizationId, workEmail])
   @@index([organizationId, status])
   @@index([departmentId])
   @@index([managerId])
