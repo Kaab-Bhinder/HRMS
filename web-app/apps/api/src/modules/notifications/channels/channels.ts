@@ -1,4 +1,5 @@
 import { createTransport, type Transporter } from 'nodemailer';
+import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { Injectable, Logger } from '@nestjs/common';
 import { NotificationChannel as Channel } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
@@ -57,16 +58,27 @@ export class EmailChannel implements NotificationChannelProvider {
   constructor() {
     const host = process.env.SMTP_HOST;
     this.from = process.env.SMTP_FROM || 'no-reply@localhost';
-    this.transport = host
-      ? createTransport({
-          host,
-          port: Number(process.env.SMTP_PORT ?? 587),
-          secure: process.env.SMTP_SECURE === 'true',
-          auth: process.env.SMTP_USER
-            ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD ?? '' }
-            : undefined,
-        })
-      : null;
+    // `family: 4` is honoured by nodemailer at runtime (it is forwarded to
+    // net.connect) but missing from its type definitions, hence the widened
+    // type rather than a blind cast.
+    const smtpOptions: SMTPTransport.Options & { family?: number } = {
+      host: host ?? '',
+      port: Number(process.env.SMTP_PORT ?? 587),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: process.env.SMTP_USER
+        ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD ?? '' }
+        : undefined,
+      // Force IPv4. Most container hosts (Render included) have no IPv6
+      // egress, but DNS returns Gmail's AAAA record first — so every send
+      // died with ENETUNREACH before a packet left the box.
+      family: 4,
+      // Fail fast rather than holding a request open for minutes when a
+      // provider is unreachable; delivery is best-effort anyway.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
+    };
+    this.transport = host ? createTransport(smtpOptions) : null;
     if (!this.transport) this.log.warn('SMTP_HOST not set — e-mails will be logged, not sent');
   }
 
