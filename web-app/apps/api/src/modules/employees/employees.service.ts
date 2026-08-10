@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { AccountTokenPurpose, Prisma, UserStatus } from '@prisma/client';
+import { AccountTokenPurpose, EmployeeStatus, Prisma, UserStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../../database/prisma.service';
 import { CustomFieldValidatorService } from '../custom-fields/custom-field-validator.service';
@@ -22,6 +22,10 @@ export interface PreparedAccount {
   generatedPassword: string | null;
 }
 
+/** Still on the payroll — resigned/terminated/retired people are not
+ *  offered for new assignments. */
+const ASSIGNABLE_STATUSES: EmployeeStatus[] = ['probation', 'active', 'on_leave', 'suspended'];
+
 @Injectable()
 export class EmployeesService {
   constructor(
@@ -33,6 +37,43 @@ export class EmployeesService {
 
   /** Role-scoped list: admins/HR see all; a department head sees only their
    *  department(s); an employee sees only themselves. */
+  /**
+   * Every "pick an employee" dropdown in the app (assign an asset, assign a
+   * task, file travel for someone, set a reviewer). Deliberately NOT the paged
+   * list: those callers want the whole roster at once, and the page cap of 100
+   * silently hid everyone after the hundredth name. Selecting four columns
+   * keeps a 600-person org to a small payload, and the same scope rules apply
+   * so a department head still only sees their own team.
+   */
+  async options(user: AuthUser, opts: { includeInactive?: boolean } = {}) {
+    const dataScope = await this.scope.resolve(user);
+    const rows = await this.prisma.employee.findMany({
+      where: {
+        ...this.scope.employeeWhere(dataScope, { excludeSelf: true }),
+        organizationId: user.organizationId,
+        deletedAt: null,
+        // People who have left should not appear as candidates for new
+        // assignments, but existing records still need to render their name,
+        // so callers displaying history can ask for them.
+        ...(opts.includeInactive ? {} : { status: { in: ASSIGNABLE_STATUSES } }),
+      },
+      select: {
+        id: true, firstName: true, lastName: true,
+        employeeCode: true, departmentId: true, status: true,
+        department: { select: { name: true } },
+      },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      fullName: `${r.firstName} ${r.lastName}`.trim(),
+      employeeCode: r.employeeCode,
+      departmentId: r.departmentId,
+      departmentName: r.department?.name ?? null,
+      status: r.status,
+    }));
+  }
+
   async list(user: AuthUser, q: QueryEmployeesDto) {
     const orgId = user.organizationId;
     const dataScope = await this.scope.resolve(user);

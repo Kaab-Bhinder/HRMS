@@ -64,8 +64,8 @@ export default function LeavePage() {
   );
   const { data, loading, error, refetch } = useQuery(() => leaveService.list(params), [params]);
 
-  // Unfiltered set for headline stats
-  const { data: all, loading: statsLoading } = useQuery(() => leaveService.list({ limit: 500 }), []);
+  // Headline stats come from the server aggregate, not from counting rows here.
+  const { data: summary, loading: statsLoading } = useQuery(() => leaveService.summary(), []);
   const { data: leaveTypes } = useQuery(() => leaveService.types(), []);
 
   const typeOptions = (leaveTypes ?? []).map((t) => ({ value: t.name, label: t.name }));
@@ -73,25 +73,15 @@ export default function LeavePage() {
   // Org-wide per-type summary, derived from actual requests — approved days and
   // still-pending days across everyone. No invented allowance.
   const typeSummary = (leaveTypes ?? []).map((t) => {
-    const rows = (all?.data ?? []).filter((r) => r.leaveType === t.name);
-    const approved = rows.filter((r) => r.status === 'approved').reduce((n, r) => n + Number(r.days || 0), 0);
-    const pending = rows.filter((r) => r.status === 'pending').reduce((n, r) => n + Number(r.days || 0), 0);
-    return { name: t.name, approved, pending, tone: typeTone(t.name) };
+    const row = summary?.byType.find((b) => b.leaveTypeId === t.id);
+    return { name: t.name, approved: row?.approved ?? 0, pending: row?.pending ?? 0, tone: typeTone(t.name) };
   });
-  const stats = useMemo(() => {
-    const rows = all?.data ?? [];
-    const now = new Date();
-    const isToday = (r: LeaveRequest) => {
-      const s = new Date(r.startDate); const e = new Date(r.endDate);
-      return r.status === 'approved' && s <= now && e >= now;
-    };
-    return {
-      pending: rows.filter((r) => r.status === 'pending').length,
-      approvedMonth: rows.filter((r) => r.status === 'approved' && new Date(r.startDate).getMonth() === now.getMonth() && new Date(r.startDate).getFullYear() === now.getFullYear()).length,
-      onLeaveToday: rows.filter(isToday).length,
-      total: rows.length,
-    };
-  }, [all]);
+  const stats = {
+    pending: summary?.pending ?? 0,
+    approvedMonth: summary?.approvedMonth ?? 0,
+    onLeaveToday: summary?.onLeaveToday ?? 0,
+    total: summary?.total ?? 0,
+  };
 
   const onSort = (key: string) => setSort((s) => ({ key, order: s.key === key && s.order === 'asc' ? 'desc' : 'asc' }));
   const clear = () => { setSearch(''); setTypeFilter('all'); setPage(1); };

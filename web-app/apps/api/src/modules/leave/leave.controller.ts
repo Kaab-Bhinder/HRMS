@@ -52,6 +52,13 @@ export class LeaveController {
 
   // --- Requests ---
 
+  @Get('summary')
+  @RequirePermissions('leave:read')
+  @ApiOperation({ summary: 'Aggregate leave figures for the dashboard cards (role-scoped)' })
+  summary(@CurrentUser() user: AuthUser) {
+    return this.service.summary(user);
+  }
+
   @Get('requests')
   @RequirePermissions('leave:read')
   @ApiOperation({ summary: 'List leave requests (paginated, filterable, searchable)' })

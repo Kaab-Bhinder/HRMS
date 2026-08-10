@@ -15,6 +15,7 @@ import { usePermission } from '../../store/auth';
 import { useToast } from '../../store/toast';
 import { formatDate } from '../../lib/format';
 import { assetsService, employeesService, type Asset, type AssetStatus } from '../../services';
+import { useEmployeeOptions } from '../../hooks/useEmployeeOptions';
 
 const STATUS_TONE: Record<AssetStatus, 'success' | 'primary' | 'warning' | 'danger' | 'neutral'> = {
   available: 'success',
@@ -277,7 +278,7 @@ function AssetFormModal({ open, onClose, asset, onSaved }: { open: boolean; onCl
 
 function AssignModal({ asset, onClose, onDone }: { asset: Asset | null; onClose: () => void; onDone: () => void }) {
   const toast = useToast();
-  const { data: emps } = useQuery(() => employeesService.list({ limit: 500 }), []);
+  const { employees } = useEmployeeOptions();
   const [employeeId, setEmployeeId] = useState('');
   const [condition, setCondition] = useState('good');
   const [notes, setNotes] = useState('');
@@ -315,7 +316,7 @@ function AssignModal({ asset, onClose, onDone }: { asset: Asset | null; onClose:
           <Label required>Employee</Label>
           <Select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}>
             <option value="">Select employee…</option>
-            {(emps?.data ?? []).map((e) => <option key={e.id} value={e.id}>{e.fullName} · {e.employeeCode}</option>)}
+            {employees.map((e) => <option key={e.id} value={e.id}>{e.fullName} · {e.employeeCode}</option>)}
           </Select>
         </div>
         <div>

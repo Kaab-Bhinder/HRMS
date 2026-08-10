@@ -134,6 +134,65 @@ export class LeaveService {
 
   // --- Requests ---
 
+  /**
+   * Headline figures for the Leave page. The page used to pull 500 rows and
+   * count them in the browser, which both exceeded the page limit (so the
+   * request failed and every figure showed zero) and would have quietly gone
+   * wrong once an org had more leave requests than one page. Counting in the
+   * database is correct at any size and ships a few numbers instead of the
+   * whole table. Same role scope as the list.
+   */
+  async summary(user: AuthUser) {
+    const dataScope = await this.scope.resolve(user);
+    const base: Prisma.LeaveRequestWhereInput = {
+      organizationId: user.organizationId,
+      deletedAt: null,
+      AND: [this.scope.byEmployee(dataScope) as Prisma.LeaveRequestWhereInput],
+    };
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const [total, pending, approvedMonth, onLeaveToday, byType] = await this.prisma.$transaction([
+      this.prisma.leaveRequest.count({ where: base }),
+      this.prisma.leaveRequest.count({ where: { ...base, status: LeaveRequestStatus.pending } }),
+      this.prisma.leaveRequest.count({
+        where: { ...base, status: LeaveRequestStatus.approved, startDate: { gte: monthStart, lt: monthEnd } },
+      }),
+      // Approved and spanning today — the leave may have started weeks ago.
+      this.prisma.leaveRequest.count({
+        where: { ...base, status: LeaveRequestStatus.approved, startDate: { lte: now }, endDate: { gte: now } },
+      }),
+      this.prisma.leaveRequest.groupBy({
+        by: ['leaveTypeId', 'status'],
+        where: { ...base, status: { in: [LeaveRequestStatus.approved, LeaveRequestStatus.pending] } },
+        orderBy: { leaveTypeId: 'asc' },
+        _sum: { days: true },
+      }),
+    ]);
+
+    const types = await this.prisma.leaveType.findMany({
+      where: { organizationId: user.organizationId },
+      select: { id: true, name: true },
+    });
+    const daysFor = (typeId: string, status: LeaveRequestStatus) =>
+      Number(byType.find((g) => g.leaveTypeId === typeId && g.status === status)?._sum?.days ?? 0);
+
+    return {
+      total,
+      pending,
+      approvedMonth,
+      onLeaveToday,
+      byType: types.map((t) => ({
+        leaveTypeId: t.id,
+        name: t.name,
+        approved: daysFor(t.id, LeaveRequestStatus.approved),
+        pending: daysFor(t.id, LeaveRequestStatus.pending),
+      })),
+    };
+  }
+
   async listRequests(user: AuthUser, q: QueryLeaveRequestsDto) {
     const orgId = user.organizationId;
     const dataScope = await this.scope.resolve(user);

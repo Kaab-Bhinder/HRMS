@@ -66,6 +66,15 @@ export class EmployeesController {
     return { available: email ? await this.workEmail.isAvailable(orgId, email, employeeId) : false };
   }
 
+  /** Flat roster for pickers — see EmployeesService.options(). Declared above
+   *  `:id` so Nest does not match "options" as an employee id. */
+  @Get('options')
+  @RequirePermissions('employees:read')
+  @ApiOperation({ summary: 'Lightweight employee list for dropdowns (no pagination)' })
+  options(@CurrentUser() user: AuthUser, @Query('includeInactive') includeInactive?: string) {
+    return this.service.options(user, { includeInactive: includeInactive === 'true' });
+  }
+
   @Get(':id')
   @RequirePermissions('employees:read')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {

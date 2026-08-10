@@ -24,6 +24,7 @@ import { usePermission } from '../../store/auth';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { formatDate } from '../../lib/format';
 import type { Task, TaskStatus, TaskPriority, Employee } from '../../lib/types';
+import { useEmployeeOptions } from '../../hooks/useEmployeeOptions';
 
 /** How much time is left until a due date, as a labelled, tone-coloured chip. */
 function timeLeft(dueDate?: string, status?: TaskStatus): { label: string; tone: 'neutral' | 'warning' | 'danger' | 'success' } | null {
@@ -297,8 +298,7 @@ function NewTaskModal({ open, onClose, onCreated }: { open: boolean; onClose: ()
   const toast = useToast();
   const { data: depts } = useQuery(() => departmentsService.tree(), []);
   // Team-scoped: a department head only sees their own team as assignees.
-  const { data: empPage } = useQuery(() => employeesService.list({ page: 1, limit: 100 }), []);
-  const team: Employee[] = empPage?.data ?? [];
+  const { employees: team } = useEmployeeOptions();
 
   const empty = { title: '', description: '', departmentId: '', priority: 'medium' as TaskPriority, status: 'todo' as TaskStatus, startDate: '', dueDate: '', estimatedHours: '' };
   const [form, setForm] = useState(empty);

@@ -23,6 +23,7 @@ import { performanceService, employeesService } from '../../services';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { formatDate, relativeTime } from '../../lib/format';
 import type { PerformanceReview, Goal } from '../../lib/types';
+import { useEmployeeOptions } from '../../hooks/useEmployeeOptions';
 
 const REVIEW_STATUS_OPTIONS = [
   { value: 'draft', label: 'Draft' },
@@ -319,7 +320,7 @@ function StartCycleModal({ open, onClose, onCreated }: { open: boolean; onClose:
 function ReviewModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const { data: cycles } = useQuery(() => performanceService.cycles(), []);
-  const { data: emps } = useQuery(() => employeesService.list({ limit: 500 }), []);
+  const { employees } = useEmployeeOptions();
   const [employeeId, setEmployeeId] = useState('');
   const [score, setScore] = useState(4);
   const [summary, setSummary] = useState('');
@@ -367,8 +368,8 @@ function ReviewModal({ open, onClose, onSaved }: { open: boolean; onClose: () =>
             className="w-full rounded-md border border-input bg-surface px-3 py-2 text-sm text-foreground focus-ring"
           >
             <option value="">Select an employee…</option>
-            {(emps?.data ?? []).map((e: any) => (
-              <option key={e.id} value={e.id}>{e.firstName} {e.lastName}{e.departmentName ? ` — ${e.departmentName}` : ''}</option>
+            {employees.map((e) => (
+              <option key={e.id} value={e.id}>{e.fullName}{e.departmentName ? ` — ${e.departmentName}` : ''}</option>
             ))}
           </select>
         </div>

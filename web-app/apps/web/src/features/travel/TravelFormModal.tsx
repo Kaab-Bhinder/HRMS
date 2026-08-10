@@ -8,6 +8,7 @@ import { travelService, clientsService, employeesService } from '../../services'
 import { useToast } from '../../store/toast';
 import { usePermission } from '../../store/auth';
 import { formatNumber } from '../../lib/format';
+import { useEmployeeOptions } from '../../hooks/useEmployeeOptions';
 
 const TRANSPORT = [
   { value: 'flight', label: 'Flight' },
@@ -25,10 +26,7 @@ export function TravelFormModal({ onClose, onSaved }: { onClose: () => void; onS
   const canSeeClients = usePermission('clients:read');
   const canFileForOthers = usePermission('employees:update');
   const { data: clients } = useQuery(() => (canSeeClients ? clientsService.list() : Promise.resolve(null)), [canSeeClients]);
-  const { data: employees } = useQuery(
-    () => (canFileForOthers ? employeesService.list({ limit: 200 }) : Promise.resolve(null)),
-    [canFileForOthers],
-  );
+  const { employees } = useEmployeeOptions();
 
   const [form, setForm] = useState({
     employeeId: '', destinationCity: '', clientId: '', purpose: '',
@@ -86,7 +84,7 @@ export function TravelFormModal({ onClose, onSaved }: { onClose: () => void; onS
             <Label>Traveller</Label>
             <Select value={form.employeeId} onChange={(e) => set('employeeId', e.target.value)}>
               <option value="">Myself</option>
-              {(employees?.data ?? []).map((e) => <option key={e.id} value={e.id}>{e.fullName}</option>)}
+              {employees.map((e) => <option key={e.id} value={e.id}>{e.fullName}</option>)}
             </Select>
           </div>
         )}

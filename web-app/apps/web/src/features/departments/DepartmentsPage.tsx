@@ -24,6 +24,7 @@ import { usePermission } from '../../store/auth';
 import { formatNumber } from '../../lib/format';
 import type { Department, Employee } from '../../lib/types';
 import { Copy, Check, ArrowRight, ArrowLeft } from 'lucide-react';
+import { useEmployeeOptions } from '../../hooks/useEmployeeOptions';
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
@@ -288,8 +289,7 @@ function DepartmentFormModal({
 }) {
   const toast = useToast();
   const isEdit = !!department;
-  const { data: empPage } = useQuery(() => employeesService.list({ page: 1, limit: 100 }), []);
-  const employees: Employee[] = empPage?.data ?? [];
+  const { employees } = useEmployeeOptions();
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(EMPTY_FORM);

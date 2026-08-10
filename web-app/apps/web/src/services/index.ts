@@ -134,8 +134,22 @@ export const sessionsService = {
 };
 
 export type CreatedEmployee = Employee & { generatedPassword?: string | null };
+export interface EmployeeOption {
+  id: string;
+  fullName: string;
+  employeeCode: string;
+  departmentId: string | null;
+  departmentName: string | null;
+  status: string;
+}
+
 export const employeesService = {
   list: (p?: ListParams) => api.get<Paginated<Employee>>(`/employees${qs(p)}`),
+  /** Whole roster, unpaginated — for "pick an employee" dropdowns. Using
+   *  list({limit:500}) here used to fail validation (the cap is 100) and left
+   *  every such dropdown empty. */
+  options: (opts?: { includeInactive?: boolean }) =>
+    api.get<EmployeeOption[]>(`/employees/options${opts?.includeInactive ? '?includeInactive=true' : ''}`),
   get: (id: string) => api.get<Employee>(`/employees/${id}`),
   create: (payload: Record<string, unknown>) => api.post<CreatedEmployee>('/employees', pick(payload, EMP_CREATE_FIELDS)),
   update: (id: string, payload: Partial<Employee>) => api.patch<Employee>(`/employees/${id}`, pick(payload, EMP_FIELDS)),
@@ -410,8 +424,19 @@ export const holidaysService = {
 };
 
 export interface LeaveType { id: string; name: string; accrualPerYear?: number | null; }
+export interface LeaveSummary {
+  total: number;
+  pending: number;
+  approvedMonth: number;
+  onLeaveToday: number;
+  byType: { leaveTypeId: string; name: string; approved: number; pending: number }[];
+}
+
 export const leaveService = {
   types: () => api.get<LeaveType[]>('/leave/types'),
+  /** Counted in the database — the page used to fetch 500 rows and tally them
+   *  client-side, which the API rejects and which breaks past one page. */
+  summary: () => api.get<LeaveSummary>('/leave/summary'),
   list: (p?: ListParams) =>
     api.get<Paginated<any>>(`/leave/requests${qs(p)}`).then((res) => ({
       ...res,
