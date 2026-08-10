@@ -3,6 +3,7 @@ import { AccountTokenPurpose, NotificationChannel as Channel, UserStatus } from 
 import { createHash, randomBytes } from 'crypto';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../../database/prisma.service';
+import { appUrl } from '../../common/utils/app-url.util';
 import { NotificationsService } from '../notifications/notifications.service';
 
 /** How long an invitation stays usable. Long enough for a weekend, short
@@ -80,7 +81,7 @@ export class AccountSetupService {
       },
     });
 
-    const link = `${(process.env.APP_URL || 'http://localhost:5173').replace(/\/$/, '')}/set-password?token=${token}`;
+    const link = `${appUrl()}/set-password?token=${token}`;
     const isInvite = purpose === AccountTokenPurpose.invite;
     const title = isInvite ? 'Your account is ready' : 'Reset your password';
     const body = isInvite

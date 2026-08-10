@@ -44,9 +44,15 @@ export async function http<T>(path: string, init: RequestInit = {}): Promise<T> 
   const json = await res.json().catch(() => null);
   if (!res.ok || json?.success === false) {
     const err = json?.error;
-    const e = new Error(err?.message ?? res.statusText) as Error & { code?: string; fields?: unknown };
+    const e = new Error(err?.message ?? res.statusText) as Error & {
+      code?: string; fields?: unknown; status?: number;
+    };
     e.code = err?.code;
     e.fields = err?.fields;
+    // Callers need the HTTP status to tell a wrong password (401) from a
+    // blocked account (403) or rate limiting (429) — the message alone is
+    // deliberately vague on the first of those.
+    e.status = res.status;
     throw e;
   }
   return (json?.meta !== undefined ? { data: json.data, meta: json.meta } : json?.data) as T;

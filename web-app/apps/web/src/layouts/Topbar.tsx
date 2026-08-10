@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Bell, Check, LogOut, Menu, Moon, Search, Settings, Sun, User } from 'lucide-react';
+import { HeaderClock } from '../components/HeaderClock';
 import { Button } from '../components/ui/Button';
 import { Avatar } from '../components/ui/Avatar';
 import { Dropdown, DropdownItem, DropdownLabel, DropdownSeparator } from '../components/ui/Dropdown';
@@ -40,6 +41,7 @@ export function Topbar({ onMenu, onSearch }: { onMenu: () => void; onSearch: () 
       </button>
 
       <div className="ml-auto flex items-center gap-1">
+        <HeaderClock />
         <button
           onClick={toggleLang}
           aria-label="Switch language"

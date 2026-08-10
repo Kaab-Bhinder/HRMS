@@ -100,7 +100,7 @@ export class ReportsService {
       : await this.buildDataset(orgId, q.module, q);
 
     const formatter = this.exporter.getFormatter(q.format);
-    const body = formatter.render(columns, rows);
+    const body = await formatter.render(columns, rows);
     const stamp = new Date().toISOString().slice(0, 10);
     const slug = def ? def.key : `${q.module}-report`;
     return { filename: `${slug}-${stamp}.${formatter.extension}`, contentType: formatter.contentType, body };

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input, Label } from '../../components/ui/Input';
 import { Checkbox } from '../../components/ui/Switch';
@@ -12,18 +12,36 @@ export default function LoginPage() {
   const { login } = useAuth();
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('ayesha.malik@acmebank.com');
-  const [password, setPassword] = useState('demo1234');
+  // Start empty: prefilled demo credentials leak into client demos and stop
+  // working the moment the seed data changes.
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /** Editing either field clears the previous failure, so a stale message
+   *  never sits under a form the person has already corrected. */
+  const edit = (setter: (v: string) => void) => (v: string) => { setError(null); setter(v); };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+    setError(null);
     setLoading(true);
-    await login(email, password);
-    setLoading(false);
-    navigate('/');
+    try {
+      await login(email, password);
+      // Navigate only on success — a failed sign-in previously fell through
+      // to navigate() as well.
+      navigate('/');
+    } catch (err) {
+      setError(friendlyAuthError(err));
+    } finally {
+      // In a `finally`, so a rejected login can never leave the button
+      // spinning forever with nothing explaining why.
+      setLoading(false);
+    }
   };
 
   return (
@@ -62,7 +80,7 @@ export default function LoginPage() {
           <form onSubmit={submit} className="space-y-4">
             <div>
               <Label htmlFor="email" required>Work email</Label>
-              <Input id="email" type="email" leftIcon={<Mail className="h-4 w-4" />} value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input id="email" type="email" leftIcon={<Mail className="h-4 w-4" />} value={email} onChange={(e) => edit(setEmail)(e.target.value)} required />
             </div>
             <div>
               {/* No self-service reset: it needs an email provider (the email
@@ -72,7 +90,7 @@ export default function LoginPage() {
                   people down a dead end. */}
               <Label htmlFor="password" required>Password</Label>
               <div className="relative">
-                <Input id="password" type={show ? 'text' : 'password'} leftIcon={<Lock className="h-4 w-4" />} value={password} onChange={(e) => setPassword(e.target.value)} required className="pr-10" />
+                <Input id="password" type={show ? 'text' : 'password'} leftIcon={<Lock className="h-4 w-4" />} value={password} onChange={(e) => edit(setPassword)(e.target.value)} required className="pr-10" />
                 <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus-ring rounded">
                   {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -81,13 +99,49 @@ export default function LoginPage() {
             <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
               <Checkbox checked={remember} onChange={setRemember} /> Keep me signed in
             </label>
-            <Button type="submit" size="lg" loading={loading} className="w-full">Sign in</Button>
+
+            {error && (
+              <div
+                role="alert"
+                aria-live="polite"
+                className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-danger"
+              >
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <Button type="submit" size="lg" loading={loading} disabled={loading || !email || !password} className="w-full">
+              {loading ? 'Signing in…' : 'Sign in'}
+            </Button>
           </form>
-          <p className="mt-6 rounded-lg border border-dashed border-border bg-surface-2/50 p-3 text-center text-xs text-muted-foreground">
-            Demo build · credentials are pre-filled. Click <span className="font-medium text-foreground">Sign in</span> to explore.
-          </p>
         </div>
       </div>
     </div>
   );
+}
+
+/**
+ * Turns an auth failure into something the person can act on. The API is
+ * deliberately vague about *which* credential was wrong — saying "no such
+ * user" would let anyone enumerate valid accounts — but the other cases are
+ * safe to state plainly, and leaving them as a raw error helps nobody.
+ */
+function friendlyAuthError(err: unknown): string {
+  const status = (err as { status?: number })?.status;
+  const raw = (err as Error)?.message ?? '';
+
+  if (status === 401 || /invalid credentials|unauthor/i.test(raw)) {
+    return 'Incorrect email or password. Please try again.';
+  }
+  if (status === 403 || /not permitted|platform/i.test(raw)) {
+    return raw || 'This account cannot sign in to the web app. Try the mobile app.';
+  }
+  if (status === 429 || /too many/i.test(raw)) {
+    return 'Too many attempts. Please wait a moment and try again.';
+  }
+  if (status === 0 || /network|fetch|failed to fetch/i.test(raw)) {
+    return 'Cannot reach the server. Check your connection and try again.';
+  }
+  return raw || 'Sign in failed. Please try again.';
 }
