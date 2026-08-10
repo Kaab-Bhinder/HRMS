@@ -83,7 +83,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const SizedBox(height: AppSpacing.xl),
                         Text(context.tr('Welcome back'), textAlign: TextAlign.center, style: context.text.displaySmall?.copyWith(color: c.primary, fontWeight: FontWeight.w800)),
                         const SizedBox(height: AppSpacing.sm),
-                        Text(context.tr('Enter your credentials to access Workforce'),
+                        Text(context.tr('Enter your credentials to access Prima'),
                             textAlign: TextAlign.center, style: context.text.bodyMedium?.copyWith(color: c.mutedForeground)),
                         const SizedBox(height: AppSpacing.xl2),
                         _Label(context.tr('Email address').toUpperCase()),
@@ -276,7 +276,7 @@ class _Footer extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         Text('Security Policy   ·   Privacy Center', style: style),
         const SizedBox(height: AppSpacing.xs),
-        Text('© 2026 Workforce Systems · Protected by 256-bit AES', style: style),
+        Text('© 2026 Prima · Protected by 256-bit AES', style: style),
       ],
     );
   }

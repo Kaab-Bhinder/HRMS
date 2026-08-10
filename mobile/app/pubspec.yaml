@@ -1,5 +1,5 @@
 name: wms_mobile
-description: "Workforce Management — mobile app for employees (attendance, leave, tasks)."
+description: "Prima — mobile app for employees (attendance, leave, tasks)."
 publish_to: 'none'
 version: 0.1.0+1
 

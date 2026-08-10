@@ -1,3 +1,4 @@
+import { setDefaultResultOrder } from 'node:dns';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
@@ -6,6 +7,15 @@ import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+
+// Resolve IPv4 before IPv6 for every outbound connection.
+//
+// Container hosts such as Render have no IPv6 egress, but DNS hands back
+// AAAA records first — so smtp.gmail.com resolved to 2404:6800:… and every
+// invitation died with ENETUNREACH before a packet left the box. Nodemailer's
+// own `family` option is not reliably honoured, so this is set at the Node
+// level where nothing can bypass it.
+setDefaultResultOrder('ipv4first');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -42,7 +52,7 @@ async function bootstrap() {
   );
 
   const swagger = new DocumentBuilder()
-    .setTitle('Workforce Management API')
+    .setTitle('Prima HR API')
     .setDescription('Admin + mobile REST API')
     .setVersion('1.0')
     .addBearerAuth()

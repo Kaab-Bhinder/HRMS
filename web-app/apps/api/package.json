@@ -2,7 +2,7 @@
   "name": "@wms/api",
   "version": "0.1.0",
   "private": true,
-  "description": "Workforce Management System — NestJS API",
+  "description": "Prima HR — NestJS API",
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",

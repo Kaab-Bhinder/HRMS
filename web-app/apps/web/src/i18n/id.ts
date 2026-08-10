@@ -876,7 +876,7 @@ export const ID: Record<string, string> = {
   'What happened this period — highlights, blockers, numbers…': 'Apa yang terjadi periode ini — sorotan, hambatan, angka…',
   'Who’s in today, by team': 'Siapa yang hadir hari ini, per tim',
   'Worked minutes': 'Menit kerja',
-  'Workforce Admin': 'Admin Workforce',
+  'Prima Admin': 'Admin Prima',
   'Workforce Mix': 'Komposisi Tenaga Kerja',
   'Your recent activity': 'Aktivitas terbaru Anda',
 

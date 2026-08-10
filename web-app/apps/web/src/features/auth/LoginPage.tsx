@@ -53,7 +53,7 @@ export default function LoginPage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-foreground/15">
             <svg viewBox="0 0 32 32" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M9 22V10l7 5 7-5v12" /></svg>
           </div>
-          <span className="font-semibold">Workforce Admin</span>
+          <span className="font-semibold">Prima Admin</span>
         </div>
         <div className="relative">
           <h1 className="max-w-md text-3xl font-semibold leading-tight">Run your entire workforce from one intelligent console.</h1>
@@ -64,7 +64,7 @@ export default function LoginPage() {
             <div><p className="text-2xl font-semibold text-primary-foreground">99.9%</p>uptime target</div>
           </div>
         </div>
-        <p className="relative text-xs text-primary-foreground/70">© 2026 Workforce Management System · Confidential</p>
+        <p className="relative text-xs text-primary-foreground/70">© 2026 Prima · Confidential</p>
       </div>
 
       {/* Form panel */}

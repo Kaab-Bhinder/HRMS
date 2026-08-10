@@ -20,7 +20,7 @@ function Brand() {
       </div>
       <div className="leading-tight">
         <p className="text-sm font-semibold text-sidebar-foreground" title={org?.name ?? ''}>
-          {org?.name || 'Workforce'}
+          {org?.name || 'Prima'}
         </p>
         <p className="text-[11px] text-sidebar-muted">Admin Console</p>
       </div>
@@ -80,7 +80,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
       <div className="border-t border-sidebar-border p-3">
         <div className="rounded-lg bg-sidebar-foreground/10 p-3">
-          <p className="text-xs font-medium text-sidebar-foreground">{orgName || 'Workforce'}</p>
+          <p className="text-xs font-medium text-sidebar-foreground">{orgName || 'Prima'}</p>
           <p className="mt-0.5 text-[11px] text-sidebar-muted">v1.0 · Live</p>
         </div>
       </div>

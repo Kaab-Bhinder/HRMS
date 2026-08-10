@@ -26,7 +26,7 @@ const Map<String, String> idStrings = {
 
   // --- Login ---
   'Welcome back': 'Selamat datang kembali',
-  'Enter your credentials to access Workforce': 'Masukkan kredensial Anda untuk mengakses Workforce',
+  'Enter your credentials to access Prima': 'Masukkan kredensial Anda untuk mengakses Prima',
   'Work email': 'Email kerja',
   'Email address': 'Alamat email',
   'Password': 'Kata sandi',

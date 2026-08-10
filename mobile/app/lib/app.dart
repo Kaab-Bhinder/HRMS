@@ -19,7 +19,7 @@ class WmsApp extends ConsumerWidget {
     final themeMode = ref.watch(themeControllerProvider);
     final lang = ref.watch(localeControllerProvider);
     return MaterialApp.router(
-      title: 'Workforce',
+      title: 'Prima',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
