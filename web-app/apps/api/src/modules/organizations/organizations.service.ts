@@ -30,7 +30,16 @@ export class OrganizationsService {
     }
     return this.prisma.organization.update({
       where: { id: orgId },
-      data: { ...dto, settings: dto.settings as Prisma.InputJsonValue | undefined },
+      data: {
+        ...dto,
+        // Stored bare so it can be concatenated directly. People paste
+        // '@pwigroup.id' or 'https://pwigroup.id/' just as often as the
+        // domain alone, and all three mean the same thing.
+        ...(dto.emailDomain !== undefined
+          ? { emailDomain: normalizeDomain(dto.emailDomain) }
+          : {}),
+        settings: dto.settings as Prisma.InputJsonValue | undefined,
+      },
     });
   }
 
@@ -86,4 +95,15 @@ export class OrganizationsService {
     const client = await this.prisma.client.findFirst({ where: { id: clientId, organizationId: orgId, deletedAt: null }, select: { id: true } });
     if (!client) throw new BadRequestException('The selected client does not exist');
   }
+}
+
+/** Reduces whatever was typed to a bare domain, or null when cleared. */
+function normalizeDomain(raw: string): string | null {
+  const cleaned = raw
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^@/, '')
+    .replace(/\/.*$/, '')
+    .toLowerCase();
+  return cleaned || null;
 }

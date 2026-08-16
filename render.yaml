@@ -30,9 +30,22 @@ services:
         value: api/v1
       - key: NODE_VERSION
         value: "20"
+      # The public address of the WEB app. Every link the system mails or sends
+      # over WhatsApp is built from this — invitations, password resets and
+      # agreement signing. Without it the code falls back to CORS_ORIGINS, which
+      # is a safety net rather than an answer: it picks *an* origin, not
+      # necessarily the right one.
+      - key: APP_URL
+        value: https://hrms-bay-iota.vercel.app
+      # Must be on the domain verified with Resend, or every send is rejected.
+      # The display name before it is free text.
+      - key: MAIL_FROM
+        value: Prima HR <no-reply@pwigroup.id>
       # Secrets are set in the Render dashboard, never in this file:
       #   DATABASE_URL          (Neon, include ?sslmode=require)
       #   CORS_ORIGINS          https://hrms-bay-iota.vercel.app
+      #   RESEND_API_KEY        resend.com → API Keys → sending access
+      #   WHATSAPP_*            Meta Business → WhatsApp → API Setup
       #   JWT_ACCESS_SECRET     openssl rand -base64 48
       #   JWT_REFRESH_SECRET    openssl rand -base64 48
       #   COOKIE_SECRET         openssl rand -base64 48
@@ -58,4 +71,17 @@ services:
       - key: S3_ACCESS_KEY_ID
         sync: false
       - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      # Without this the e-mail channel falls back to SMTP, and with no SMTP
+      # host it only LOGS messages and reports them queued — which looks like
+      # success and delivers nothing. This is the one value that has to be
+      # pasted by hand before invitations work in production.
+      - key: RESEND_API_KEY
+        sync: false
+      # WhatsApp: leave unset until the Meta templates are approved. The channel
+      # logs what it would have sent rather than failing, so the app is safe to
+      # deploy without them.
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
         sync: false

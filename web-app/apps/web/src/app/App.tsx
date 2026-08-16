@@ -29,6 +29,8 @@ const AnalyticsPage = lazy(() => import('../features/analytics/AnalyticsPage'));
 const ReportsPage = lazy(() => import('../features/reports/ReportsPage'));
 const ReportingPage = lazy(() => import('../features/reporting/ReportsPage'));
 const MemosPage = lazy(() => import('../features/memos/MemosPage'));
+const AgreementsPage = lazy(() => import('../features/agreements/AgreementsPage'));
+const SignAgreementPage = lazy(() => import('../features/agreements/SignAgreementPage'));
 const NotificationsPage = lazy(() => import('../features/notifications/NotificationsPage'));
 const AuditLogsPage = lazy(() => import('../features/audit-logs/AuditLogsPage'));
 const CustomFieldsPage = lazy(() => import('../features/custom-fields/CustomFieldsPage'));
@@ -52,6 +54,9 @@ export default function App() {
       {/* Public by design: the person has no password yet, so they cannot be
           asked to sign in before setting one. */}
       <Route path="/set-password" element={<Suspended><SetPasswordPage /></Suspended>} />
+      {/* Public: a counterparty signing a contract with the company has no
+          account here, so the token in the link is the credential. */}
+      <Route path="/sign/:token" element={<Suspended><SignAgreementPage /></Suspended>} />
       <Route element={<ProtectedRoute />}>
         <Route
           element={<AdminLayout />}
@@ -76,6 +81,7 @@ export default function App() {
           <Route path="/reports" element={<Suspended><ReportsPage /></Suspended>} />
           <Route path="/reporting" element={<Suspended><ReportingPage /></Suspended>} />
           <Route path="/memos" element={<Suspended><MemosPage /></Suspended>} />
+          <Route path="/agreements" element={<Suspended><AgreementsPage /></Suspended>} />
           <Route path="/notifications" element={<Suspended><NotificationsPage /></Suspended>} />
           <Route path="/audit-logs" element={<Suspended><AuditLogsPage /></Suspended>} />
           <Route path="/custom-fields" element={<Suspended><CustomFieldsPage /></Suspended>} />

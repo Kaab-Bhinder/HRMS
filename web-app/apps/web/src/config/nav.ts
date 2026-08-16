@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, UserCog, Building2, BriefcaseBusiness, ShieldCheck, ListChecks, CalendarClock,
   CalendarDays, TrendingUp, BarChart3, FileText, ClipboardList, Bell, ScrollText, Settings,
-  Building, SlidersHorizontal, Wallet, MapPinned, Handshake, Package, type LucideIcon, Plane, MessagesSquare } from 'lucide-react';
+  Building, SlidersHorizontal, Wallet, MapPinned, Handshake, Package, type LucideIcon, Plane, MessagesSquare, FileSignature } from 'lucide-react';
 
 export interface NavItem {
   label: string;
@@ -44,6 +44,7 @@ export const NAV: NavSection[] = [
       { label: 'Performance', to: '/performance', icon: TrendingUp, permission: 'performance:read' },
       // No permission gate: anyone may correspond, and each memo is visibility-checked per record.
       { label: 'Internal Memos', to: '/memos', icon: MessagesSquare },
+      { label: 'Agreements', to: '/agreements', icon: FileSignature, permission: 'employees:read' },
     ],
   },
   {

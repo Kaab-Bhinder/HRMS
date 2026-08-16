@@ -4,6 +4,7 @@ import { AssistantWidget } from '../components/AssistantWidget';
 import { Sidebar, MobileSidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { CommandPalette } from './CommandPalette';
+import { NotificationWatcher } from '../components/NotificationWatcher';
 
 export function AdminLayout() {
   const [mobileNav, setMobileNav] = useState(false);
@@ -22,6 +23,8 @@ export function AdminLayout() {
 
   return (
     <div className="flex min-h-screen bg-background">
+      {/* Polls for new notifications and raises a toast for each. */}
+      <NotificationWatcher />
       <Sidebar />
       <MobileSidebar open={mobileNav} onClose={() => setMobileNav(false)} />
       <div className="flex min-w-0 flex-1 flex-col">

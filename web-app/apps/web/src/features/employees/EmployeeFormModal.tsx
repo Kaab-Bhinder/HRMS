@@ -20,7 +20,11 @@ const EMPTY = {
   compensationType: 'hourly', basicSalary: '', payPerHour: '',
 };
 
-interface CreatedAccount { name: string; email: string; role: string; password: string | null; }
+interface CreatedAccount {
+  name: string; email: string; role: string; password: string | null;
+  /** Present when an invitation really went out, with the address it went to. */
+  invite: { sentTo: string; expiresInHours: number } | null;
+}
 
 export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: boolean; onClose: () => void; employee?: Employee | null; onSaved: () => void }) {
   const toast = useToast();
@@ -225,6 +229,7 @@ export function EmployeeFormModal({ open, onClose, employee, onSaved }: { open: 
           email: res.accountEmail ?? form.workEmail,
           role: res.accountRoles?.[0] ?? selectedRole?.name ?? 'Employee',
           password: res.generatedPassword ?? null,
+          invite: res.invite ?? null,
         });
       }
     } catch (e) {
@@ -508,8 +513,19 @@ function AccountCreated({ info }: { info: CreatedAccount }) {
         </div>
       ) : (
         <p className="rounded-lg border border-border bg-surface-2/30 px-3.5 py-2.5 text-sm text-muted-foreground">
-          The account was created as <span className="font-medium text-foreground">invited</span>. The employee will set their own password
-          (email delivery is wired up when the email provider is connected — until then, use “Reset password” on the Users page to set one).
+          {info.invite ? (
+            <>
+              An invitation was sent to <span className="font-medium text-foreground">{info.invite.sentTo}</span>.
+              They set their own password from the link, which is valid for {info.invite.expiresInHours} hours.
+              If it does not arrive, use <span className="font-medium text-foreground">Resend invitation</span> on the Users page.
+            </>
+          ) : (
+            <>
+              The account was created as <span className="font-medium text-foreground">invited</span>, but the
+              invitation e-mail could not be sent. Use <span className="font-medium text-foreground">Resend invitation</span> on
+              the Users page, or set a password there directly.
+            </>
+          )}
         </p>
       )}
     </div>

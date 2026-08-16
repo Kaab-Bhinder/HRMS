@@ -133,7 +133,11 @@ export const sessionsService = {
   revokeAllForUser: (userId: string) => api.del<{ success: boolean; revoked: number }>(`/users/${userId}/sessions`),
 };
 
-export type CreatedEmployee = Employee & { generatedPassword?: string | null };
+export type CreatedEmployee = Employee & {
+  generatedPassword?: string | null;
+  /** Returned when the 'send invitation' strategy actually dispatched one. */
+  invite?: { sentTo: string; expiresInHours: number; link: string } | null;
+};
 export interface EmployeeOption {
   id: string;
   fullName: string;
@@ -665,10 +669,12 @@ export interface OrganizationProfile {
   currency?: string | null;
   defaultCompensationType?: CompensationType;
   logoUrl?: string | null;
+  /** Domain new work e-mail addresses are built on, e.g. pwigroup.id */
+  emailDomain?: string | null;
   settings?: Record<string, unknown> | null;
 }
 
-const ORG_COLUMN_FIELDS = ['name', 'legalName', 'timezone', 'locale', 'currency', 'defaultCompensationType', 'logoUrl'];
+const ORG_COLUMN_FIELDS = ['name', 'legalName', 'timezone', 'locale', 'currency', 'defaultCompensationType', 'logoUrl', 'emailDomain'];
 const ORG_SETTING_FIELDS = ['registrationNo', 'fiscalYearStart', 'setupCompleted'];
 
 export const organizationService = {
@@ -818,4 +824,34 @@ export const memosService = {
     api.post<Memo>('/memos', payload),
   markRead: (id: string) => api.post<{ success: boolean }>(`/memos/${id}/read`),
   unreadCount: () => api.get<{ count: number }>('/memos/unread-count'),
+};
+
+// --- Agreements & digital signatures ---
+export interface AgreementSigner {
+  id: string; name: string; phone: string | null; email: string | null;
+  status: 'pending' | 'viewed' | 'signed' | 'declined';
+  signedAt: string | null; viewedAt: string | null; declineReason: string | null; hasSignature: boolean;
+}
+export interface Agreement {
+  id: string; title: string; body: string; status: string; bodyHash: string;
+  createdByName: string; createdAt: string; sentAt: string | null; completedAt: string | null;
+  expiresAt: string | null; signers: AgreementSigner[]; signedCount: number; totalSigners: number;
+}
+export interface AgreementTemplate { id: string; name: string; body: string; isActive: boolean }
+
+export const agreementsService = {
+  list: (p?: ListParams) => api.get<Paginated<Agreement>>(`/agreements${qs(p)}`),
+  get: (id: string) => api.get<Agreement>(`/agreements/${id}`),
+  create: (payload: {
+    title: string; body?: string; templateId?: string;
+    signers: { employeeId?: string; name?: string; phone?: string; email?: string }[];
+  }) => api.post<Agreement>('/agreements', payload),
+  /** Issues a fresh link per unsigned signer and messages them on WhatsApp. */
+  send: (id: string) =>
+    api.post<{ sent: number; recipients: { signer: string; delivered: boolean; link: string }[] }>(
+      `/agreements/${id}/send`, {}),
+  templates: () => api.get<AgreementTemplate[]>('/agreements/templates'),
+  createTemplate: (payload: { name: string; body: string }) =>
+    api.post<AgreementTemplate>('/agreements/templates', payload),
+  removeTemplate: (id: string) => api.del<{ success: boolean }>(`/agreements/templates/${id}`),
 };

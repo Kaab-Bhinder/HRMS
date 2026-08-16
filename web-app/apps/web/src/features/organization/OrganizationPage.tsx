@@ -25,6 +25,7 @@ type GeneralSettings = {
   legalName: string;
   timezone: string;
   currency: string;
+  emailDomain: string;
   defaultCompensationType: 'monthly' | 'hourly';
 };
 
@@ -33,6 +34,7 @@ const SEED_GENERAL: GeneralSettings = {
   legalName: '',
   timezone: DEFAULT_TIMEZONE,
   currency: 'USD',
+  emailDomain: '',
   defaultCompensationType: 'hourly',
 };
 
@@ -78,6 +80,7 @@ function GeneralTab() {
       name: org.name ?? '',
       legalName: org.legalName ?? '',
       timezone: org.timezone ?? SEED_GENERAL.timezone,
+      emailDomain: org.emailDomain ?? '',
       currency: org.currency ?? SEED_GENERAL.currency,
       defaultCompensationType: org.defaultCompensationType ?? SEED_GENERAL.defaultCompensationType,
     });
@@ -127,6 +130,16 @@ function GeneralTab() {
                 </optgroup>
               ))}
             </Select>
+          </Row>
+          <Row
+            label="Work email domain"
+            hint="New employees get first.last@this-domain. Leave blank and the system guesses it from existing staff."
+          >
+            <Input
+              value={form.emailDomain}
+              onChange={(e) => set('emailDomain', e.target.value)}
+              placeholder="pwigroup.id"
+            />
           </Row>
           <Row label="Currency">
             <Select value={form.currency} onChange={(e) => set('currency', e.target.value)}>
@@ -340,11 +353,14 @@ function LocationsTab() {
   );
 }
 
-function Row({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Row({ label, required, hint, children }: {
+  label: string; required?: boolean; hint?: string; children: React.ReactNode;
+}) {
   return (
     <div>
       <Label required={required}>{label}</Label>
       {children}
+      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }

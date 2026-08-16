@@ -10,6 +10,10 @@ export class UpdateOrganizationDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(3) currency?: string;
   @ApiPropertyOptional({ enum: CompensationType, description: 'Default pay model new employees inherit.' })
   @IsOptional() @IsEnum(CompensationType) defaultCompensationType?: CompensationType;
+  /** The domain new work e-mail addresses are generated on. Without it the
+   *  system infers one from existing staff, which is only ever a guess. */
+  @ApiPropertyOptional({ description: 'e.g. pwigroup.id — no @ or scheme' })
+  @IsOptional() @IsString() @MaxLength(120) emailDomain?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() logoUrl?: string;
   @ApiPropertyOptional({ type: 'object', additionalProperties: true }) @IsOptional() @IsObject() settings?: Record<string, unknown>;
 }
