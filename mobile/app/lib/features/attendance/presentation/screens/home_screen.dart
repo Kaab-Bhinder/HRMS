@@ -35,6 +35,7 @@ import '../widgets/check_in_sheet.dart';
 import '../../../notifications/notifications_screen.dart';
 import '../../../travel/travel_screen.dart';
 import '../../../agreements/agreements_screen.dart';
+import '../../../memos/memos_screen.dart';
 import 'attendance_records_screen.dart';
 import '../../../../core/i18n/app_i18n.dart';
 
@@ -612,6 +613,13 @@ class _QuickActions extends ConsumerWidget {
           tone: AppColors.swatches[4],
           caption: 'request and report trips',
           onTap: () => go(const TravelScreen()),
+        ),
+        SoftTile(
+          icon: Icons.forum_rounded,
+          title: 'Memos',
+          tone: AppColors.swatches[1],
+          caption: 'message anyone in the company',
+          onTap: () => go(const MemosScreen()),
         ),
         SoftTile(
           icon: Icons.draw_rounded,

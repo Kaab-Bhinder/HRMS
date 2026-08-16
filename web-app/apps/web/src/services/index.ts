@@ -799,8 +799,20 @@ export const memosService = {
       `/memos/directory${q ? `?${q}` : ''}`,
     );
   },
-  list: (params?: ListParams & { box?: 'inbox' | 'sent'; unreadOnly?: string }) =>
-    api.get<Paginated<Memo>>(`/memos${qs(params as ListParams)}`),
+  /**
+   * `box` and `unreadOnly` are appended by hand: qs() only serialises the
+   * standard list params plus `filters`, so passing them at the top level
+   * dropped them silently and every request came back as the inbox.
+   */
+  list: (params: ListParams & { box?: 'inbox' | 'sent'; unreadOnly?: boolean } = {}) => {
+    const { box, unreadOnly, ...rest } = params;
+    const base = qs(rest as ListParams);
+    const extra = new URLSearchParams();
+    if (box) extra.set('box', box);
+    if (unreadOnly) extra.set('unreadOnly', 'true');
+    const tail = extra.toString();
+    return api.get<Paginated<Memo>>(`/memos${base}${tail ? (base ? '&' : '?') + tail : ''}`);
+  },
   get: (id: string) => api.get<Memo>(`/memos/${id}`),
   send: (payload: { subject: string; body: string; recipientEmployeeIds: string[] }) =>
     api.post<Memo>('/memos', payload),
