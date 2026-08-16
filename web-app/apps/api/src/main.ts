@@ -7,6 +7,7 @@ import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { reportAppUrl } from './common/utils/app-url.util';
 
 // Resolve IPv4 before IPv6 for every outbound connection.
 //
@@ -65,5 +66,8 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
   const logger = app.get(Logger);
   logger.log(`API ready → http://localhost:${port}/${prefix}  (docs: /${prefix}/docs)`);
+  // Surfaces a misconfigured public URL at boot rather than when an
+  // invitation link turns out to be dead.
+  reportAppUrl();
 }
 bootstrap();
