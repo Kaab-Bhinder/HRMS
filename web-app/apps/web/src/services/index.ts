@@ -765,3 +765,45 @@ export const notificationPrefsService = {
   set: (eventKey: string, channel: string, isEnabled: boolean) =>
     api.patch<NotificationPreference>('/notifications/preferences', { eventKey, channel, isEnabled }),
 };
+
+// --- Internal memos (cross-department messages) ---
+export interface MemoRecipientRow { name: string; department: string; readAt: string | null }
+export interface Memo {
+  id: string;
+  subject: string;
+  body: string;
+  attachments: unknown[];
+  senderName: string;
+  senderDepartment: string;
+  isMine: boolean;
+  createdAt: string;
+  readAt: string | null;
+  myRole: 'sender' | 'to' | 'oversight' | null;
+  recipients: MemoRecipientRow[];
+  oversightCount: number;
+}
+export interface MemoDepartment { id: string; name: string; parentId: string | null; memberCount: number }
+export interface MemoPerson {
+  id: string; employeeCode: string; name: string; workEmail: string;
+  departmentId: string | null; department: string; designation: string;
+}
+
+export const memosService = {
+  /** No argument = department list; a department id or a search term = people. */
+  directory: (params: { departmentId?: string; search?: string } = {}) => {
+    const qp = new URLSearchParams();
+    if (params.departmentId) qp.set('departmentId', params.departmentId);
+    if (params.search) qp.set('search', params.search);
+    const q = qp.toString();
+    return api.get<{ mode: 'departments'; departments: MemoDepartment[] } | { mode: 'people'; people: MemoPerson[] }>(
+      `/memos/directory${q ? `?${q}` : ''}`,
+    );
+  },
+  list: (params?: ListParams & { box?: 'inbox' | 'sent'; unreadOnly?: string }) =>
+    api.get<Paginated<Memo>>(`/memos${qs(params as ListParams)}`),
+  get: (id: string) => api.get<Memo>(`/memos/${id}`),
+  send: (payload: { subject: string; body: string; recipientEmployeeIds: string[] }) =>
+    api.post<Memo>('/memos', payload),
+  markRead: (id: string) => api.post<{ success: boolean }>(`/memos/${id}/read`),
+  unreadCount: () => api.get<{ count: number }>('/memos/unread-count'),
+};

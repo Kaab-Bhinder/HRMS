@@ -1230,6 +1230,168 @@ model Report {
   @@map("reports")
 }
 
+enum AgreementStatus {
+  draft
+  sent
+  partially_signed
+  completed
+  declined
+  cancelled
+}
+
+enum SignerStatus {
+  pending
+  viewed
+  signed
+  declined
+}
+
+/// A reusable agreement body owned by the administrator. `{{name}}`,
+/// `{{date}}` and `{{company}}` are substituted when an agreement is raised.
+model AgreementTemplate {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String    @db.VarChar(150)
+  body           String
+  isActive       Boolean   @default(true) @map("is_active")
+  createdById    String?   @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  agreements Agreement[]
+
+  @@index([organizationId, isActive])
+  @@map("agreement_templates")
+}
+
+/// One document out for signature. `body` is a SNAPSHOT taken when the
+/// agreement is raised — editing the template afterwards must never change what
+/// somebody already signed.
+model Agreement {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  templateId     String?         @map("template_id") @db.Uuid
+  title          String          @db.VarChar(200)
+  body           String
+  status         AgreementStatus @default(draft)
+  /// SHA-256 of the body, fixed at creation. Proves the text a signer accepted
+  /// is the text stored now.
+  bodyHash       String          @map("body_hash") @db.VarChar(64)
+
+  createdByUserId String    @map("created_by_user") @db.Uuid
+  createdByName   String    @map("created_by_name") @db.VarChar(150)
+  sentAt          DateTime? @map("sent_at")
+  completedAt     DateTime? @map("completed_at")
+  expiresAt       DateTime? @map("expires_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  template AgreementTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  signers  AgreementSigner[]
+
+  @@index([organizationId, status])
+  @@map("agreements")
+}
+
+/// A person who must sign, and the audit trail of their doing so. The link they
+/// receive is a random token stored only as a hash, so a database read cannot be
+/// turned back into a working signing URL.
+model AgreementSigner {
+  id             String  @id @default(uuid()) @db.Uuid
+  agreementId    String  @map("agreement_id") @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  name           String  @db.VarChar(150)
+  phone          String? @db.VarChar(30)
+  email          String? @db.VarChar(255)
+  employeeId     String? @map("employee_id") @db.Uuid
+  orderIndex     Int     @default(0) @map("order_index") @db.SmallInt
+
+  status    SignerStatus @default(pending)
+  tokenHash String       @unique @map("token_hash")
+  expiresAt DateTime     @map("expires_at")
+
+  viewedAt      DateTime? @map("viewed_at")
+  signedAt      DateTime? @map("signed_at")
+  declinedAt    DateTime? @map("declined_at")
+  declineReason String?   @map("decline_reason")
+
+  /// The captured signature, background already removed, as a transparent PNG.
+  /// Kept inline rather than in file storage: a few kilobytes that must never
+  /// become separable from the record they authenticate.
+  signaturePng    Bytes?  @map("signature_png")
+  signedIp        String? @map("signed_ip") @db.VarChar(60)
+  signedUserAgent String? @map("signed_user_agent") @db.VarChar(300)
+
+  notifiedAt DateTime? @map("notified_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  agreement Agreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+
+  @@index([agreementId, orderIndex])
+  @@index([organizationId, status])
+  @@map("agreement_signers")
+}
+
+enum MemoRecipientKind {
+  /// Chosen by the sender.
+  to
+  /// Added automatically so management can see what moves between departments.
+  oversight
+}
+
+/// A memo sent from one person to another anywhere in the organisation —
+/// sideways between departments, not only up the reporting line the way
+/// `Report` travels. Sender and department names are denormalized so the record
+/// still reads correctly after a transfer or a rename.
+model Memo {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  subject        String  @db.VarChar(200)
+  body           String
+  attachments    Json    @default("[]") // [{fileId, fileName, sizeBytes, mimeType}]
+  senderUserId   String  @map("sender_user") @db.Uuid
+  senderEmpId    String? @map("sender_emp") @db.Uuid
+  senderName     String  @map("sender_name") @db.VarChar(150)
+  senderDeptId   String? @map("sender_dept") @db.Uuid
+  senderDeptName String? @map("sender_dept_name") @db.VarChar(150)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  recipients MemoRecipient[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, senderUserId])
+  @@map("memos")
+}
+
+/// One row per person a memo reached. Read state lives here rather than on the
+/// memo, so a memo read by its recipient is still unread for the oversight copy.
+model MemoRecipient {
+  id             String            @id @default(uuid()) @db.Uuid
+  memoId         String            @map("memo_id") @db.Uuid
+  organizationId String            @map("organization_id") @db.Uuid
+  userId         String            @map("user_id") @db.Uuid
+  employeeId     String?           @map("employee_id") @db.Uuid
+  name           String            @db.VarChar(150)
+  departmentName String?           @map("department_name") @db.VarChar(150)
+  kind           MemoRecipientKind @default(to)
+  readAt         DateTime?         @map("read_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  memo Memo @relation(fields: [memoId], references: [id], onDelete: Cascade)
+
+  /// Someone who is both a chosen recipient and an oversight copy gets one row,
+  /// not two — the direct role wins.
+  @@unique([memoId, userId])
+  @@index([organizationId, userId, readAt])
+  @@map("memo_recipients")
+}
+
 // ============================================================================
 //  PHASE 4 — Performance, Notifications, Reports, Analytics, Audit, Settings
 // ============================================================================

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Plus, Play, Download, MoreHorizontal, Pencil, Trash2, Clock,
-  CalendarCheck, Wallet, CalendarOff, Users, Target, FileText,
+  CalendarCheck, Wallet, CalendarOff, Users, Target, FileText, Laptop,
 } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader';
 import { FilterBar } from '../../components/FilterBar';
@@ -22,7 +22,7 @@ import { usePermission } from '../../store/auth';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { relativeTime, pluralize } from '../../lib/format';
 
-type ReportModule = 'Attendance' | 'Payroll' | 'Leave' | 'Employees' | 'Performance';
+type ReportModule = 'Attendance' | 'Payroll' | 'Leave' | 'Employees' | 'Performance' | 'Assets';
 type ReportFormat = 'PDF' | 'Excel' | 'CSV';
 
 interface ScheduledReport {
@@ -35,7 +35,7 @@ interface ScheduledReport {
   lastRun: string;
 }
 
-const MODULES: ReportModule[] = ['Attendance', 'Payroll', 'Leave', 'Employees', 'Performance'];
+const MODULES: ReportModule[] = ['Attendance', 'Payroll', 'Leave', 'Employees', 'Performance', 'Assets'];
 const FORMATS: ReportFormat[] = ['PDF', 'Excel', 'CSV'];
 
 const MODULE_META: Record<
@@ -47,6 +47,7 @@ const MODULE_META: Record<
   Leave: { icon: CalendarOff, tone: 'warning', iconClass: 'bg-warning/15 text-warning' },
   Employees: { icon: Users, tone: 'info', iconClass: 'bg-info/12 text-info' },
   Performance: { icon: Target, tone: 'accent', iconClass: 'bg-accent/15 text-accent' },
+  Assets: { icon: Laptop, tone: 'info', iconClass: 'bg-info/12 text-info' },
 };
 
 const FORMAT_TONE: Record<ReportFormat, 'danger' | 'success' | 'info'> = {

@@ -28,6 +28,7 @@ const PerformancePage = lazy(() => import('../features/performance/PerformancePa
 const AnalyticsPage = lazy(() => import('../features/analytics/AnalyticsPage'));
 const ReportsPage = lazy(() => import('../features/reports/ReportsPage'));
 const ReportingPage = lazy(() => import('../features/reporting/ReportsPage'));
+const MemosPage = lazy(() => import('../features/memos/MemosPage'));
 const NotificationsPage = lazy(() => import('../features/notifications/NotificationsPage'));
 const AuditLogsPage = lazy(() => import('../features/audit-logs/AuditLogsPage'));
 const CustomFieldsPage = lazy(() => import('../features/custom-fields/CustomFieldsPage'));
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="/analytics" element={<Suspended><AnalyticsPage /></Suspended>} />
           <Route path="/reports" element={<Suspended><ReportsPage /></Suspended>} />
           <Route path="/reporting" element={<Suspended><ReportingPage /></Suspended>} />
+          <Route path="/memos" element={<Suspended><MemosPage /></Suspended>} />
           <Route path="/notifications" element={<Suspended><NotificationsPage /></Suspended>} />
           <Route path="/audit-logs" element={<Suspended><AuditLogsPage /></Suspended>} />
           <Route path="/custom-fields" element={<Suspended><CustomFieldsPage /></Suspended>} />

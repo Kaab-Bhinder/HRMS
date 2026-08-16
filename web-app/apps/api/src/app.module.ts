@@ -34,6 +34,8 @@ import { AuditModule } from './modules/audit/audit.module';
 import { PerformanceModule } from './modules/performance/performance.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { ReportingModule } from './modules/reporting/reporting.module';
+import { MemosModule } from './modules/memos/memos.module';
+import { AgreementsModule } from './modules/agreements/agreements.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SettingsModule } from './modules/settings/settings.module';
@@ -86,6 +88,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     PerformanceModule,
     ReportsModule,
     ReportingModule,
+    MemosModule,
+    AgreementsModule,
     PayrollModule,
     AnalyticsModule,
     SettingsModule,

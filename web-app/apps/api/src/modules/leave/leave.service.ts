@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { LeaveRequestStatus, Prisma } from '@prisma/client';
+import { LeaveRequestStatus, NotificationChannel as Channel, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { ApprovalService } from '../approvals/approval.service';
 import { ScopeService } from '../access/scope.service';
@@ -370,6 +370,33 @@ export class LeaveService {
 
   // --- helpers ---
 
+  /**
+   * Who actually decided, for the message the employee reads. Approval steps
+   * record the approver, not a display name, so this resolves the most recently
+   * acted step to a person. Returns null rather than guessing when the chain was
+   * empty (auto-approval) or the approver has since left.
+   */
+  private async decidedByName(subjectType: string, subjectId: string): Promise<string | null> {
+    const step = await this.prisma.approvalStep.findFirst({
+      where: { subjectType, subjectId, actedAt: { not: null } },
+      orderBy: { actedAt: 'desc' },
+      select: { approverEmployeeId: true, approverUserId: true },
+    });
+    if (!step) return null;
+    if (step.approverEmployeeId) {
+      const emp = await this.prisma.employee.findUnique({
+        where: { id: step.approverEmployeeId },
+        select: { firstName: true, lastName: true },
+      });
+      if (emp) return `${emp.firstName} ${emp.lastName}`;
+    }
+    if (step.approverUserId) {
+      const u = await this.prisma.user.findUnique({ where: { id: step.approverUserId }, select: { fullName: true } });
+      if (u?.fullName) return u.fullName;
+    }
+    return null;
+  }
+
   private async decide(orgId: string, id: string, decision: 'approved' | 'rejected', comment?: string) {
     const request = await this.getPending(orgId, id);
 
@@ -391,15 +418,26 @@ export class LeaveService {
       select: { userId: true, firstName: true },
     });
     if (applicant?.userId) {
+      const decidedBy = await this.decidedByName(SUBJECT, id);
+      const outcome = decision === 'approved' ? 'approved' : 'rejected';
+      const body =
+        decision === 'approved'
+          ? `Your ${request.days} day(s) of leave was approved${decidedBy ? ` by ${decidedBy}` : ''}.`
+          : `Your leave request was rejected${decidedBy ? ` by ${decidedBy}` : ''}${comment ? `: ${comment}` : '.'}`;
+
       await this.notifications
         .notify(orgId, applicant.userId, {}, {
           eventKey: `leave.${decision}`,
           category: 'leave',
+          // The in-app popup is the record; WhatsApp is the one they actually
+          // see the same hour. It no-ops when WhatsApp is not configured.
+          channels: [Channel.in_app, Channel.whatsapp],
           title: decision === 'approved' ? 'Leave approved' : 'Leave rejected',
-          body:
-            decision === 'approved'
-              ? `Your ${request.days} day(s) of leave was approved.`
-              : `Your leave request was rejected${comment ? `: ${comment}` : '.'}`,
+          body,
+          template: {
+            name: process.env.WHATSAPP_TEMPLATE_LEAVE ?? 'leave_decision',
+            params: [applicant.firstName, outcome, String(request.days), decidedBy ?? 'your approver'],
+          },
           data: { leaveRequestId: id },
         })
         .catch(() => undefined);

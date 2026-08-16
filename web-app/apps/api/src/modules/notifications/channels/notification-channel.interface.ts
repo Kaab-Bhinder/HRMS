@@ -8,8 +8,16 @@ export interface OutboundMessage {
   organizationId: string;
   /** Destination for off-app channels. E-mail cannot be delivered without it. */
   email?: string;
+  /** Destination for SMS and WhatsApp, in E.164 (+62…). */
+  phone?: string;
   /** Optional rich body; channels that can't render it fall back to `body`. */
   html?: string;
+  /**
+   * Pre-approved template to use for channels that require one. WhatsApp will
+   * not deliver business-initiated free text outside a 24-hour reply window, so
+   * anything the system starts must name a template Meta has approved.
+   */
+  template?: { name: string; language?: string; params?: string[] };
 }
 
 export interface DeliveryResult {

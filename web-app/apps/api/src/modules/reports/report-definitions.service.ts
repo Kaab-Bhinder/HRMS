@@ -12,7 +12,7 @@ export interface ReportDefinition {
   key: string;
   title: string;
   description: string;
-  module: 'Attendance' | 'Payroll' | 'Leave' | 'Employees' | 'Performance';
+  module: 'Attendance' | 'Payroll' | 'Leave' | 'Employees' | 'Performance' | 'Assets';
   params: ParamKind[];
   build(ctx: BuildCtx): Promise<Dataset>;
 }
@@ -529,4 +529,248 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
       };
     },
   },
+  {
+    key: 'perf-scorecard',
+    title: 'Performance Scorecard',
+    description:
+      'Measured performance for a period, computed from delivered tasks and attendance rather than from appraisal ratings.',
+    module: 'Performance',
+    params: ['month', 'department'],
+    async build(ctx) {
+      const p = period(ctx);
+      const staff = await ctx.prisma.employee.findMany({
+        where: empFilter(ctx),
+        select: {
+          id: true, employeeCode: true, firstName: true, lastName: true, dateOfJoining: true,
+          department: { select: { name: true } }, designation: { select: { title: true } },
+        },
+        orderBy: [{ firstName: 'asc' }],
+        take: CAP,
+      });
+      const ids = staff.map((e) => e.id);
+
+      // A task counts against the person it is assigned to, in the period it
+      // was DUE — not the period it happened to be created in, or the reviewer
+      // would be scoring work that was never this month's to deliver.
+      const assignments = ids.length
+        ? await ctx.prisma.taskAssignment.findMany({
+            where: {
+              employeeId: { in: ids },
+              task: {
+                organizationId: ctx.orgId,
+                deletedAt: null,
+                OR: [
+                  { dueDate: { gte: p.gte, lte: p.lte } },
+                  { completedAt: { gte: p.gte, lte: p.lte } },
+                ],
+              },
+            },
+            select: {
+              employeeId: true,
+              task: { select: { status: true, dueDate: true, completedAt: true } },
+            },
+            take: CAP * 4,
+          })
+        : [];
+
+      const days = ids.length
+        ? await ctx.prisma.attendanceDay.findMany({
+            where: { organizationId: ctx.orgId, employeeId: { in: ids }, workDate: { gte: p.gte, lte: p.lte } },
+            select: { employeeId: true, status: true, lateMinutes: true, workedMinutes: true, overtimeMinutes: true },
+            take: CAP * 4,
+          })
+        : [];
+
+      type Tally = {
+        due: number; completed: number; onTime: number; late: number; open: number;
+        scheduled: number; attended: number; lateDays: number; absent: number; leave: number; minutes: number; overtime: number;
+      };
+      const blank = (): Tally => ({
+        due: 0, completed: 0, onTime: 0, late: 0, open: 0,
+        scheduled: 0, attended: 0, lateDays: 0, absent: 0, leave: 0, minutes: 0, overtime: 0,
+      });
+      const tally = new Map<string, Tally>(ids.map((id) => [id, blank()]));
+
+      for (const a of assignments) {
+        const t = tally.get(a.employeeId);
+        if (!t) continue;
+        const { status, dueDate, completedAt } = a.task;
+        const dueInPeriod = dueDate != null && dueDate >= p.gte && dueDate <= p.lte;
+        const doneInPeriod = completedAt != null && completedAt >= p.gte && completedAt <= p.lte;
+        if (dueInPeriod) t.due += 1;
+        if (doneInPeriod) t.completed += 1;
+        if (doneInPeriod && dueDate != null) {
+          if (completedAt! <= dueDate) t.onTime += 1;
+          else t.late += 1;
+        }
+        // Still owed: was due in this period, and nothing has closed it.
+        if (dueInPeriod && completedAt == null && status !== 'done' && status !== 'cancelled') t.open += 1;
+      }
+
+      for (const d of days) {
+        const t = tally.get(d.employeeId);
+        if (!t) continue;
+        // Days off are not opportunities to attend, so they must not dilute the rate.
+        if (d.status === 'weekly_off' || d.status === 'holiday') continue;
+        t.scheduled += 1;
+        if (d.status === 'on_leave') { t.leave += 1; continue; }
+        if (d.status === 'absent') { t.absent += 1; continue; }
+        t.attended += d.status === 'half_day' ? 0.5 : 1;
+        if (d.status === 'late' || d.lateMinutes > 0) t.lateDays += 1;
+        t.minutes += d.workedMinutes;
+        t.overtime += d.overtimeMinutes;
+      }
+
+      const pct = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 1000) / 10 : '');
+
+      return {
+        columns: [
+          { key: 'employeeCode', label: 'Code' }, { key: 'name', label: 'Employee' },
+          { key: 'department', label: 'Department' }, { key: 'designation', label: 'Designation' },
+          { key: 'joined', label: 'Joined' }, { key: 'tenureMonths', label: 'Tenure (months)' },
+          { key: 'tasksDue', label: 'Tasks Due' }, { key: 'tasksCompleted', label: 'Tasks Completed' },
+          { key: 'onTime', label: 'On Time' }, { key: 'overdue', label: 'Overdue' },
+          { key: 'onTimeRate', label: 'On-Time %' },
+          { key: 'scheduledDays', label: 'Scheduled Days' }, { key: 'daysAttended', label: 'Days Attended' },
+          { key: 'lateDays', label: 'Late Days' }, { key: 'absentDays', label: 'Absent Days' },
+          { key: 'leaveDays', label: 'Leave Days' }, { key: 'hoursWorked', label: 'Hours Worked' },
+          { key: 'overtimeHours', label: 'Overtime Hours' },
+          { key: 'attendanceRate', label: 'Attendance %' },
+          { key: 'score', label: 'Score' }, { key: 'basis', label: 'Score Basis' },
+        ],
+        rows: staff.map((e) => {
+          const t = tally.get(e.id) ?? blank();
+          const attRate = t.scheduled > 0 ? t.attended / t.scheduled : null;
+          const taskRate = t.due > 0 ? t.onTime / t.due : null;
+          // Half the score is delivery, half is presence — but only for people
+          // who were actually given tasks. Scoring a teller who is never
+          // assigned any at 0% delivery would be a measurement artefact, not a
+          // performance finding, so attendance carries the whole weight there.
+          const score =
+            taskRate != null && attRate != null ? 0.5 * taskRate + 0.5 * attRate
+            : taskRate ?? attRate;
+          return {
+            employeeCode: e.employeeCode,
+            name: `${e.firstName} ${e.lastName}`,
+            department: e.department?.name ?? '',
+            designation: e.designation?.title ?? '',
+            joined: iso(e.dateOfJoining),
+            tenureMonths: tenureMonths(e.dateOfJoining, p.lte),
+            tasksDue: t.due, tasksCompleted: t.completed, onTime: t.onTime, overdue: t.open,
+            onTimeRate: pct(t.onTime, t.due),
+            scheduledDays: t.scheduled, daysAttended: t.attended, lateDays: t.lateDays,
+            absentDays: t.absent, leaveDays: t.leave,
+            hoursWorked: (t.minutes / 60).toFixed(2), overtimeHours: (t.overtime / 60).toFixed(2),
+            attendanceRate: pct(t.attended, t.scheduled),
+            score: score != null ? Math.round(score * 1000) / 10 : '',
+            basis: taskRate != null && attRate != null ? 'tasks + attendance'
+              : taskRate != null ? 'tasks only'
+              : attRate != null ? 'attendance only'
+              : 'no data',
+          };
+        }),
+      };
+    },
+  },
+  {
+    key: 'asset-register',
+    title: 'Asset Register',
+    description: 'Every asset with its tag, category, status, current holder and purchase details.',
+    module: 'Assets',
+    params: ['department'],
+    async build(ctx) {
+      const rows = await ctx.prisma.asset.findMany({
+        where: {
+          organizationId: ctx.orgId,
+          deletedAt: null,
+          // Filtering by department necessarily narrows this to assets that are
+          // currently held by someone in it — an unassigned laptop belongs to no
+          // department.
+          ...(ctx.departmentId ? { assignedTo: { departmentId: ctx.departmentId } } : {}),
+        },
+        include: {
+          assignedTo: { select: { employeeCode: true, firstName: true, lastName: true, department: { select: { name: true } } } },
+        },
+        orderBy: [{ category: 'asc' }, { assetTag: 'asc' }],
+        take: CAP,
+      });
+      const today = new Date();
+      return {
+        columns: [
+          { key: 'assetTag', label: 'Asset Tag' }, { key: 'name', label: 'Asset' }, { key: 'category', label: 'Category' },
+          { key: 'serialNumber', label: 'Serial No.' }, { key: 'status', label: 'Status' }, { key: 'condition', label: 'Condition' },
+          { key: 'holderCode', label: 'Holder Code' }, { key: 'holder', label: 'Assigned To' }, { key: 'department', label: 'Department' },
+          { key: 'purchaseDate', label: 'Purchased' }, { key: 'purchaseCost', label: 'Cost' }, { key: 'vendor', label: 'Vendor' },
+          { key: 'warrantyUntil', label: 'Warranty Until' }, { key: 'warranty', label: 'Warranty' },
+        ],
+        rows: rows.map((a) => ({
+          assetTag: a.assetTag, name: a.name, category: a.category,
+          serialNumber: a.serialNumber ?? '', status: a.status, condition: a.condition ?? '',
+          holderCode: a.assignedTo?.employeeCode ?? '',
+          holder: a.assignedTo ? `${a.assignedTo.firstName} ${a.assignedTo.lastName}` : '',
+          department: a.assignedTo?.department?.name ?? '',
+          purchaseDate: iso(a.purchaseDate), purchaseCost: a.purchaseCost != null ? Number(a.purchaseCost) : '',
+          vendor: a.vendor ?? '', warrantyUntil: iso(a.warrantyUntil),
+          warranty: a.warrantyUntil ? (a.warrantyUntil >= today ? 'in warranty' : 'expired') : '',
+        })),
+      };
+    },
+  },
+  {
+    key: 'asset-assignments',
+    title: 'Asset Assignment & Return Log',
+    description: 'Assets handed out or returned in the period, and what is still outstanding.',
+    module: 'Assets',
+    params: ['range', 'department'],
+    async build(ctx) {
+      const p = period(ctx);
+      const rows = await ctx.prisma.assetAssignment.findMany({
+        where: {
+          organizationId: ctx.orgId,
+          // An item issued last year and returned this month belongs in this
+          // month's log, so either end of the movement qualifies.
+          OR: [{ assignedAt: { gte: p.gte, lte: p.lte } }, { returnedAt: { gte: p.gte, lte: p.lte } }],
+          ...(ctx.departmentId ? { employee: { departmentId: ctx.departmentId } } : {}),
+        },
+        include: {
+          asset: { select: { assetTag: true, name: true, category: true, status: true } },
+          employee: { select: { employeeCode: true, firstName: true, lastName: true, department: { select: { name: true } } } },
+        },
+        orderBy: { assignedAt: 'desc' },
+        take: CAP,
+      });
+      const today = new Date();
+      const DAY = 24 * 60 * 60 * 1000;
+      return {
+        columns: [
+          { key: 'assetTag', label: 'Asset Tag' }, { key: 'asset', label: 'Asset' }, { key: 'category', label: 'Category' },
+          { key: 'employeeCode', label: 'Code' }, { key: 'employee', label: 'Employee' }, { key: 'department', label: 'Department' },
+          { key: 'assignedAt', label: 'Issued' }, { key: 'conditionOut', label: 'Condition Out' },
+          { key: 'returnedAt', label: 'Returned' }, { key: 'conditionIn', label: 'Condition In' },
+          { key: 'daysHeld', label: 'Days Held' }, { key: 'outstanding', label: 'Outstanding' },
+        ],
+        rows: rows.map((r) => {
+          const end = r.returnedAt ?? today;
+          return {
+            assetTag: r.asset?.assetTag ?? '', asset: r.asset?.name ?? '', category: r.asset?.category ?? '',
+            employeeCode: r.employee?.employeeCode ?? '',
+            employee: r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : '',
+            department: r.employee?.department?.name ?? '',
+            assignedAt: iso(r.assignedAt), conditionOut: r.conditionOut ?? '',
+            returnedAt: iso(r.returnedAt), conditionIn: r.conditionIn ?? '',
+            daysHeld: Math.max(0, Math.floor((end.getTime() - r.assignedAt.getTime()) / DAY)),
+            outstanding: r.returnedAt ? 'no' : 'yes',
+          };
+        }),
+      };
+    },
+  },
 ];
+
+/** Whole months between joining and the end of the reported period. */
+function tenureMonths(joined: Date | null | undefined, asOf: Date): number | '' {
+  if (!joined) return '';
+  const months =
+    (asOf.getUTCFullYear() - joined.getUTCFullYear()) * 12 + (asOf.getUTCMonth() - joined.getUTCMonth());
+  return Math.max(0, asOf.getUTCDate() >= joined.getUTCDate() ? months : months - 1);
+}

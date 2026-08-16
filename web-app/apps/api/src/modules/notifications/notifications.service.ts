@@ -15,7 +15,11 @@ export interface NotifyOptions {
   body?: string;
   /** Overrides the recipient's login address for off-app channels. */
   email?: string;
+  /** Overrides the recipient's stored number for SMS/WhatsApp, in E.164. */
+  phone?: string;
   html?: string;
+  /** Pre-approved template for channels that require one (WhatsApp). */
+  template?: { name: string; language?: string; params?: string[] };
 }
 
 /**
@@ -51,7 +55,9 @@ export class NotificationsService {
         // override (an invite goes to a PERSONAL address, which is often the
         // only one that works before the person has a company mailbox).
         email: opts.email ?? (await this.addressFor(recipientUserId)),
+        phone: opts.phone ?? (await this.phoneFor(recipientUserId)),
         html: opts.html,
+        template: opts.template,
       });
       if (channel === Channel.in_app && result.providerRef) inAppId = result.providerRef;
 
@@ -67,6 +73,15 @@ export class NotificationsService {
       });
     }
     return { delivered: enabled, inAppId };
+  }
+
+  /** The employee's mobile number, used when the caller doesn't override it. */
+  private async phoneFor(userId: string): Promise<string | undefined> {
+    const emp = await this.prisma.employee.findFirst({
+      where: { userId, deletedAt: null },
+      select: { phone: true },
+    });
+    return emp?.phone ?? undefined;
   }
 
   /** The login address, used when the caller doesn't override it. */
